@@ -52,3 +52,12 @@ def test_base_date_and_cite_parse():
 def test_local_docs_needs_folder(monkeypatch):
     monkeypatch.delenv("KOREAN_TAX_MCP_DOCS", raising=False)
     assert "KOREAN_TAX_MCP_DOCS" in _call("search_local_documents", {"query": "x"})["error"]
+
+
+def test_english_mode():
+    from korean_tax_mcp import i18n
+    r = i18n.localize({"결과": [{"구분": "질의회신", "기준일 조문과": "다른 시행본(20260701)이나 이 조 본문 동일"}]})
+    assert r == {"results": [{"type": "NTS reply", "vs_base_date_text": "different version (20260701), same article text"}]}
+    assert all("lang" in t.input_schema["properties"] for t in asyncio.run(mcp.list_tools()))
+    out = _call("casebook_search", {"query": "가지급금", "k": 1, "lang": "en"})
+    assert "results" in out and "language_note" in out
