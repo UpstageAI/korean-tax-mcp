@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · [English](README-EN.md)
 
-> 류승인 주무관님 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp)의 세법판 — 국세청 해석·판례·기본통칙·조문을 AI에서 문서번호째로.
+> 세법 쟁점을 AI에 물으면, 국세청 해석·판례·기본통칙·조문을 문서번호와 함께 가져옵니다.
 
 **이렇게 물어보세요**
 
