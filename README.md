@@ -67,3 +67,7 @@ Claude Code: `claude mcp add korean-tax -- uvx --from git+https://github.com/seu
 국세청 국세법령정보시스템 · 법제처 국가법령정보 공동활용 · 국세청 「2025 세법해석 사례집」
 
 작성 Mia(윤승미) · Upstage
+
+## 라이선스
+
+MIT
