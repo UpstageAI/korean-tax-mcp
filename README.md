@@ -2,6 +2,8 @@
 
 <!-- mcp-name: io.github.seungmiyoon/korean-tax-mcp -->
 
+![데모: 법인세법 제52조 인용 해석 조회](https://raw.githubusercontent.com/seungmiyoon/korean-tax-mcp/main/docs/demo.gif)
+
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · [English](README-EN.md)
 
 > 세법 쟁점을 AI에 물으면, 국세청 해석·판례·기본통칙·조문을 문서번호와 함께 가져옵니다.
