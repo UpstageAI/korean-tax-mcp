@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "한국 세법 근거 MCP — 국세청 질의회신·판례·기본통칙·집행기준·시점별 조문(3단)"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = ["mcp>=2.2", "uvicorn>=0.30"]
 keywords = ["mcp", "korea", "tax", "세법", "국세청"]
 
