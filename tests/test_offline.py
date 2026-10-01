@@ -11,7 +11,8 @@ def _call(name, args):
 def test_tools():
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"search_tax_rulings", "get_tax_ruling", "rulings_by_article", "basic_rules", "execution_standards",
-                     "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations"}
+                     "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations",
+                     "tax_treaty", "search_nts_publications", "search_local_documents"}
 
 
 def test_codes():
@@ -46,3 +47,8 @@ def test_base_date_and_cite_parse():
     t = "서면-2025-법인-3159, 대법원 2026두30419, 조심2025인4460, 상속세 및 증여세법 제45조의3, 국제조세조정에 관한 법률 제7조"
     assert len(list(cite.DOC.finditer(t))) == 3
     assert [m.group(1) for m in cite.LAWREF.finditer(t)] == ["상속세 및 증여세법", "국제조세조정에 관한 법률"]
+
+
+def test_local_docs_needs_folder(monkeypatch):
+    monkeypatch.delenv("KOREAN_TAX_MCP_DOCS", raising=False)
+    assert "KOREAN_TAX_MCP_DOCS" in _call("search_local_documents", {"query": "x"})["error"]

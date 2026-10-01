@@ -1,4 +1,4 @@
-# korean-tax-mcp
+# korean-tax-mcp — Korea Tax Law MCP
 
 <!-- mcp-name: io.github.seungmiyoon/korean-tax-mcp -->
 
@@ -21,6 +21,9 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 | `law_article` | Statute text as in force on a given date, plus Act → Decree → Rule delegation chain | `LAW_OC` |
 | `compare_with_case` | Compare your facts and argument with rulings: supports / contradicts / distinguish | `UPSTAGE_API_KEY` (Solar) |
 | `research_issue` | Everything that applied at a past date: statute chain, basic rules, standards, and rulings — flags statute changes and whether each ruling was issued under the same text | `LAW_OC` for statutes |
+| `tax_treaty` | Korea's tax treaties with 96 countries, article by article (Korean / English) | none |
+| `search_nts_publications` | Full-text search in NTS guidebooks — transfer pricing, APA reports, overseas business guides | none |
+| `search_local_documents` | Page-level search over PDFs you downloaded (e.g. OECD Transfer Pricing Guidelines) — set `KOREAN_TAX_MCP_DOCS` | none |
 | `verify_citations` | Check that cited ruling numbers and statute articles in a draft actually exist | `LAW_OC` for statutes |
 
 ## Install

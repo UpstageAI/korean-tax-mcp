@@ -1,4 +1,4 @@
-# korean-tax-mcp
+# korean-tax-mcp — Korea Tax Law MCP (한국 세법)
 
 <!-- mcp-name: io.github.seungmiyoon/korean-tax-mcp -->
 
@@ -17,6 +17,8 @@
 - "대표이사 무상 대여, 인정이자 익금산입 논리 — 지지·반대 판례 대조해줘"
 - "2019 사업연도 기준으로 법인세법 제52조 관련 조문·통칙·해석 정리해줘"
 - "이 의견서 초안에 인용된 문서번호랑 조문 실제로 있는지 검증해줘"
+- "한미 조세조약에서 배당 제한세율 조문 보여줘"
+- "국세청 책자에서 정상가격 산출방법 설명 찾아줘"
 
 **설치 한 줄** — `claude mcp add korean-tax -- uvx korean-tax-mcp`
 
@@ -68,6 +70,9 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `law_article` | 시점별 조문 원문, 3단 위임, 통칙·집행기준 함께 |
 | `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) |
 | `research_issue` | **그 해 기준 묶음** — 사업연도·과세기간 종료일 기준 조문 3단·통칙·집행기준·해석, 현행 대비 조문 변경, 해석마다 당시 조문과 같은지 표시 |
+| `tax_treaty` | **조세조약** 96개국 조문 (국문·영문, 키워드로 배당·고정사업장 등) |
+| `search_nts_publications` | **국세청 발간책자 본문 검색** — 이전가격·APA 연차보고서·해외진출기업 세무 가이드 등 |
+| `search_local_documents` | **내 PC의 PDF 검색** — OECD 이전가격 지침처럼 각자 받은 자료를 쪽 단위로 |
 | `verify_citations` | **인용 검증** — 초안의 문서번호·조문이 실제로 있는지 (지어낸 번호·없는 조문 찾기) |
 
 ## 함께 쓰면 좋은 MCP

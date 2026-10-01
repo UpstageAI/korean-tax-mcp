@@ -175,3 +175,42 @@ def exec_standards(law, article="", keyword=""):
            and (not keyword or keyword in e.get("ntstTextNm", ""))]
     return {"법령": law, "기준": f"{year}년 발간본" if year else "없음", "항목": out,
             "링크": f"{BASE}/st/USESTE001M.do?ntstBscId={lid}&rgtYr={year}", "주의": "집행기준 본문은 책자(PDF)라 링크에서 해당 쪽 확인"}
+
+
+# ── 조세조약 (96개국, 조문별 국문·영문) ──
+@lru_cache(maxsize=1)
+def treaties():
+    return {x["txaAgrmNtnNm"]: {"id": x["txaAgrmBscId"], "발효일": _date(x.get("valdOcrnDt", ""))}
+            for x in _act("ASISTC001MR01", {"txaAgrmClCd": "01"}).get("txaTraDVOList") or []}
+
+
+def treaty(country, article="", keyword="", english=False):
+    """country: 국가명(예: '미국', '중국'). article: '제10조'·'의정서' 등. keyword: 조문 제목·본문 검색."""
+    t = treaties()
+    name = country if country in t else next((n for n in t if country and (country in n or n in country)), None)
+    if not name: return {"error": f"조약 체결국에서 '{country}'를 찾지 못함", "체결국": sorted(t)}
+    rows = _act("ASISTC002MR01", {"txaAgrmBscId": t[name]["id"]}).get("txaTraDVOList") or []
+    out = []
+    for r in rows:
+        no, title = (r.get("txaAgrmTextUqnm") or "").strip(), (r.get("txaAgrmTextNm") or "").strip()
+        body = (r.get("txaAgrmTextEnglCntn") if english else r.get("txaAgrmTextCntn")) or ""
+        if article and article.replace(" ", "") not in no.replace(" ", ""): continue
+        if keyword and keyword not in f"{title} {body} {r.get('txaAgrmTextEnglNm') or ''}": continue
+        out.append({"조": no, "제목": title, "영문 제목": r.get("txaAgrmTextEnglNm") or "", "본문": body.strip()[:6000]})
+    return {"국가": name, "발효일": t[name]["발효일"], "조문": out,
+            "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
+
+
+# ── 국세청 발간책자 본문 검색 (이전가격 안내·APA 보고서·세무 가이드북 등) ──
+def publications(query, n=8):
+    p = {"schVcb": query, "startCount": 1, "collection": "formerLibrary", "sortField": "SCORE/DESC", "searchType": "",
+         "viewCount": str(max(1, min(int(n), 20))), "useSynonymYn": "Y", "mainIdCtl": [], "icldVcbCtl": [], "exclVcbCtl": [],
+         "rltnStttCtl": [], "ntstTlawClCdList": []}
+    d = _act("ASEISA001MR01", p)
+    out = []
+    for c in d["searchResultVO"]["collectionList"]:
+        for r in c.get("resultList") or []:
+            out.append({"책자": r.get("NTST_PLCN_BK_TTL", ""), "발간일": _date(r.get("PLCN_DT", "")), "분야": r.get("LBL2_TTL", ""),
+                        "담당": r.get("NTST_JRSD_DNO_NM", ""), "발췌": _clean(r.get("FILE_CN", ""))[:400],
+                        "링크": f"{BASE}/el/USEELA001M.do"})
+    return out

@@ -19,12 +19,12 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import casebook, cite, law, ntis, timeline
+from . import casebook, cite, law, localdocs, ntis, timeline
 
 mcp = MCPServer(
-    "korean-tax-mcp", title="한국 세법 근거",
+    "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
     instructions="한국 세법 쟁점의 근거(국세청 해석·판례·통칙·집행기준·조문)를 찾는다. search_tax_rulings로 넓게 찾고, get_tax_ruling으로 본문을 읽고, "
-                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 특정 사업연도 기준 정리는 research_issue, 초안 검수는 verify_citations. 문서번호는 결과에 있는 것만 인용하고, "
+                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 특정 사업연도 기준 정리는 research_issue, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
                  "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다.")
 
 TAXES = tuple(ntis.TAX_CODES)
@@ -257,6 +257,50 @@ def verify_citations(
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
     try: return cite.verify(text[:20000], ef)
     except Exception as e: return _err(e)
+
+
+@mcp.tool(annotations=RO)
+def tax_treaty(
+    country: Annotated[str, Field(description="체약국 이름(한글). 예: '미국', '중국', '일본', '베트남'. 모르면 아무 이름이나 넣으면 체결국 목록을 돌려줌")],
+    article: Annotated[str, Field(description="조문. 예: '제10조', '의정서'. 조약마다 번호 체계가 다르므로 주제로 찾을 땐 keyword 사용")] = "",
+    keyword: Annotated[str, Field(description="조문 제목·본문 검색어. 예: '배당', '고정사업장', '이자', 'dividends'")] = "",
+    english: Annotated[bool, Field(description="True면 영문 본문")] = False,
+) -> dict:
+    """Read Korea's bilateral tax treaties (96 countries) article by article, Korean or English. 한국의 조세조약 조문(국문·영문).
+    언제: 비거주자 원천징수 제한세율, 고정사업장, 거주자 판정 등 국제거래 쟁점. 국내법 조문은 law_article, 국제조세 해석은 search_tax_rulings(tax='국조').
+    반환: {국가, 발효일, 조문: [{조, 제목, 영문 제목, 본문}], 링크} — 조문 번호는 조약마다 다르니 keyword로 찾는 게 정확.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
+    try: return ntis.treaty(country, article.strip(), keyword.strip(), english)
+    except Exception as e: return _err(e)
+
+
+@mcp.tool(annotations=RO)
+def search_nts_publications(
+    query: Annotated[str, Field(description="찾을 내용. 예: '이전가격 정상가격 산출방법', '해외현지법인 명세서 제출', 'APA'")],
+    n: Annotated[int, Field(description="결과 수 1~20", ge=1, le=20)] = 8,
+) -> dict:
+    """Full-text search inside NTS official guidebooks and reports (transfer pricing, APA reports, overseas business guides, filing guides). 국세청 발간책자 본문 검색.
+    언제: 국세청이 공식 책자로 낸 실무 안내(이전가격·APA 연차보고서·해외진출기업 세무 가이드·신고 안내 등)의 설명이 필요할 때.
+    반환: {결과: [{책자, 발간일, 분야, 담당, 발췌, 링크}]}. 책자 원문은 국세법령정보시스템 전자도서관에서.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
+    try: return {"결과": ntis.publications(query, n)}
+    except Exception as e: return _err(e)
+
+
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False))
+def search_local_documents(
+    query: Annotated[str, Field(description="찾을 내용. 영어·한국어·문단 번호(예: '2.14', 'comparability analysis', '무형자산')")],
+    k: Annotated[int, Field(description="결과 수 1~10", ge=1, le=10)] = 5,
+) -> dict:
+    """Search PDFs you downloaded yourself, page by page — e.g. the OECD Transfer Pricing Guidelines. 내 PC의 PDF(예: OECD 이전가격 지침) 쪽 단위 검색.
+    언제: 저작권상 재배포할 수 없는 자료(OECD 지침 등)를 각자 받아 근거로 쓸 때. 문서는 이 패키지에 들어 있지 않음.
+    설정: 환경변수 KOREAN_TAX_MCP_DOCS에 PDF 폴더 경로, PDF 읽기용 pypdf 필요(uvx --with pypdf korean-tax-mcp).
+    반환: {결과: [{파일, 쪽, 점수, 발췌}], 색인}. 읽기 전용, 외부 호출 없음. 첫 호출 때 색인(파일이 크면 수십 초).
+    """
+    try: return localdocs.search(query, k)
+    except Exception as e: return {"error": str(e)}
 
 
 def main():
