@@ -19,7 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import casebook, cite, law, localdocs, ntis, timeline
+from . import casebook, cite, i18n, law, localdocs, ntis, timeline
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -38,8 +38,33 @@ NTIS_NOTE = "읽기 전용. 국세법령정보시스템 공개 조회(키 불필
 
 def _err(e): return {"error": f"{type(e).__name__}: {e}"}
 
+import contextvars
+LANG = contextvars.ContextVar("lang", default="ko")
+LangT = Annotated[Literal["ko", "en"], Field(description="Output language. 'en': English keys and labels, official English texts where available "
+                                                     "(tax treaties, statutes), titles/summaries machine-translated by Upstage Solar when UPSTAGE_API_KEY is set. 기본 'ko'")]
+
+
+def bilingual(fn):
+    """도구에 lang 파라미터를 붙이고 lang='en'이면 결과를 영어로."""
+    import functools, inspect
+    sig = inspect.signature(fn)
+    params = list(sig.parameters.values()) + [inspect.Parameter("lang", inspect.Parameter.KEYWORD_ONLY, default="ko", annotation=LangT)]
+
+    @functools.wraps(fn)
+    def wrapper(*a, lang="ko", **k):
+        if lang == "en" and "english" in sig.parameters: k["english"] = True
+        tok = LANG.set(lang)
+        try: r = fn(*a, **k)
+        finally: LANG.reset(tok)
+        return i18n.english(r) if lang == "en" else r
+    wrapper.__signature__ = sig.replace(parameters=params)
+    wrapper.__annotations__ = {**fn.__annotations__, "lang": LangT}
+    return wrapper
+
+
 
 @mcp.tool(annotations=RO)
+@bilingual
 def search_tax_rulings(
     query: Annotated[str, Field(description="쟁점 키워드. 예: '업무무관 가지급금 인정이자', '폐업자 세금계산서 매입세액'")],
     tax: Annotated[Tax | None, Field(description="세목 필터. 생략하면 전체")] = None,
@@ -66,6 +91,7 @@ def search_tax_rulings(
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def get_tax_ruling(id: Annotated[str, Field(description="search_tax_rulings·rulings_by_article 결과의 id (숫자 12~20자리)")]) -> dict:
     """Get the full text of one ruling or decision. 해석·판례 1건의 본문 전문.
     언제: 검색 결과 중 인용·요약할 문서를 정한 뒤. 요지만으로 판단하지 말고 본문을 읽을 때 사용.
@@ -77,6 +103,7 @@ def get_tax_ruling(id: Annotated[str, Field(description="search_tax_rulings·rul
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def rulings_by_article(
     law_name: Annotated[str, Field(description=LAW)],
     article: Annotated[str, Field(description=ART)],
@@ -101,6 +128,7 @@ def rulings_by_article(
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def basic_rules(
     law_name: Annotated[str, Field(description=LAW)],
     article: Annotated[str, Field(description="법 조문('제52조'). 주면 그 조에 딸린 통칙 전부, 생략하면 전체에서 keyword로 검색")] = "",
@@ -116,6 +144,7 @@ def basic_rules(
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def execution_standards(
     law_name: Annotated[str, Field(description=LAW + ". 소득세는 '소득세법'")],
     article: Annotated[str, Field(description="법 조문('제52조'). 주면 그 조의 집행기준 항목만")] = "",
@@ -131,6 +160,7 @@ def execution_standards(
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False))
+@bilingual
 def casebook_search(
     query: Annotated[str, Field(description="쟁점 문장이나 키워드")],
     area: Annotated[Literal["법인", "부가", "소득", "상증", "양도", "국기", "국조", "종부"] | None, Field(description="분야 필터 (선택)")] = None,
@@ -145,6 +175,7 @@ def casebook_search(
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def law_article(
     law_name: Annotated[str, Field(description="법령 정식 명칭. 예: '법인세법', '법인세법 시행령', '법인세법 시행규칙'")],
     article: Annotated[str, Field(description=ART)],
@@ -160,7 +191,12 @@ def law_article(
     ef = re.sub(r"\D", "", as_of or "")
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
     try:
-        out = {"위임체계": law.tiers(law_name, article.strip(), ef)} if with_delegation else law.article(law_name, article.strip(), ef)
+        if LANG.get() == "en" and not with_delegation:   # 영어: 공식 영문 번역본 + 한국어 원문 시행본
+            out = law.article_en(law_name, article.strip())
+            ko = law.article(law_name, article.strip(), ef)
+            out["원문(한국어)"] = {"적용 시행일": ko.get("적용 시행일"), "본문": ko.get("본문")}
+        else:
+            out = {"위임체계": law.tiers(law_name, article.strip(), ef)} if with_delegation else law.article(law_name, article.strip(), ef)
     except law.NoKey as e:
         return {"error": str(e)}
     except Exception as e:
@@ -186,6 +222,7 @@ def _solar(prompt):
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=False, open_world_hint=True))
+@bilingual
 def compare_with_case(
     facts: Annotated[str, Field(description="사실관계: 누가·언제·무엇을·얼마 (최대 1500자 사용)")],
     our_view: Annotated[str, Field(description="우리 주장: 과세 논리 또는 납세자 주장 한두 문장")],
@@ -225,6 +262,7 @@ JSON: {{"해석":[{{"키":"K1","관계":"지지|반대|구별 필요|무관","�
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def research_issue(
     law_name: Annotated[str, Field(description=LAW)],
     article: Annotated[str, Field(description=ART)],
@@ -244,6 +282,7 @@ def research_issue(
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def verify_citations(
     text: Annotated[str, Field(description="보고서·의견서·답변 초안 (해석·판례 문서번호와 '법인세법 제52조' 같은 조문 인용이 들어간 글, 최대 2만 자)")],
     as_of: Annotated[str, Field(description="조문 존재를 확인할 기준일 YYYYMMDD. 생략하면 오늘")] = "",
@@ -260,6 +299,7 @@ def verify_citations(
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def tax_treaty(
     country: Annotated[str, Field(description="체약국 이름(한글). 예: '미국', '중국', '일본', '베트남'. 모르면 아무 이름이나 넣으면 체결국 목록을 돌려줌")],
     article: Annotated[str, Field(description="조문. 예: '제10조', '의정서'. 조약마다 번호 체계가 다르므로 주제로 찾을 땐 keyword 사용")] = "",
@@ -276,6 +316,7 @@ def tax_treaty(
 
 
 @mcp.tool(annotations=RO)
+@bilingual
 def search_nts_publications(
     query: Annotated[str, Field(description="찾을 내용. 예: '이전가격 정상가격 산출방법', '해외현지법인 명세서 제출', 'APA'")],
     n: Annotated[int, Field(description="결과 수 1~20", ge=1, le=20)] = 8,
@@ -290,6 +331,7 @@ def search_nts_publications(
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False))
+@bilingual
 def search_local_documents(
     query: Annotated[str, Field(description="찾을 내용. 영어·한국어·문단 번호(예: '2.14', 'comparability analysis', '무형자산')")],
     k: Annotated[int, Field(description="결과 수 1~10", ge=1, le=10)] = 5,

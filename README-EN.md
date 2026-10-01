@@ -26,6 +26,17 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 | `search_local_documents` | Page-level search over PDFs you downloaded (e.g. OECD Transfer Pricing Guidelines) — set `KOREAN_TAX_MCP_DOCS` | none |
 | `verify_citations` | Check that cited ruling numbers and statute articles in a draft actually exist | `LAW_OC` for statutes |
 
+## English output
+
+Every tool takes `lang="en"`:
+
+- English field names and labels (`doc_no`, `summary`, `effective_date`, …)
+- Tax treaties: official English text
+- Statutes: official English translation from the Korea Legislation Research Institute (not legally binding; the Korean text prevails). Requires your `LAW_OC` key to be approved for English laws (open.law.go.kr → OPEN API → 영문법령)
+- Rulings, decisions, basic rules: originals are Korean only. With `UPSTAGE_API_KEY`, titles and summaries are machine-translated by Upstage Solar (originals kept in `*_ko`); full texts stay Korean
+
+Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for loans to related parties (lang=en)"* or *"Show the dividend article of the Korea–US tax treaty in English."*
+
 ## Install
 
 ```bash

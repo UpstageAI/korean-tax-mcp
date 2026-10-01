@@ -105,3 +105,24 @@ def tiers(law, article_no, as_of=""):
     with ThreadPoolExecutor(6) as ex:
         rows = list(ex.map(lambda x: {"단계": x[0], **article(x[1], x[2], as_of)}, jobs))
     return rows
+
+
+# ── 영문 법령(법제처 공식 번역본, 법적 효력 없음) — OC 키에 「영문법령」 사용 신청 필요 ──
+@lru_cache(maxsize=128)
+def _en_versions(law):
+    try: d = _get("lawSearch.do", "target=elaw&display=20&query=" + urllib.parse.quote(law))
+    except Exception: return []
+    return [v for v in _list(d.get("LawSearch", {}).get("law")) if v.get("법령명한글") == law]
+
+
+def article_en(law, article_no):
+    vs = _en_versions(law)
+    if not vs:
+        return {"error": "No official English translation found, or the LAW_OC key is not approved for English laws "
+                         "(open.law.go.kr → OPEN API 신청 → 영문법령 체크)."}
+    v = max(vs, key=lambda x: x.get("시행일자", ""))
+    d = _get("lawService.do", f"target=elaw&MST={v['법령일련번호']}&JO={jo6(article_no)}")
+    body = "\n".join(t.strip() for t in _texts(d) if t.strip())
+    return {"법령": v.get("법령명영문") or law, "조": article_no, "적용 시행일": v.get("시행일자"), "본문": body or "article not found",
+            "주의": "Official English translation by the Korea Legislation Research Institute — not legally binding and may lag behind amendments; "
+                   "the Korean text prevails. Translation edition may differ from the as_of date."}

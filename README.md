@@ -6,7 +6,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · [English](README-EN.md)
 
-**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; and verify citations in a draft. 13 tools, read-only, no API key needed for lookups. Tool descriptions and results are in Korean. → [English README](README-EN.md)
+**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; and verify citations in a draft. 13 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; machine-translated summaries via Upstage Solar). → [English README](README-EN.md)
 
 ---
 
