@@ -9,6 +9,7 @@ import ssl
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 DRF = "https://www.law.go.kr/DRF"
@@ -88,14 +89,19 @@ def _jo_str(no, br): return f"제{int(no)}조" + (f"의{int(br)}" if br and br !
 
 def tiers(law, article_no, as_of=""):
     """법률 조문 → [법률, 위임 시행령 조문들, 위임 시행규칙 조문들] 원문(기준일 시행본)."""
-    out = [{"단계": "법률", **article(law, article_no, as_of)}]
     j = jo6(article_no); no, br = j[:4], j[4:]
+    with ThreadPoolExecutor(4) as ex:   # 위임 목록과 법·령·규칙 연혁 목록을 동시에
+        tier = ex.submit(_three_tier, law)
+        for name in (law, law + " 시행령", law + " 시행규칙"): ex.submit(_versions, name)
+        tier = tier.result()
     dec, rul = [], []
-    for r in _three_tier(law):
+    for r in tier:
         if r.get("조번호") != no or r.get("조가지번호", "00") != br: continue
         d = r.get("시행령조문") or {}; s = r.get("시행규칙조문") or {}
         if d.get("조번호"): dec.append(_jo_str(d["조번호"], d.get("조가지번호")))
         if s.get("조번호") and "서식" not in (s.get("조제목") or ""): rul.append(_jo_str(s["조번호"], s.get("조가지번호")))
-    for a in dict.fromkeys(dec): out.append({"단계": "시행령", **article(law + " 시행령", a, as_of)})
-    for a in dict.fromkeys(rul): out.append({"단계": "시행규칙", **article(law + " 시행규칙", a, as_of)})
-    return out
+    jobs = [("법률", law, article_no)] + [("시행령", law + " 시행령", a) for a in dict.fromkeys(dec)] + \
+           [("시행규칙", law + " 시행규칙", a) for a in dict.fromkeys(rul)]
+    with ThreadPoolExecutor(6) as ex:
+        rows = list(ex.map(lambda x: {"단계": x[0], **article(x[1], x[2], as_of)}, jobs))
+    return rows

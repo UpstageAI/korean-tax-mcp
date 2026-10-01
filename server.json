@@ -4,12 +4,12 @@
   "title": "Korean Tax Rulings",
   "description": "Korean tax law: NTS rulings, court/tribunal decisions, basic rules, point-in-time statutes",
   "repository": { "url": "https://github.com/seungmiyoon/korean-tax-mcp", "source": "github" },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "korean-tax-mcp",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         { "name": "LAW_OC", "description": "법제처 Open API OC key (optional, for law_article)", "isRequired": false, "isSecret": true },

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "korean-tax-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "한국 세법 근거 MCP — 국세청 질의회신·판례·기본통칙·집행기준·시점별 조문(3단)"
 readme = "README.md"
 requires-python = ">=3.10"
