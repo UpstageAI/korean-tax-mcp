@@ -2,6 +2,20 @@
 
 <!-- mcp-name: io.github.seungmiyoon/korean-tax-mcp -->
 
+[![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · [English](README-EN.md)
+
+> 류승인 주무관님 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp)의 세법판 — 국세청 해석·판례·기본통칙·조문을 AI에서 문서번호째로.
+
+**이렇게 물어보세요**
+
+- "법인세법 제52조를 인용한 최근 질의회신·판례 보여줘"
+- "폐업자에게 받은 세금계산서 매입세액 공제 — 관련 판례 본문 요약해줘"
+- "가지급금 인정이자 기본통칙이랑 집행기준 같이 보여줘"
+- "2023년 12월 31일 기준 법인세법 시행규칙 제43조 원문"
+- "대표이사 무상 대여, 인정이자 익금산입 논리 — 지지·반대 판례 대조해줘"
+
+**설치 한 줄** — `claude mcp add korean-tax -- uvx korean-tax-mcp`
+
 한국 세법 근거를 찾는 MCP 서버입니다. Claude·Cursor 같은 AI 도구에 붙이면 세법 쟁점을 물을 때 국세청 해석·판례·통칙·조문을 문서번호와 함께 찾아 줍니다.
 
 - 국세청 **질의회신·과세기준자문·사전답변**, 법원 **판례**·**조세심판**·이의·심사 — 최신순 검색과 본문 전문
@@ -49,13 +63,6 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `casebook_search` | 2025 세법해석 사례집 검색 |
 | `law_article` | 시점별 조문 원문, 3단 위임, 통칙·집행기준 함께 |
 | `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) |
-
-## 이렇게 물어보세요
-
-- "법인세법 제52조 관련 최근 질의회신 보여줘"
-- "폐업자에게 받은 세금계산서 매입세액 공제 관련 판례 찾아서 본문 요약해줘"
-- "2023년 12월 31일 기준 법인세법 시행규칙 제43조 원문"
-- "가지급금 인정이자 기본통칙이랑 집행기준 같이 보여줘"
 
 ## 함께 쓰면 좋은 MCP
 
