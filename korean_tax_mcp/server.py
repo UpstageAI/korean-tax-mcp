@@ -19,12 +19,12 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import casebook, law, ntis
+from . import casebook, cite, law, ntis, timeline
 
 mcp = MCPServer(
     "korean-tax-mcp", title="한국 세법 근거",
     instructions="한국 세법 쟁점의 근거(국세청 해석·판례·통칙·집행기준·조문)를 찾는다. search_tax_rulings로 넓게 찾고, get_tax_ruling으로 본문을 읽고, "
-                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 문서번호는 결과에 있는 것만 인용하고, "
+                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 특정 사업연도 기준 정리는 research_issue, 초안 검수는 verify_citations. 문서번호는 결과에 있는 것만 인용하고, "
                  "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다.")
 
 TAXES = tuple(ntis.TAX_CODES)
@@ -222,6 +222,41 @@ JSON: {{"해석":[{{"키":"K1","관계":"지지|반대|구별 필요|무관","�
             rows.append({"문서번호": x["문서번호"], "구분": x["구분"], "관계": r["관계"], "이유": r.get("이유", ""),
                          "사실관계 차이": r.get("사실관계 차이", ""), "링크": x.get("링크", "")})
     return {"해석": rows, "요약": j.get("요약", ""), "주의": "Solar 판정은 검토 보조 — 본문 확인 후 인용"}
+
+
+@mcp.tool(annotations=RO)
+def research_issue(
+    law_name: Annotated[str, Field(description=LAW)],
+    article: Annotated[str, Field(description=ART)],
+    period: Annotated[str, Field(description="사실이 속한 시점: '2023'(사업연도·과세기간), '2023-1'(부가 1기), '2023-12-31'(날짜)")],
+    tax: Annotated[Tax | None, Field(description="세목. 부가세 과세기간 판단과 해석 필터에 사용 (선택)")] = None,
+    n: Annotated[int, Field(description="해석·판례 종류별 최대 건수 1~20", ge=1, le=20)] = 8,
+) -> dict:
+    """Bundle everything that applied to an issue at a past date. 그 해 기준 묶음 조회 — 사실 발생 시점의 조문(3단)·기본통칙·집행기준·그 조문을 인용한 해석·판례를 한 번에.
+    언제: 세무조사·불복처럼 특정 사업연도에 적용되는 근거를 정리할 때. 시점 판단을 코드로 고정한다 —
+    기준일(사업연도·과세기간 종료일), 기준일 조문과 현행 조문의 변경 여부, 해석·판례마다 등록일 당시 조문이 기준일 조문과 같은지.
+    반환: {기준일, 기준일 근거, 그 해 조문(3단), 현행과 비교, 기본통칙[], 집행기준[], 해석·판례[{…, 기준일 조문과}], 주의}.
+    읽기 전용. 조문 부분은 LAW_OC 필요(없으면 해석·통칙만 반환). 10~30초.
+    """
+    try: return timeline.research(law_name, article.strip(), period, tax, n)
+    except ValueError as e: return {"error": str(e)}
+    except Exception as e: return _err(e)
+
+
+@mcp.tool(annotations=RO)
+def verify_citations(
+    text: Annotated[str, Field(description="보고서·의견서·답변 초안 (해석·판례 문서번호와 '법인세법 제52조' 같은 조문 인용이 들어간 글, 최대 2만 자)")],
+    as_of: Annotated[str, Field(description="조문 존재를 확인할 기준일 YYYYMMDD. 생략하면 오늘")] = "",
+) -> dict:
+    """Check that cited rulings, decisions and statute articles actually exist. 인용 검증 — 초안의 문서번호·조문이 실제로 있는지 확인.
+    언제: AI나 사람이 쓴 초안을 내보내기 전. 지어낸 문서번호·없는 조문을 걸러낸다.
+    반환: {문서번호: [{인용, 결과(확인/국세청 DB 미확인/조회 실패), 문서번호, 제목, 일자, 링크, 비슷한 번호}], 조문: [{인용, 결과, 적용 시행일}], 요약, 주의}.
+    '확인'은 존재만 뜻함 — 내용 일치는 get_tax_ruling·law_article 본문으로 확인. 읽기 전용. 조문 확인은 LAW_OC 필요.
+    """
+    ef = re.sub(r"\D", "", as_of or "")
+    if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
+    try: return cite.verify(text[:20000], ef)
+    except Exception as e: return _err(e)
 
 
 def main():

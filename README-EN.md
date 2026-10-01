@@ -20,6 +20,8 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 | `casebook_search` | NTS 2025 Tax Interpretation Casebook (96 cases) | none |
 | `law_article` | Statute text as in force on a given date, plus Act → Decree → Rule delegation chain | `LAW_OC` |
 | `compare_with_case` | Compare your facts and argument with rulings: supports / contradicts / distinguish | `UPSTAGE_API_KEY` (Solar) |
+| `research_issue` | Everything that applied at a past date: statute chain, basic rules, standards, and rulings — flags statute changes and whether each ruling was issued under the same text | `LAW_OC` for statutes |
+| `verify_citations` | Check that cited ruling numbers and statute articles in a draft actually exist | `LAW_OC` for statutes |
 
 ## Install
 
