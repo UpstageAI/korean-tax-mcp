@@ -63,8 +63,8 @@ def localize(obj):
 
 def translate_short(items, fields=("title", "summary", "issue", "answer", "rule", "item", "excerpt")):
     """결과 안의 짧은 한국어 필드를 Solar로 영어 번역(한 번 호출에 묶음). 키 없으면 그대로."""
-    key = os.environ.get("UPSTAGE_API_KEY", "").strip()
-    if not key: return False
+    from . import solar
+    if not solar.available(): return False
     slots = []
     def walk(o):
         if isinstance(o, dict):
@@ -76,16 +76,9 @@ def translate_short(items, fields=("title", "summary", "issue", "answer", "rule"
     walk(items)
     if not slots: return True
     src = {str(i): o[k] for i, (o, k) in enumerate(slots[:60])}
-    body = {"model": os.environ.get("KOREAN_TAX_MCP_MODEL", "solar-pro4"), "temperature": 0, "max_tokens": 4000,
-            "response_format": {"type": "json_object"},
-            "messages": [{"role": "user", "content": "Translate each Korean tax-law string to concise professional English. Keep document numbers and article numbers as is. "
-                          "Return JSON with the same keys.\n" + json.dumps(src, ensure_ascii=False)}]}
-    ctx = ssl.create_default_context(); ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
     try:
-        req = urllib.request.Request("https://api.upstage.ai/v1/chat/completions", data=json.dumps(body).encode(), method="POST",
-                                     headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, context=ctx, timeout=120) as r:
-            out = json.loads(json.loads(r.read())["choices"][0]["message"]["content"])
+        out = solar.chat_json("Translate each Korean tax-law string to concise professional English. Keep document numbers and article numbers as is. "
+                              "Return JSON with the same keys.\n" + json.dumps(src, ensure_ascii=False), max_tokens=4000)
     except Exception:
         return False
     for i, (o, k) in enumerate(slots[:60]):
@@ -97,7 +90,8 @@ def translate_short(items, fields=("title", "summary", "issue", "answer", "rule"
 def english(result, translate=True):
     r = localize(result)
     if isinstance(r, dict) and "error" not in r:
+        from . import solar
         done = translate_short(r) if translate else False
-        r["language_note"] = ("Titles and summaries machine-translated by Upstage Solar (originals in *_ko); full texts are original Korean."
-                              if done else "Source texts are Korean (official). Set UPSTAGE_API_KEY to machine-translate titles and summaries.")
+        r["language_note"] = (f"Titles and summaries machine-translated by {solar.where('en')} (originals in *_ko); full texts are original Korean."
+                              if done else "Source texts are Korean (official). Set UPSTAGE_API_KEY or KOREAN_TAX_MCP_SOLAR_BASE_URL (on-prem Solar) to machine-translate titles and summaries.")
     return r

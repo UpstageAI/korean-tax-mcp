@@ -19,7 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import casebook, cite, i18n, law, localdocs, ntis, timeline
+from . import casebook, cite, i18n, law, localdocs, ntis, solar, timeline
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -210,15 +210,8 @@ def law_article(
 
 
 def _solar(prompt):
-    key = os.environ.get("UPSTAGE_API_KEY", "").strip()
-    if not key: raise RuntimeError("UPSTAGE_API_KEY가 없습니다 — https://console.upstage.ai 에서 발급")
-    body = {"model": os.environ.get("KOREAN_TAX_MCP_MODEL", "solar-pro4"), "temperature": 0, "max_tokens": 1600,
-            "response_format": {"type": "json_object"}, "messages": [{"role": "user", "content": prompt}]}
-    ctx = ssl.create_default_context(); ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
-    req = urllib.request.Request("https://api.upstage.ai/v1/chat/completions", data=json.dumps(body).encode(), method="POST",
-                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, context=ctx, timeout=120) as r:
-        return json.loads(json.loads(r.read())["choices"][0]["message"]["content"])
+    from . import solar
+    return solar.chat_json(prompt)
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=False, open_world_hint=True))
@@ -231,7 +224,7 @@ def compare_with_case(
     """Check your facts and argument against rulings: supports / contradicts / distinguish. 사실관계·논리를 해석·판례와 대조해 항목마다 지지·반대·구별 필요를 판정.
     언제: 주장의 근거와 반대 사례를 한 번에 점검할 때(의견서·불복 검토). 단순 검색은 search_tax_rulings.
     반환: {해석: [{문서번호, 구분, 관계, 이유, 사실관계 차이, 링크}], 요약, 주의}. 문서번호는 검색 결과에 있는 것만.
-    읽기 전용. Upstage Solar 호출 — 환경변수 UPSTAGE_API_KEY 필요(호출마다 토큰 비용), 약 10초.
+    읽기 전용. Solar 호출 — UPSTAGE_API_KEY(클라우드) 또는 KOREAN_TAX_MCP_SOLAR_BASE_URL(망분리 온프렘 Solar) 필요, 약 10초.
     """
     if not facts.strip() or not our_view.strip(): return {"error": "facts·our_view 둘 다 필요"}
     try:
@@ -258,7 +251,7 @@ JSON: {{"해석":[{{"키":"K1","관계":"지지|반대|구별 필요|무관","�
         if x and r.get("관계") in ("지지", "반대", "구별 필요"):
             rows.append({"문서번호": x["문서번호"], "구분": x["구분"], "관계": r["관계"], "이유": r.get("이유", ""),
                          "사실관계 차이": r.get("사실관계 차이", ""), "링크": x.get("링크", "")})
-    return {"해석": rows, "요약": j.get("요약", ""), "주의": "Solar 판정은 검토 보조 — 본문 확인 후 인용"}
+    return {"해석": rows, "요약": j.get("요약", ""), "주의": f"{solar.where()} 판정은 검토 보조 — 본문 확인 후 인용"}
 
 
 @mcp.tool(annotations=RO)
