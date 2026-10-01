@@ -10,10 +10,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 dependencies = ["mcp>=2.2", "uvicorn>=0.30"]
+keywords = ["mcp", "mcp-server", "korea", "south-korea", "korean", "tax", "tax-law", "nts", "transfer-pricing", "tax-treaty", "세법", "국세청", "세무"]
 
 [project.optional-dependencies]
 pdf = ["pypdf>=4"]
-keywords = ["mcp", "mcp-server", "korea", "south-korea", "korean", "tax", "tax-law", "nts", "transfer-pricing", "tax-treaty", "세법", "국세청", "세무"]
 
 [project.scripts]
 korean-tax-mcp = "korean_tax_mcp.server:main"
