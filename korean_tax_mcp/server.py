@@ -13,7 +13,11 @@ import re
 import ssl
 import urllib.request
 
+from typing import Annotated, Literal
+
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from . import casebook, law, ntis
 
@@ -24,20 +28,32 @@ mcp = MCPServer(
                  "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다.")
 
 TAXES = tuple(ntis.TAX_CODES)
+RO = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
+Tax = Literal["법인", "부가", "소득", "양도", "상증", "국기", "국징", "조특", "국조", "종부"]
+Kind = Literal["해석", "판례"]
+LAW = "세법 이름(정식 명칭). 예: '법인세법', '부가가치세법', '소득세법', '상속세 및 증여세법', '국세기본법'"
+ART = "조문 번호. '제52조' 또는 '제28조의2' 형식"
+NTIS_NOTE = "읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시."
 
 
 def _err(e): return {"error": f"{type(e).__name__}: {e}"}
 
 
-@mcp.tool()
-def search_tax_rulings(query: str, tax: str | None = None, kinds: list[str] | None = None, sort: str = "최신",
-                       since: str = "", until: str = "", n: int = 10) -> dict:
-    """국세법령정보시스템에서 세법 해석·판례를 찾는다.
-    query: 쟁점 키워드(예: '업무무관 가지급금 인정이자', '폐업자 세금계산서 매입세액').
-    tax: 세목 — 법인·부가·소득·양도·상증·국기·국징·조특·국조·종부.
-    kinds: 해석(질의회신·과세기준자문·사전답변) · 판례(법원 판례·조세심판·이의·심사). 기본 둘 다.
-    sort: 최신 | 정확도. since/until: 등록일 YYYYMMDD. n: 종류별 최대 건수(30).
-    → [{구분, 문서번호, 제목, 요지, 세목, 일자, id, 링크}] — 본문은 get_tax_ruling(id)."""
+@mcp.tool(annotations=RO)
+def search_tax_rulings(
+    query: Annotated[str, Field(description="쟁점 키워드. 예: '업무무관 가지급금 인정이자', '폐업자 세금계산서 매입세액'")],
+    tax: Annotated[Tax | None, Field(description="세목 필터. 생략하면 전체")] = None,
+    kinds: Annotated[list[Kind] | None, Field(description="해석=질의회신·과세기준자문·사전답변, 판례=법원·조세심판·이의·심사. 생략하면 둘 다")] = None,
+    sort: Annotated[Literal["최신", "정확도"], Field(description="최신=등록일 내림차순, 정확도=검색 점수순")] = "최신",
+    since: Annotated[str, Field(description="등록일 시작 YYYYMMDD (선택)")] = "",
+    until: Annotated[str, Field(description="등록일 끝 YYYYMMDD (선택)")] = "",
+    n: Annotated[int, Field(description="종류별 최대 건수 1~30", ge=1, le=30)] = 10,
+) -> dict:
+    """Search Korean tax rulings and decisions by keyword. 국세청 해석(질의회신·과세기준자문·사전답변)과 판례(법원·조세심판·이의·심사)를 키워드로 찾는다.
+    언제: 쟁점은 있는데 조문을 모를 때 첫 단계로. 조문을 알면 rulings_by_article, 사례집 요약만 필요하면 casebook_search.
+    반환: {결과: [{구분, 문서번호, 제목, 요지(400자), 세목, 일자, id, 링크}], 주의}. 본문은 get_tax_ruling(id).
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
     if tax and tax not in TAXES: return {"error": f"tax는 {TAXES} 중 하나"}
     kinds = tuple(kinds or ["해석", "판례"])
     if any(k not in ntis.KINDS for k in kinds): return {"error": "kinds: 해석 | 판례"}
@@ -49,18 +65,32 @@ def search_tax_rulings(query: str, tax: str | None = None, kinds: list[str] | No
         return _err(e)
 
 
-@mcp.tool()
-def get_tax_ruling(id: str) -> dict:
-    """해석·판례 본문 전문 — 질의회신은 사실관계·질의·회신, 판례·결정은 주문·이유, 관련 조문 목록. id: search 결과의 id."""
+@mcp.tool(annotations=RO)
+def get_tax_ruling(id: Annotated[str, Field(description="search_tax_rulings·rulings_by_article 결과의 id (숫자 12~20자리)")]) -> dict:
+    """Get the full text of one ruling or decision. 해석·판례 1건의 본문 전문.
+    언제: 검색 결과 중 인용·요약할 문서를 정한 뒤. 요지만으로 판단하지 말고 본문을 읽을 때 사용.
+    반환: {문서번호, 제목, 요지, 등록일, 관련조문[], 본문(질의회신: 사실관계·질의·회신 / 판례: 주문·이유, 최대 2만 자), 링크}.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
     try: return ntis.document(id)
     except Exception as e: return _err(e)
 
 
-@mcp.tool()
-def rulings_by_article(law_name: str, article: str, kinds: list[str] | None = None, tax: str | None = None,
-                       keyword: str = "", sort: str = "최신", n: int = 10) -> dict:
-    """특정 조문을 관련 법령으로 인용한 해석·판례 모음(예: 법인세법 제52조 → 부당행위계산 질의회신·판례).
-    law_name: '법인세법' 등 세법 이름. article: '제52조'. keyword: 추가 키워드."""
+@mcp.tool(annotations=RO)
+def rulings_by_article(
+    law_name: Annotated[str, Field(description=LAW)],
+    article: Annotated[str, Field(description=ART)],
+    kinds: Annotated[list[Kind] | None, Field(description="해석·판례 중 선택. 생략하면 둘 다")] = None,
+    tax: Annotated[Tax | None, Field(description="세목 필터 (선택)")] = None,
+    keyword: Annotated[str, Field(description="결과를 좁힐 추가 키워드 (선택)")] = "",
+    sort: Annotated[Literal["최신", "정확도"], Field(description="정렬")] = "최신",
+    n: Annotated[int, Field(description="종류별 최대 건수 1~30", ge=1, le=30)] = 10,
+) -> dict:
+    """List rulings and decisions that cite a specific statute article. 특정 조문을 관련 법령으로 인용한 해석·판례 모음.
+    언제: 조문을 알고 그 조문의 실무 해석을 모을 때(예: 법인세법 제52조 → 부당행위계산). 키워드만 있으면 search_tax_rulings.
+    반환: {법령, 조, 결과: [{구분, 문서번호, 제목, 요지, 세목, 일자, id, 링크}]}.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
     kinds = tuple(kinds or ["해석", "판례"])
     if any(k not in ntis.KINDS for k in kinds): return {"error": "kinds: 해석 | 판례"}
     try:
@@ -70,32 +100,63 @@ def rulings_by_article(law_name: str, article: str, kinds: list[str] | None = No
         return _err(e)
 
 
-@mcp.tool()
-def basic_rules(law_name: str, article: str = "", keyword: str = "") -> dict:
-    """국세 기본통칙 전문(최신 고시본). article: 법 조문('제52조') — 그 조의 통칙 전부. keyword: 제목·본문 검색."""
+@mcp.tool(annotations=RO)
+def basic_rules(
+    law_name: Annotated[str, Field(description=LAW)],
+    article: Annotated[str, Field(description="법 조문('제52조'). 주면 그 조에 딸린 통칙 전부, 생략하면 전체에서 keyword로 검색")] = "",
+    keyword: Annotated[str, Field(description="통칙 제목·본문 검색어 (선택)")] = "",
+) -> dict:
+    """Get NTS Basic Rules (국세 기본통칙) full text by article or keyword. 국세 기본통칙 전문(최신 고시본).
+    언제: 조문의 국세청 공식 해석 기준이 필요할 때. 실무 집행 기준 목록은 execution_standards, 개별 사안 해석은 rulings_by_article.
+    반환: {법령, 기준(고시 연도), 통칙: [{통칙(번호·제목), 본문}], 링크}.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
     try: return ntis.basic_rules(law_name, article, keyword)
     except Exception as e: return _err(e)
 
 
-@mcp.tool()
-def execution_standards(law_name: str, article: str = "", keyword: str = "") -> dict:
-    """세법집행기준 항목(최신 발간본) — 번호·제목·책자 쪽·링크(본문은 국세법령정보시스템 책자 뷰어)."""
+@mcp.tool(annotations=RO)
+def execution_standards(
+    law_name: Annotated[str, Field(description=LAW + ". 소득세는 '소득세법'")],
+    article: Annotated[str, Field(description="법 조문('제52조'). 주면 그 조의 집행기준 항목만")] = "",
+    keyword: Annotated[str, Field(description="항목 제목 검색어 (선택)")] = "",
+) -> dict:
+    """List Tax Execution Standards (세법집행기준) items with page numbers. 세법집행기준 항목(최신 발간본).
+    언제: 조문별 집행 기준이 있는지·몇 쪽인지 확인할 때. 본문은 책자(PDF)라 제공하지 않으므로 통칙 본문이 필요하면 basic_rules.
+    반환: {법령, 기준(발간 연도), 항목: [{항목(번호·제목), 쪽}], 링크, 주의}.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
     try: return ntis.exec_standards(law_name, article, keyword)
     except Exception as e: return _err(e)
 
 
-@mcp.tool()
-def casebook_search(query: str, area: str | None = None, k: int = 5) -> dict:
-    """국세청 「2025 세법해석 사례집」 96건에서 쟁점 검색 — 문서번호·쟁점·결론·쪽. 본문은 search_tax_rulings(문서번호)로."""
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False))
+def casebook_search(
+    query: Annotated[str, Field(description="쟁점 문장이나 키워드")],
+    area: Annotated[Literal["법인", "부가", "소득", "상증", "양도", "국기", "국조", "종부"] | None, Field(description="분야 필터 (선택)")] = None,
+    k: Annotated[int, Field(description="결과 수 1~10", ge=1, le=10)] = 5,
+) -> dict:
+    """Search the NTS 2025 Tax Interpretation Casebook (96 curated cases). 국세청 「2025 세법해석 사례집」 쟁점 검색.
+    언제: 국세청이 대표 사례로 고른 해석을 빠르게 볼 때(오프라인, 즉시). 최신·전체 해석은 search_tax_rulings.
+    반환: {결과: [{문서번호, 회신일, 분야, 쟁점, 답변요지, 쪽, 점수, 인용}]}. 읽기 전용, 외부 호출 없음.
+    """
     if area and area not in casebook.AREAS: return {"error": f"area는 {casebook.AREAS} 중 하나"}
     return {"결과": casebook.search(query, area, max(1, min(int(k), 10)))}
 
 
-@mcp.tool()
-def law_article(law_name: str, article: str, as_of: str = "", with_delegation: bool = False, with_rules: bool = False) -> dict:
-    """조문 원문 — as_of(YYYYMMDD)에 시행 중이던 연혁본(세액은 사실 발생 시점 법령 적용). LAW_OC 필요.
-    with_delegation: 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단).
-    with_rules: 그 조의 기본통칙 전문과 집행기준 항목도 함께."""
+@mcp.tool(annotations=RO)
+def law_article(
+    law_name: Annotated[str, Field(description="법령 정식 명칭. 예: '법인세법', '법인세법 시행령', '법인세법 시행규칙'")],
+    article: Annotated[str, Field(description=ART)],
+    as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 그날 시행 중이던 연혁본. 생략하면 오늘")] = "",
+    with_delegation: Annotated[bool, Field(description="True면 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단)")] = False,
+    with_rules: Annotated[bool, Field(description="True면 그 조의 기본통칙 전문과 집행기준 항목도 함께")] = False,
+) -> dict:
+    """Get statute text as in force on a date, with optional Act → Decree → Rule chain. 조문 원문(기준일 시행본)과 3단 위임.
+    언제: 세액·요건 판단처럼 사실 발생 시점의 법령이 필요할 때. 해석·판례는 회신 당시 법 기준이므로 이 도구로 적용 연도 조문과 대조.
+    반환: {법령, 조, 적용 시행일, 본문, 링크} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
+    읽기 전용. 법제처 공식 API — 환경변수 LAW_OC(무료) 필요, 없으면 발급 안내 오류.
+    """
     ef = re.sub(r"\D", "", as_of or "")
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
     try:
@@ -124,10 +185,17 @@ def _solar(prompt):
         return json.loads(json.loads(r.read())["choices"][0]["message"]["content"])
 
 
-@mcp.tool()
-def compare_with_case(facts: str, our_view: str, tax: str | None = None) -> dict:
-    """우리 사실관계·논리를 국세청 해석·판례와 대조해 항목마다 지지 / 반대 / 구별 필요를 판정(Solar). UPSTAGE_API_KEY 필요.
-    facts: 누가·언제·무엇을·얼마. our_view: 우리 주장(과세 논리 또는 납세자 주장)."""
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=False, open_world_hint=True))
+def compare_with_case(
+    facts: Annotated[str, Field(description="사실관계: 누가·언제·무엇을·얼마 (최대 1500자 사용)")],
+    our_view: Annotated[str, Field(description="우리 주장: 과세 논리 또는 납세자 주장 한두 문장")],
+    tax: Annotated[Tax | None, Field(description="세목 필터 (선택)")] = None,
+) -> dict:
+    """Check your facts and argument against rulings: supports / contradicts / distinguish. 사실관계·논리를 해석·판례와 대조해 항목마다 지지·반대·구별 필요를 판정.
+    언제: 주장의 근거와 반대 사례를 한 번에 점검할 때(의견서·불복 검토). 단순 검색은 search_tax_rulings.
+    반환: {해석: [{문서번호, 구분, 관계, 이유, 사실관계 차이, 링크}], 요약, 주의}. 문서번호는 검색 결과에 있는 것만.
+    읽기 전용. Upstage Solar 호출 — 환경변수 UPSTAGE_API_KEY 필요(호출마다 토큰 비용), 약 10초.
+    """
     if not facts.strip() or not our_view.strip(): return {"error": "facts·our_view 둘 다 필요"}
     try:
         pool = ntis.search(f"{our_view[:60]}", ("해석", "판례"), tax, "정확도", 6)[:10]
