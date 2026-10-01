@@ -108,7 +108,7 @@ def search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, sta
     for c in d["searchResultVO"]["collectionList"]:
         for r in c.get("resultList") or []:
             did = r.get("DOC_ID") or ""
-            out.append({"구분": r.get("LBL1_TTL") or c.get("nameKr"), "문서번호": r.get("NTST_DCM_DSCM_CNTN", ""), "제목": _clean(r.get("TTL")),
+            out.append({"구분": r.get("LBL1_TTL") or c.get("nameKr"), "문서번호": _clean(r.get("NTST_DCM_DSCM_CNTN", "")), "제목": _clean(r.get("TTL")),
                         "요지": _clean(r.get("GIST_CNTN"))[:400], "세목": r.get("NTST_TLAW_CL_NM", ""), "일자": _date(r.get("NTST_DCM_RGT_DT", "")),
                         "id": did, "링크": f"{BASE}/qt/USEQTA002P.do?ntstDcmId={did}", "전체건수": c.get("totalCount")})
     if sort == "최신": out.sort(key=lambda x: x["일자"], reverse=True)   # 종류(해석·판례)를 섞어 등록일 내림차순

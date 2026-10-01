@@ -15,6 +15,8 @@
 - "가지급금 인정이자 기본통칙이랑 집행기준 같이 보여줘"
 - "2023년 12월 31일 기준 법인세법 시행규칙 제43조 원문"
 - "대표이사 무상 대여, 인정이자 익금산입 논리 — 지지·반대 판례 대조해줘"
+- "2019 사업연도 기준으로 법인세법 제52조 관련 조문·통칙·해석 정리해줘"
+- "이 의견서 초안에 인용된 문서번호랑 조문 실제로 있는지 검증해줘"
 
 **설치 한 줄** — `claude mcp add korean-tax -- uvx korean-tax-mcp`
 
@@ -49,8 +51,8 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 
 | 키 | 필요한 도구 | 발급 |
 |---|---|---|
-| 없음 | 해석·판례 검색과 본문, 조문별 모음, 기본통칙, 집행기준, 사례집 | — |
-| `LAW_OC` | `law_article` (시점별 조문·3단 위임) | [open.law.go.kr](https://open.law.go.kr) 무료 신청 |
+| 없음 | 해석·판례 검색과 본문, 조문별 모음, 기본통칙, 집행기준, 사례집, 인용 검증(문서번호) | — |
+| `LAW_OC` | `law_article`, `research_issue`, `verify_citations`(조문) — 시점별 조문·3단 위임 | [open.law.go.kr](https://open.law.go.kr) 무료 신청 |
 | `UPSTAGE_API_KEY` | `compare_with_case` (사실관계 대조) | [console.upstage.ai](https://console.upstage.ai) |
 
 ## 도구
@@ -65,6 +67,8 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `casebook_search` | 2025 세법해석 사례집 검색 |
 | `law_article` | 시점별 조문 원문, 3단 위임, 통칙·집행기준 함께 |
 | `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) |
+| `research_issue` | **그 해 기준 묶음** — 사업연도·과세기간 종료일 기준 조문 3단·통칙·집행기준·해석, 현행 대비 조문 변경, 해석마다 당시 조문과 같은지 표시 |
+| `verify_citations` | **인용 검증** — 초안의 문서번호·조문이 실제로 있는지 (지어낸 번호·없는 조문 찾기) |
 
 ## 함께 쓰면 좋은 MCP
 
