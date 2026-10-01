@@ -126,3 +126,27 @@ def article_en(law, article_no):
     return {"법령": v.get("법령명영문") or law, "조": article_no, "적용 시행일": v.get("시행일자"), "본문": body or "article not found",
             "주의": "Official English translation by the Korea Legislation Research Institute — not legally binding and may lag behind amendments; "
                    "the Korean text prevails. Translation edition may differ from the as_of date."}
+
+
+def history(law, article_no, last=8):
+    """조문의 연혁: 최근 시행본들(시행예정 포함)에서 이 조 본문이 바뀐 시점."""
+    vs = sorted({v["시행일자"]: v for v in _versions(law)}.values(), key=lambda x: x["시행일자"])[-last:]
+    if not vs: return {"error": f"'{law}' 연혁을 찾지 못함 — 정식 법령명 확인"}
+    jo = jo6(article_no)
+    def body(v):
+        try:
+            d = _get("lawService.do", f"target=eflaw&MST={v['법령일련번호']}&efYd={v['시행일자']}&JO={jo}")
+            return re.sub(r"\s+", "", "".join(_texts(d.get("법령", d))))
+        except Exception:
+            return None
+    with ThreadPoolExecutor(6) as ex: bodies = list(ex.map(body, vs))
+    rows, prev = [], None
+    for v, b in zip(vs, bodies):
+        changed = None if b is None or prev is None else (b != prev)
+        rows.append({"시행일": v["시행일자"], "공포일": v.get("공포일자", ""), "제개정": v.get("제개정구분명", ""),
+                     "상태": v.get("현행연혁코드", ""), "이 조 변경": "확인 불가" if b is None else ("기준" if prev is None else ("바뀜" if changed else "그대로"))})
+        if b is not None: prev = b
+    upcoming = [r for r in rows if r["상태"] == "시행예정" and r["이 조 변경"] == "바뀜"]
+    return {"법령": law, "조": article_no, "연혁": rows,
+            "요약": ("시행 예정 개정에서 이 조가 바뀜: " + ", ".join(r["시행일"] for r in upcoming)) if upcoming else "시행 예정 개정 중 이 조 변경 없음",
+            "주의": f"최근 {len(rows)}개 시행본만 비교(법률 조문 본문 기준). 더 이전은 law_article(as_of)로 확인"}

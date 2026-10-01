@@ -12,7 +12,7 @@ def test_tools():
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"search_tax_rulings", "get_tax_ruling", "rulings_by_article", "basic_rules", "execution_standards",
                      "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations",
-                     "tax_treaty", "search_nts_publications", "search_local_documents"}
+                     "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms", "article_history"}
 
 
 def test_codes():
@@ -72,3 +72,12 @@ def test_onprem_solar_config(monkeypatch):
     base, key, model, onprem = solar.config()
     assert base == "http://10.0.0.5:8000/v1" and onprem and solar.available() and key == ""
     assert solar.where("en").startswith("on-prem")
+
+
+def test_rate_extraction():
+    from korean_tax_mcp import ntis
+    txt = ("2. However, such dividends may also be taxed ... but the tax so charged shall not exceed:\n"
+           "(a) 5 per cent of the gross amount of the dividends if the beneficial owner is a company which holds directly at least 25 per cent of the capital of the company paying the dividends;\n"
+           "(b) 10 per cent of the gross amount of the dividends in all other cases.")
+    rates, other = ntis._rate_items(txt)
+    assert [r["세율(%)"] for r in rates] == [5.0, 10.0] and [o.get("지분요건(%)") for o in other] == [25.0]

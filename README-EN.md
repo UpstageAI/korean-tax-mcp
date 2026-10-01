@@ -21,6 +21,9 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 | `law_article` | Statute text as in force on a given date, plus Act → Decree → Rule delegation chain | `LAW_OC` |
 | `compare_with_case` | Compare your facts and argument with rulings: supports / contradicts / distinguish | `UPSTAGE_API_KEY` (Solar) |
 | `research_issue` | Everything that applied at a past date: statute chain, basic rules, standards, and rulings — flags statute changes and whether each ruling was issued under the same text | `LAW_OC` for statutes |
+| `treaty_withholding_rates` | Treaty withholding caps on dividends, interest, royalties with ownership conditions and the clause text | none |
+| `search_forms` | Statutory annexes (useful-life and depreciation tables) and official tax forms | none |
+| `article_history` | When an article changed and whether an upcoming amendment changes it | `LAW_OC` |
 | `tax_treaty` | Korea's tax treaties with 96 countries, article by article (Korean / English) | none |
 | `search_nts_publications` | Full-text search in NTS guidebooks — transfer pricing, APA reports, overseas business guides | none |
 | `search_local_documents` | Page-level search over PDFs you downloaded (e.g. OECD Transfer Pricing Guidelines) — set `KOREAN_TAX_MCP_DOCS` | none |

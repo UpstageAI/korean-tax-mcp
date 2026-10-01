@@ -338,6 +338,55 @@ def search_local_documents(
     except Exception as e: return {"error": str(e)}
 
 
+@mcp.tool(annotations=RO)
+@bilingual
+def treaty_withholding_rates(
+    country: Annotated[str, Field(description="체약국 이름(한글). 예: '미국', '중국', '일본', '싱가포르'")],
+    income: Annotated[Literal["배당", "이자", "사용료"] | None, Field(description="소득 종류. 생략하면 셋 다")] = None,
+) -> dict:
+    """Treaty withholding tax caps on dividends, interest and royalties for a country, with the clause text. 조세조약 원천징수 제한세율(배당·이자·사용료).
+    언제: "미국 법인에 배당하면 몇 %?" 같은 질문. 세율과 지분 요건을 조약 원문에서 뽑고 근거 조항((a)·(b)…)을 함께 준다. 조문 전체는 tax_treaty.
+    반환: {국가, 발효일, 제한세율: [{소득, 조문, 세율: [{세율(%), 근거}], 요건·기타: [{지분요건(%), 근거}], 개정 문서 언급, 주의}], 주의, 링크}.
+    자동 추출이라 개정 의정서·교환각서가 조문을 바꿨으면 '개정 문서 언급'에 표시 — 적용 전 확인. 지방소득세 등 국내법은 별도.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
+    try: return ntis.withholding_rates(country, income)
+    except Exception as e: return _err(e)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def search_forms(
+    query: Annotated[str, Field(description="별표·서식 이름에 들어가는 말. 예: '소득금액변동통지서', '국제거래명세서', '기준내용연수', '상각률표'")],
+    kind: Annotated[Literal["별표", "서식"] | None, Field(description="별표(세율표·내용연수표 등)만 또는 서식(신고서·명세서)만. 생략하면 둘 다")] = None,
+    n: Annotated[int, Field(description="결과 수 1~20", ge=1, le=20)] = 10,
+) -> dict:
+    """Search statutory annexes (rate and useful-life tables) and official tax forms. 세법 별표·서식 검색.
+    언제: 세율표·기준내용연수표·상각률표 같은 별표나, 신고서·명세서·통지서 서식을 찾을 때. 조문 본문은 law_article.
+    반환: {결과: [{구분(별표/서식), 이름, 법령, 세법, 시행일, 내용(서식 안 글 600자), 링크}]}. 같은 서식은 최신 시행본만.
+    읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
+    try: return {"결과": ntis.forms(query, kind, n)}
+    except Exception as e: return _err(e)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def article_history(
+    law_name: Annotated[str, Field(description="법령 정식 명칭. 예: '법인세법', '법인세법 시행규칙'")],
+    article: Annotated[str, Field(description=ART)],
+    last: Annotated[int, Field(description="비교할 최근 시행본 수 2~20 (시행예정 포함)", ge=2, le=20)] = 8,
+) -> dict:
+    """When did this article change, and will an upcoming amendment change it? 조문 개정 이력과 시행 예정 개정.
+    언제: "이 조문 언제 바뀌었나", "곧 바뀌나" — 사업연도별 적용 조문이 다른지 판단할 때. 특정 날짜 원문은 law_article(as_of).
+    반환: {법령, 조, 연혁: [{시행일, 공포일, 제개정, 상태(연혁/현행/시행예정), 이 조 변경(바뀜/그대로)}], 요약, 주의}.
+    읽기 전용. 법제처 공식 API — LAW_OC 필요.
+    """
+    try: return law.history(law_name, article.strip(), last)
+    except law.NoKey as e: return {"error": str(e)}
+    except Exception as e: return _err(e)
+
+
 def main():
     import argparse
     p = argparse.ArgumentParser(prog="korean-tax-mcp", description="한국 세법 근거 MCP 서버")

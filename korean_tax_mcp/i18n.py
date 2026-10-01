@@ -20,11 +20,15 @@ KEYS = {
     "조문": "articles", "국가": "country", "발효일": "in_force_since", "영문 제목": "title_en", "책자": "publication",
     "발간일": "published", "분야": "area", "담당": "department", "발췌": "excerpt", "파일": "file", "점수": "score", "색인": "index",
     "회신일": "reply_date", "쟁점": "issue", "답변요지": "answer", "관련법령": "related_law", "체결국": "treaty_countries",
-    "법령명": "law", "검색어": "query", "후보수": "candidates", "id": "id", "error": "error", "번역": "translation",
+    "법령명": "law", "제한세율": "withholding_caps", "이름": "name", "시행일": "effective", "공포일": "promulgated", "제개정": "amendment_type",
+    "상태": "status", "이 조 변경": "article_change", "연혁": "history", "내용": "content", "세법": "tax_law", "소득": "income", "세율": "rates", "세율(%)": "rate_pct", "근거": "basis",
+    "요건·기타": "conditions", "지분요건(%)": "ownership_pct", "기타(%)": "other_pct", "개정 문서 언급": "amending_documents", "검색어": "query", "후보수": "candidates", "id": "id", "error": "error", "번역": "translation",
 }
 VALUES = {
     "질의회신": "NTS reply", "사전답변": "advance ruling", "과세기준자문": "tax base advisory", "판례": "court decision",
     "심판청구": "Tax Tribunal decision", "이의신청": "objection decision", "심사청구": "NTS review decision", "판례·결정": "decision",
+    "별표": "annex", "서식": "form", "바뀜": "changed", "그대로": "unchanged", "현행": "current", "시행예정": "upcoming", "기준": "baseline",
+    "배당": "dividends", "이자": "interest", "사용료": "royalties",
     "법률": "Act", "시행령": "Enforcement Decree", "시행규칙": "Enforcement Rule",
     "확인": "verified", "국세청 DB 미확인": "not found in NTS database", "조회 실패": "lookup failed", "조문 없음": "article not found",
     "미검증": "not verified", "법령명 미확인": "law name not found", "지지": "supports", "반대": "contradicts", "구별 필요": "distinguish",
