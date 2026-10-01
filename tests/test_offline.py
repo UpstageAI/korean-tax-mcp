@@ -61,3 +61,14 @@ def test_english_mode():
     assert all("lang" in t.input_schema["properties"] for t in asyncio.run(mcp.list_tools()))
     out = _call("casebook_search", {"query": "가지급금", "k": 1, "lang": "en"})
     assert "results" in out and "language_note" in out
+
+
+def test_onprem_solar_config(monkeypatch):
+    from korean_tax_mcp import solar
+    monkeypatch.delenv("UPSTAGE_API_KEY", raising=False); monkeypatch.delenv("KOREAN_TAX_MCP_SOLAR_KEY", raising=False)
+    monkeypatch.delenv("KOREAN_TAX_MCP_SOLAR_BASE_URL", raising=False)
+    assert not solar.available()
+    monkeypatch.setenv("KOREAN_TAX_MCP_SOLAR_BASE_URL", "http://10.0.0.5:8000/v1/")
+    base, key, model, onprem = solar.config()
+    assert base == "http://10.0.0.5:8000/v1" and onprem and solar.available() and key == ""
+    assert solar.where("en").startswith("on-prem")

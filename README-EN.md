@@ -37,6 +37,10 @@ Every tool takes `lang="en"`:
 
 Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for loans to related parties (lang=en)"* or *"Show the dividend article of the Korea–US tax treaty in English."*
 
+## On-prem Solar
+
+Fact comparison and translation use Solar. To use a Solar instance installed inside a closed network (OpenAI-compatible API), set `KOREAN_TAX_MCP_SOLAR_BASE_URL` (e.g. `http://10.0.0.5:8000/v1`), optionally `KOREAN_TAX_MCP_MODEL`, `KOREAN_TAX_MCP_SOLAR_KEY`, and `KOREAN_TAX_MCP_SOLAR_VERIFY=0` for self-signed certificates.
+
 ## Install
 
 ```bash
