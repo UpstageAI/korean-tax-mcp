@@ -91,7 +91,32 @@ def law_id(name):
     return m.get(base)
 
 
+STOP = ("여부", "경우", "해당", "관련", "대한", "있는지", "되는지", "하는지", "적용", "따른", "위한", "그", "및", "등")
+
+
+def _keywords(q, k):
+    """긴 쟁점 문장 → 조사·어미를 떼고 앞쪽 핵심 명사 k개."""
+    out = []
+    for w in re.findall(r"[가-힣A-Za-z0-9]+", q):
+        w = re.sub(r"(으로|에서|에게|로서|로써|까지|부터|하는|되는|하여|으로서|의|가|이|은|는|을|를|에|와|과|로|도|만|인|한|된|할)$", "", w)
+        if len(w) >= 2 and w not in STOP and w not in out: out.append(w)
+    return " ".join(out[:k])
+
+
 def search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, start="", end="", article=None, law=None):
+    out = _search(query, kinds, tax, sort, n, start, end, article, law)
+    if not out and not article:   # 긴 문장은 국세청 검색이 모든 단어를 요구해 0건 — 핵심어로 줄여 재시도
+        for k in (5, 3):
+            q2 = _keywords(query, k)
+            if q2 and q2 != query:
+                out = _search(q2, kinds, tax, sort, n, start, end, article, law)
+                if out:
+                    for r in out: r["검색어(축약)"] = q2
+                    break
+    return out
+
+
+def _search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, start="", end="", article=None, law=None):
     """→ [{구분, 문서번호, 제목, 요지, 세목, 일자, id, 링크}]. sort: 최신 | 정확도. start/end: YYYYMMDD(등록일).
     article+law: 그 조문을 관련 법령으로 인용한 문서만."""
     p = {"schVcb": query, "startCount": 1, "collection": ",".join(KINDS[k] for k in kinds), "sortField": "DATE/DESC" if sort == "최신" else "SCORE/DESC",
@@ -108,7 +133,7 @@ def search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, sta
     for c in d["searchResultVO"]["collectionList"]:
         for r in c.get("resultList") or []:
             did = r.get("DOC_ID") or ""
-            out.append({"구분": r.get("LBL1_TTL") or c.get("nameKr"), "문서번호": _clean(r.get("NTST_DCM_DSCM_CNTN", "")), "제목": _clean(r.get("TTL")),
+            out.append({"구분": r.get("LBL1_TTL") or c.get("nameKr"), "문서번호": re.sub(r"\(\d{4}\.\s?\d{1,2}\.\s?\d{1,2}\.?\)$", "", _clean(r.get("NTST_DCM_DSCM_CNTN", ""))).strip(), "제목": _clean(r.get("TTL")),
                         "요지": _clean(r.get("GIST_CNTN"))[:400], "세목": r.get("NTST_TLAW_CL_NM", ""), "일자": _date(r.get("NTST_DCM_RGT_DT", "")),
                         "id": did, "링크": f"{BASE}/qt/USEQTA002P.do?ntstDcmId={did}", "전체건수": c.get("totalCount")})
     if sort == "최신": out.sort(key=lambda x: x["일자"], reverse=True)   # 종류(해석·판례)를 섞어 등록일 내림차순
@@ -213,4 +238,78 @@ def publications(query, n=8):
             out.append({"책자": r.get("NTST_PLCN_BK_TTL", ""), "발간일": _date(r.get("PLCN_DT", "")), "분야": r.get("LBL2_TTL", ""),
                         "담당": r.get("NTST_JRSD_DNO_NM", ""), "발췌": _clean(r.get("FILE_CN", ""))[:400],
                         "링크": f"{BASE}/el/USEELA001M.do"})
+    return out
+
+
+# ── 조약별 원천징수 제한세율(배당·이자·사용료) — 원문에서 세율·요건을 뽑고 근거 문장을 함께 ──
+INCOME = {"배당": "DIVIDEND", "이자": "INTEREST", "사용료": "ROYALT"}
+_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:per\s*cent|percent|%)", re.I)
+
+
+def _rate_items(txt):
+    """세율(총액의 %)과 지분 요건(자본·의결권의 %)을 문맥으로 구분. 근거는 그 항목 절((a)·(b)…) 전체."""
+    rates, thresholds = [], []
+    marks = [m.start() for m in re.finditer(r"\(\s*[a-z]\s*\)|\n\s*\d+\.\s|;", txt)] + [len(txt)]
+    for m in _PCT.finditer(txt):
+        st = max([x for x in marks if x <= m.start()] or [0]); en = min([x for x in marks if x > m.end()] or [len(txt)])
+        if txt[en:en + 1] == ";": en += 1
+        clause = re.sub(r"\s+", " ", txt[st:min(en + 250, len(txt))]).strip(" ;")[:400]
+        right = txt[m.end():m.end() + 60].lower()
+        v = float(m.group(1))
+        if re.match(r"\s*of the (?:voting|capital|shares|stock|issued|outstanding)", right) or re.search(r"(?:owns|holds|holding)\D{0,40}$", txt[max(0, m.start() - 60):m.start()].lower()):
+            thresholds.append({"지분요건(%)": v, "근거": clause})
+        elif "gross amount" in clause.lower() or "shall not exceed" in clause.lower():
+            rates.append({"세율(%)": v, "근거": clause})
+        else:
+            thresholds.append({"기타(%)": v, "근거": clause})
+    return rates, thresholds
+
+
+def withholding_rates(country, income=None):
+    t = treaties()
+    name = country if country in t else next((n for n in t if country and (country in n or n in country)), None)
+    if not name: return {"error": f"조약 체결국에서 '{country}'를 찾지 못함", "체결국": sorted(t)}
+    rows = _act("ASISTC002MR01", {"txaAgrmBscId": t[name]["id"]}).get("txaTraDVOList") or []
+    prot = [r for r in rows if "의정서" in (r.get("txaAgrmTextUqnm") or "") and r.get("txaAgrmTextNm") not in ("전문",)]
+    out = []
+    for ko, en in INCOME.items():
+        if income and income != ko: continue
+        art = next((r for r in rows if en in (r.get("txaAgrmTextEnglNm") or "").upper() and "의정서" not in (r.get("txaAgrmTextUqnm") or "")), None)
+        if not art: out.append({"소득": ko, "조문": None, "세율": [], "주의": "조약에 별도 조문 없음 — 국내법 세율 적용 여부 확인"}); continue
+        rates, others = _rate_items(art.get("txaAgrmTextEnglCntn") or "")
+        no = art.get("txaAgrmTextUqnm")
+        touched = [f"{p.get('txaAgrmTextNm')}" for p in prot
+                   if re.search(rf"(?:Article|제)\s*{re.sub(r'[^0-9]', '', no or '')}(?!\d)|{en.title()}", (p.get("txaAgrmTextEnglCntn") or "") + (p.get("txaAgrmTextCntn") or ""))]
+        out.append({"소득": ko, "조문": no, "제목": art.get("txaAgrmTextNm"), "세율": rates, "요건·기타": others[:6],
+                    "개정 문서 언급": touched, "주의": "개정 의정서·교환각서가 이 조문을 바꿨을 수 있음 — 언급된 문서 확인" if touched else ""})
+    return {"국가": name, "발효일": t[name]["발효일"], "제한세율": out,
+            "주의": "조약 원문에서 자동 추출 — 적용 전 원문·개정 의정서·국내법(지방소득세 별도 등) 확인", "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
+
+
+# ── 별표·서식 (세율표·기준금액표·신고서 서식 등) ──
+def forms(query, kind=None, n=10):
+    out = _forms(query, kind, n)
+    if not out:
+        for k in (3, 2):
+            q2 = _keywords(query, k)
+            if q2 and q2 != query and (out := _forms(q2, kind, n)): break
+    return out
+
+
+def _forms(query, kind=None, n=10):
+    p = {"schVcb": query, "startCount": 1, "collection": "appendForm", "sortField": "SCORE/DESC", "searchType": "",
+         "viewCount": str(max(1, min(int(n) * 2, 40))), "useSynonymYn": "Y", "mainIdCtl": [], "icldVcbCtl": [], "exclVcbCtl": [],
+         "rltnStttCtl": [], "ntstTlawClCdList": []}
+    d = _act("ASEISA001MR01", p)
+    out, seen = [], set()
+    for c in d["searchResultVO"]["collectionList"]:
+        for r in c.get("resultList") or []:
+            name = _clean(r.get("FRML_NM", "")); typ = "별표" if "별표" in name or "별표" in (r.get("LBL1_NM") or "") else "서식"
+            if kind and kind != typ: continue
+            k = (name, r.get("BSC_ID"))
+            if k in seen: continue   # 같은 서식의 여러 시행본 중 최신만
+            seen.add(k)
+            out.append({"구분": typ, "이름": name, "법령": r.get("NM", ""), "세법": r.get("LBL2_TTL", ""), "시행일": _date(r.get("ENFR_DT", "")),
+                        "내용": _clean(r.get("FILE_CN", ""))[:600], "링크": f"{BASE}/af/USEAFE001M.do"})
+            if len(out) >= n: break
     return out

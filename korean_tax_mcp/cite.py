@@ -14,7 +14,7 @@ DOC = re.compile(r"(?:(?:서면|사전|기준|질의|법규|법령해석|이의|
 LAWREF = re.compile(r"((?:[가-힣]+에\s?관한\s?법률|(?:[가-힣]+\s및\s)?[가-힣]*?[가-힣]법)(?:\s?시행령|\s?시행규칙)?)\s*(제\d+조(?:의\d+)?)")
 
 
-def _key(t): return re.sub(r"[^0-9A-Za-z가-힣]", "", t or "")
+def _key(t): return re.sub(r"[^0-9A-Za-z가-힣]", "", re.sub(r"\(\d{4}\.[^)]*\)$", "", (t or "").strip()))
 
 
 def _check_doc(raw):
