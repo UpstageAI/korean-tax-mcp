@@ -1,5 +1,7 @@
 # korean-tax-mcp
 
+<!-- mcp-name: io.github.seungmiyoon/korean-tax-mcp -->
+
 한국 세법 근거를 찾는 MCP 서버입니다. Claude·Cursor 같은 AI 도구에 붙이면 세법 쟁점을 물을 때 국세청 해석·판례·통칙·조문을 문서번호와 함께 찾아 줍니다.
 
 - 국세청 **질의회신·과세기준자문·사전답변**, 법원 **판례**·**조세심판**·이의·심사 — 최신순 검색과 본문 전문
@@ -18,14 +20,14 @@
   "mcpServers": {
     "korean-tax": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/seungmiyoon/korean-tax-mcp", "korean-tax-mcp"],
+      "args": ["korean-tax-mcp"],
       "env": { "LAW_OC": "법제처 OC(선택)", "UPSTAGE_API_KEY": "Upstage 키(선택)" }
     }
   }
 }
 ```
 
-Claude Code: `claude mcp add korean-tax -- uvx --from git+https://github.com/seungmiyoon/korean-tax-mcp korean-tax-mcp`
+Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 
 ## 키
 
@@ -54,6 +56,20 @@ Claude Code: `claude mcp add korean-tax -- uvx --from git+https://github.com/seu
 - "폐업자에게 받은 세금계산서 매입세액 공제 관련 판례 찾아서 본문 요약해줘"
 - "2023년 12월 31일 기준 법인세법 시행규칙 제43조 원문"
 - "가지급금 인정이자 기본통칙이랑 집행기준 같이 보여줘"
+
+## 함께 쓰면 좋은 MCP
+
+일반 법령 검색·판례 전반·인용 실존 검증은 류승인 주무관님의 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp)를 함께 붙여 쓰세요.
+korean-law-mcp가 법령 전반을, 이 서버가 세법 해석·판례·기본통칙·집행기준을 맡는 구성입니다.
+
+```json
+{
+  "mcpServers": {
+    "korean-law": { "...": "korean-law-mcp 설정은 해당 저장소 README 참고" },
+    "korean-tax": { "command": "uvx", "args": ["korean-tax-mcp"] }
+  }
+}
+```
 
 ## 유의
 
