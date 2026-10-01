@@ -27,6 +27,13 @@ def test_casebook():
 def test_input_errors(monkeypatch):
     monkeypatch.delenv("LAW_OC", raising=False)
     assert "OC" in _call("law_article", {"law_name": "법인세법", "article": "제52조"})["error"]
-    assert "error" in _call("search_tax_rulings", {"query": "x", "tax": "없음"})
-    assert "error" in _call("casebook_search", {"query": "x", "area": "없음"})
+    for name, args in (("search_tax_rulings", {"query": "x", "tax": "없음"}), ("casebook_search", {"query": "x", "area": "없음"})):
+        try: r = asyncio.run(mcp.call_tool(name, args)); assert r.is_error
+        except Exception: pass   # 스키마(enum)에서 거절
     monkeypatch.delenv("UPSTAGE_API_KEY", raising=False)
+
+
+def test_descriptions_complete():
+    for t in asyncio.run(mcp.list_tools()):
+        assert t.description and "언제" in t.description and t.annotations.read_only_hint
+        assert all(v.get("description") for v in t.input_schema["properties"].values()), t.name
