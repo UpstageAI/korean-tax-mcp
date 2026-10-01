@@ -4,7 +4,7 @@
 
 An MCP server for **Korean tax law sources**. Plug it into Claude, Cursor, or any MCP client to get National Tax Service (NTS) rulings, court and tax tribunal decisions, basic rules, and statutes — with document numbers.
 
-The tax-law companion to [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp) by Ryu Seung-in.
+Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp) for general Korean statutes.
 
 ## Features
 
