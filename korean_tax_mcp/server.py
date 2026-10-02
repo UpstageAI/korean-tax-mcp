@@ -19,12 +19,12 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import casebook, cite, i18n, law, localdocs, ntis, solar, timeline
+from . import casebook, cite, i18n, law, localdocs, ntis, outcome, solar, timeline
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
     instructions="한국 세법 쟁점의 근거(국세청 해석·판례·통칙·집행기준·조문)를 찾는다. search_tax_rulings로 넓게 찾고, get_tax_ruling으로 본문을 읽고, "
-                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 특정 사업연도 기준 정리는 research_issue, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
+                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 특정 사업연도 기준 정리는 research_issue, 쟁점의 납세자 승·패 사례 비교는 compare_outcomes, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
                  "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다.")
 
 TAXES = tuple(ntis.TAX_CODES)
@@ -212,6 +212,41 @@ def law_article(
 def _solar(prompt):
     from . import solar
     return solar.chat_json(prompt)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def compare_outcomes(
+    issue: Annotated[str, Field(description="쟁점 한 문장. 예: '특정 임원만을 위한 퇴직금 지급규정에 따른 퇴직금의 손금산입 여부'")],
+    tax: Annotated[Tax | None, Field(description="세목 필터 (선택)")] = None,
+    n: Annotated[int, Field(description="본문까지 읽을 결정·판결 수(4~20). 많을수록 느림(건당 약 0.5초)", ge=4, le=20)] = 12,
+    explain: Annotated[bool, Field(description="True면 Solar로 '승패를 가른 지점'을 요약(UPSTAGE_API_KEY 또는 온프렘 Solar 필요)")] = False,
+) -> dict:
+    """Win/loss side by side for one issue: taxpayer-won vs lost decisions with both sides' arguments and the deciding reasoning. 같은 쟁점의 조세심판·심사·이의·법원 판결을 납세자 승(인용·취소)/일부 인용/패(기각)로 나누고, 건마다 납세자 주장·과세관청 의견·결정 이유(판단 끝부분)를 나란히.
+    언제: 불복·조사 대응에서 '이긴 쪽은 무엇을 입증했고 진 쪽은 무엇이 부족했나'를 볼 때. 이긴 사례만 걸러 보지 않는다(양쪽을 같이).
+    결과 판정은 본문 주문(主文)·결론 문장을 규칙으로 읽음(모델 추정 아님). 주장·이유는 본문에서 잘라 온 발췌.
+    반환: {쟁점, 집계, 납세자 승(인용·취소), 일부 인용, 납세자 패(기각), 각하·기타, 갈린 지점?(explain), 주의}.
+    읽기 전용. 국세법령정보시스템 조회, 약 5~10초.
+    """
+    if not issue.strip(): return {"error": "issue 필요"}
+    try: r = outcome.compare(issue, tax, n)
+    except Exception as e: return _err(e)
+    r["주의"] = "결정 당시 법 기준 — 적용 연도 조문(law_article as_of)과 대조. 사실관계가 다르면 결론도 다를 수 있음"
+    if r["집계"][outcome.WIN] + r["집계"][outcome.PART] == 0:
+        r["안내"] = "납세자 승 사례가 검색 상위에 없음 — 쟁점 문구를 바꾸거나 n을 늘려 다시 찾기"
+    if explain:
+        sides = [(k, x) for k in (outcome.WIN, outcome.PART, outcome.LOSE) for x in r[k][:5]]
+        if sides:
+            lines = "\n".join(f"[{k}] {x['문서번호']} 납세자: {x.get('납세자 주장', '')[:250]} / 판단: {x.get('결정 이유(판단 끝부분)', '')[-350:]}" for k, x in sides)
+            try:
+                j = _solar(f"""같은 세법 쟁점의 결정·판결을 납세자 승/패로 나눈 발췌다. 승패를 가른 지점을 비교한다. 발췌에 없는 사실을 만들지 않는다. 문서번호는 아래 것만.
+[쟁점] {issue[:200]}
+{lines}
+JSON: {{"갈린 지점":["사실·증빙 기준 한 줄 (근거 문서번호)"],"이긴 쪽이 입증한 것":["..."],"진 쪽에 부족했던 것":["..."]}}""")
+                r["갈린 지점"] = {**j, "주의": f"{solar.where()} 요약 — 본문 확인 후 인용"}
+            except Exception as e:
+                r["갈린 지점"] = {"error": f"Solar 요약 실패: {e}"}
+    return r
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=False, open_world_hint=True))

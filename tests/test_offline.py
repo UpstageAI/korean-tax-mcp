@@ -12,7 +12,7 @@ def test_tools():
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"search_tax_rulings", "get_tax_ruling", "rulings_by_article", "basic_rules", "execution_standards",
                      "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations",
-                     "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms", "article_history"}
+                     "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms", "article_history", "compare_outcomes"}
 
 
 def test_codes():
@@ -81,3 +81,14 @@ def test_rate_extraction():
            "(b) 10 per cent of the gross amount of the dividends in all other cases.")
     rates, other = ntis._rate_items(txt)
     assert [r["세율(%)"] for r in rates] == [5.0, 10.0] and [o.get("지분요건(%)") for o in other] == [25.0]
+
+
+def test_outcome_verdict():
+    from korean_tax_mcp.outcome import verdict, WIN, LOSE, PART, OTHER
+    assert verdict("주 문 \n 심판청구를 기각한다. \n 이 유 \n")[0] == LOSE
+    assert verdict("주 문 \n 1. 원고의 청구를 기각한다. \n 이 유")[0] == LOSE
+    assert verdict("주 문 \n 피고의 항소를 기각한다. \n 이 유")[0] == WIN
+    assert verdict("주 문 \n ○○세무서장이 한 법인세 부과처분을 취소한다. \n 이 유")[0] == WIN
+    assert verdict("주 문 \n 부과처분 중 일부를 취소하고, 나머지 청구를 기각한다. \n 이 유")[0] == PART
+    assert verdict("주 문 \n 원심판결을 파기하고 환송한다. \n 이 유")[0] == OTHER
+    assert verdict("... 4. 결 론 \n 이 건 심판청구는 청구법인의 주장이 이유있으므로 주문과 같이 결정한다.")[0] == WIN
