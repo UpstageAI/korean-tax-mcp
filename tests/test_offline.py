@@ -128,3 +128,10 @@ def test_outcome_adoption():
     assert verdict("주 문 \n 통지 중 1. 부가세는 【채택】결정하고, 2. 나머지 청구는 이를 【불채택】결정합니다. \n 이 유")[0] == PART
     assert verdict("주 문 \n 청구는 【불채택】결정합니다. \n 이 유")[0] == LOSE
     assert verdict("주 문 \n 세무조사결과 통지는 【채택】결정합니다. \n 이 유")[0] == WIN
+
+
+def test_law_id_does_not_fallback_to_act(monkeypatch):
+    from korean_tax_mcp import ntis
+    monkeypatch.setattr(ntis, "laws", lambda: {"법인세법": "1", "법인세법 시행령": "2"})
+    assert ntis.law_id("법인세법 시행령") == "2" and ntis.law_id("법인세법시행령") == "2"
+    assert ntis.law_id("법인세법 시행규칙") is None

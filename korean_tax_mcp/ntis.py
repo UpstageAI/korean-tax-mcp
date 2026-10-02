@@ -80,15 +80,22 @@ def jo_code(article):
 
 @lru_cache(maxsize=1)
 def laws():
-    """NTIS 조세법령 이름 → ntstBscId."""
-    return {x["ntstNm"]: x["ntstBscId"] for x in _act("ASISTZ001MR01", {"ntstSysClCd": "01"})}
+    """NTIS 조세법령 이름 → ntstBscId. 법률(01)·시행령(02)·시행규칙(03) 목록이 따로 있다."""
+    out = {}
+    for code in ("01", "02", "03"):
+        out.update({x["ntstNm"]: x["ntstBscId"] for x in _act("ASISTZ001MR01", {"ntstSysClCd": code})})
+    return out
 
 
 def law_id(name):
+    """정식 이름('법인세법 시행령')으로 찾는다. 띄어쓰기 없는 표기('법인세법시행령')도 허용.
+    시행령·시행규칙을 법률 ID로 대체하지 않는다(대체하면 다른 조문의 해석이 섞임)."""
     m = laws()
     if name in m: return m[name]
-    base = re.sub(r"\s*(시행령|시행규칙)$", "", name)
-    return m.get(base)
+    norm = re.sub(r"\s+", "", name)
+    for k, v in m.items():
+        if re.sub(r"\s+", "", k) == norm: return v
+    return None
 
 
 STOP = ("여부", "경우", "해당", "관련", "대한", "있는지", "되는지", "하는지", "적용", "따른", "위한", "그", "및", "등")
