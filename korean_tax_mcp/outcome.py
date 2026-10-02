@@ -22,7 +22,12 @@ def _conclusion(s):
 
 def verdict(body):
     """본문 → (결과, 주문 원문). 주문(主文)을 규칙으로 읽고, 주문이 없거나 '주문과 같다'면 결론 문장으로."""
-    m = re.search(r"주\s*문\s*\n(?!\s*과)(.{0,400}?)(?:\n\s*(?:이\s*유|청\s*구\s*취\s*지|신\s*청\s*취\s*지)|$)", body, re.S)
+    f = re.search(r"결정유형\s*\n\s*([^\n]{1,20})", body[:600])   # 최근 결정문 머리의 결정유형 필드가 가장 정확
+    if f:
+        v = re.sub(r"\s", "", f.group(1))
+        k = OTHER if "각하" in v else PART if "일부" in v else LOSE if "기각" in v else WIN if re.search("인용|취소|경정|재조사", v) else None
+        if k: return k, f"결정유형: {f.group(1).strip()}"
+    m = re.search(r"\[?\s*주\s*문\s*\]?\s*\n(?!\s*과)(.{0,400}?)(?:\n\s*\[?\s*(?:이\s*유|청\s*구\s*취\s*지|신\s*청\s*취\s*지)|$)", body, re.S)
     t = re.sub(r"\s+", " ", m.group(1)).strip() if m else ""
     s = re.sub(r"\s", "", t)
     c = re.search(r"결\s*론\s*\n?(.{0,400})", body[-1500:], re.S)
@@ -35,6 +40,9 @@ def verdict(body):
     taxpayer_lost = re.search(r"(원고|청구인|청구법인|심판청구|심사청구|이의신청|청구)(들)?의?(항소|상고|청구|심판청구|심사청구|이의신청)?(를|을)?(모두)?기각", s)
     gov_lost = re.search(r"피고(들)?의?(항소|상고)(를|을)?(모두)?기각", s)
     won = re.search(r"(취소한다|취소하고|취소합니다|경정한다|경정하고|경정합니다|인용하고|인용하며|재조사|인용한다|과세하지아니|감액)", s)
+    if not gov_lost and not re.search(r"(원고|청구)", s) and re.search(r"(항소|상고)(를|을)?(모두)?기각", s):
+        head = re.sub(r"\s", "", body[:300])   # 주체 없는 "상고를 기각" — 누가 상고(항소)인인지로 판단
+        if re.search(r"피고(들)?,?(상고인|항소인)", head) and not re.search(r"원고(들)?,?(상고인|항소인)", head): gov_lost = True
     if gov_lost: return WIN, t[:300]
     if won and taxpayer_lost: return PART, t[:300]
     if won: return (PART if "나머지" in s or "일부" in s else WIN), t[:300]
