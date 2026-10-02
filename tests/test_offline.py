@@ -107,3 +107,17 @@ def test_event_base_dates():
     with pytest.raises(ValueError): base_date("2023", event="양도")
     with pytest.raises(ValueError): base_date("2023", tax="상증")
     assert base_date("2023-2")[0] == "20231231"
+
+
+def test_outcome_formats():
+    from korean_tax_mcp.outcome import verdict, WIN, LOSE
+    assert verdict("[주 문] \n 심판청구를 기각한다. \n [이 유] \n 1.")[0] == LOSE
+    assert verdict("문서번호 \n 적부-부산청-2025-0018 \n 결정유형 \n 기각 \n 세목")[0] == LOSE
+    assert verdict("문서번호 \n x \n 결정유형 \n 취소 \n 세목")[0] == WIN
+    assert verdict("주 문 \n 이 건 이의신청은 기각 합니다. \n 이 유")[0] == LOSE
+
+
+def test_outcome_appellant():
+    from korean_tax_mcp.outcome import verdict, WIN, LOSE
+    assert verdict("원고, 상고인 \n AAA \n 피고, 피상고인 \n 세무서장 \n 주 문 \n 상고를 모두 기각한다. \n 이 유")[0] == LOSE
+    assert verdict("원고, 피상고인 \n AAA \n 피고, 상고인 \n 세무서장 \n 주 문 \n 상고를 기각한다. \n 이 유")[0] == WIN
