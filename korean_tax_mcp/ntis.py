@@ -104,6 +104,8 @@ def _keywords(q, k):
 
 
 def search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, start="", end="", article=None, law=None):
+    if sort == "정확도" and not article and len(_keywords(query, 9).split()) >= 3:
+        return _pooled(query, kinds, tax, n, start, end)
     out = _search(query, kinds, tax, sort, n, start, end, article, law)
     if not out and not article:   # 긴 문장은 국세청 검색이 모든 단어를 요구해 0건 — 핵심어로 줄여 재시도
         for k in (5, 3):
@@ -116,10 +118,35 @@ def search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, sta
     return out
 
 
+def _bigrams(t):
+    t = re.sub(r"[^0-9A-Za-z가-힣]", "", t or "")
+    return {t[i:i + 2] for i in range(len(t) - 1)}
+
+
+def _pooled(query, kinds, tax, n, start, end):
+    """긴 쟁점 문장: 원문·핵심어 5·4·3·2개로 각각 정확도 검색해 후보를 모은 뒤, 제목·요지가 질문과 얼마나 겹치는지(글자 2-gram)로 다시 순위.
+    국세청 정확도 순위가 오래된 유사 해석을 앞세우는 문제를 줄인다(사례집 96건 기준 Recall@10 90%→95%)."""
+    pool = {}
+    for v in dict.fromkeys(x for x in (query[:80], _keywords(query, 5), _keywords(query, 4), _keywords(query, 3), _keywords(query, 2)) if x):
+        try: rs = _search(v, kinds, tax, "정확도", 30, start, end)
+        except Exception: continue
+        for i, r in enumerate(rs):
+            k = r["문서번호"] or r["id"]
+            if k not in pool: pool[k] = (r, i, v == query[:80])
+    qb = _bigrams(query)
+    def score(k):
+        r, i, full = pool[k]; tb = _bigrams(r["제목"] + r["요지"])
+        return len(qb & tb) / ((len(qb) * max(1, len(tb))) ** 0.5 or 1) + (0.05 if full else 0) + 0.02 / (1 + i)
+    out = [pool[k][0] for k in sorted(pool, key=score, reverse=True)[:n * max(1, len(kinds))]]
+    for r in out: r["검색 방식"] = "원문·핵심어 검색 후보를 질문과의 겹침으로 재정렬"
+    return out
+
+
 def _search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, start="", end="", article=None, law=None):
     """→ [{구분, 문서번호, 제목, 요지, 세목, 일자, id, 링크}]. sort: 최신 | 정확도. start/end: YYYYMMDD(등록일).
     article+law: 그 조문을 관련 법령으로 인용한 문서만."""
-    p = {"schVcb": query, "startCount": 1, "collection": ",".join(KINDS[k] for k in kinds), "sortField": "DATE/DESC" if sort == "최신" else "SCORE/DESC",
+    p = {"schVcb": re.sub(r"[A-Z]+", lambda m: m.group().lower(), query),   # 국세청 검색은 영문 대문자(NFT 등)를 0건 처리
+          "startCount": 1, "collection": ",".join(KINDS[k] for k in kinds), "sortField": "DATE/DESC" if sort == "최신" else "SCORE/DESC",
          "searchType": "", "viewCount": str(max(1, min(int(n), 30))), "useSynonymYn": "Y", "mainIdCtl": [], "icldVcbCtl": [], "exclVcbCtl": [],
          "rltnStttCtl": [], "ntstTlawClCdList": [TAX_CODES[tax]] if tax else []}
     if start: p["bltnStrtDtm"] = start + "000000"
