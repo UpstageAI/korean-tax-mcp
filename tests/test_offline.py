@@ -121,3 +121,10 @@ def test_outcome_appellant():
     from korean_tax_mcp.outcome import verdict, WIN, LOSE
     assert verdict("원고, 상고인 \n AAA \n 피고, 피상고인 \n 세무서장 \n 주 문 \n 상고를 모두 기각한다. \n 이 유")[0] == LOSE
     assert verdict("원고, 피상고인 \n AAA \n 피고, 상고인 \n 세무서장 \n 주 문 \n 상고를 기각한다. \n 이 유")[0] == WIN
+
+
+def test_outcome_adoption():
+    from korean_tax_mcp.outcome import verdict, WIN, LOSE, PART
+    assert verdict("주 문 \n 통지 중 1. 부가세는 【채택】결정하고, 2. 나머지 청구는 이를 【불채택】결정합니다. \n 이 유")[0] == PART
+    assert verdict("주 문 \n 청구는 【불채택】결정합니다. \n 이 유")[0] == LOSE
+    assert verdict("주 문 \n 세무조사결과 통지는 【채택】결정합니다. \n 이 유")[0] == WIN
