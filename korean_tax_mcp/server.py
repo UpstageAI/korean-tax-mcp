@@ -297,14 +297,16 @@ def research_issue(
     period: Annotated[str, Field(description="사실이 속한 시점: '2023'(사업연도·과세기간), '2023-1'(부가 1기), '2023-12-31'(날짜)")],
     tax: Annotated[Tax | None, Field(description="세목. 부가세 과세기간 판단과 해석 필터에 사용 (선택)")] = None,
     n: Annotated[int, Field(description="해석·판례 종류별 최대 건수 1~20", ge=1, le=20)] = 8,
+    event: Annotated[Literal["양도", "상속", "증여", "원천"] | None, Field(description="사건 기준 세목. 양도=양도일(잔금일), 상속=상속개시일, 증여=증여일(등기 대상은 등기접수일), 원천=지급일. 주면 period는 날짜여야 함")] = None,
+    registered: Annotated[str, Field(description="양도: 소유권이전등기 접수일 YYYY-MM-DD (잔금일보다 빠르면 이 날이 양도일, 선택)")] = "",
 ) -> dict:
     """Bundle everything that applied to an issue at a past date. 그 해 기준 묶음 조회 — 사실 발생 시점의 조문(3단)·기본통칙·집행기준·그 조문을 인용한 해석·판례를 한 번에.
     언제: 세무조사·불복처럼 특정 사업연도에 적용되는 근거를 정리할 때. 시점 판단을 코드로 고정한다 —
-    기준일(사업연도·과세기간 종료일), 기준일 조문과 현행 조문의 변경 여부, 해석·판례마다 등록일 당시 조문이 기준일 조문과 같은지.
+    기준일(법인·소득·부가는 사업연도·과세기간 종료일, 양도는 양도일, 상속은 상속개시일, 증여는 증여일, 원천은 지급일), 기준일 조문과 현행 조문의 변경 여부, 해석·판례마다 등록일 당시 조문이 기준일 조문과 같은지.
     반환: {기준일, 기준일 근거, 그 해 조문(3단), 현행과 비교, 기본통칙[], 집행기준[], 해석·판례[{…, 기준일 조문과}], 주의}.
     읽기 전용. 조문 부분은 LAW_OC 필요(없으면 해석·통칙만 반환). 10~30초.
     """
-    try: return timeline.research(law_name, article.strip(), period, tax, n)
+    try: return timeline.research(law_name, article.strip(), period, tax, n, event, registered or None)
     except ValueError as e: return {"error": str(e)}
     except Exception as e: return _err(e)
 
