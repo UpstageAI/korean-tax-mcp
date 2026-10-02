@@ -92,3 +92,18 @@ def test_outcome_verdict():
     assert verdict("주 문 \n 부과처분 중 일부를 취소하고, 나머지 청구를 기각한다. \n 이 유")[0] == PART
     assert verdict("주 문 \n 원심판결을 파기하고 환송한다. \n 이 유")[0] == OTHER
     assert verdict("... 4. 결 론 \n 이 건 심판청구는 청구법인의 주장이 이유있으므로 주문과 같이 결정한다.")[0] == WIN
+
+
+def test_event_base_dates():
+    import pytest
+    from korean_tax_mcp.timeline import base_date
+    assert base_date("2023-08-31", event="양도")[0] == "20230831"
+    assert base_date("2023-08-31", event="양도", registered="2023-07-15")[0] == "20230715"
+    assert base_date("2023-08-31", event="양도", registered="2023-09-15")[0] == "20230831"
+    assert base_date("2022.3.4", tax="양도")[0] == "20220304"
+    assert base_date("2021-05-10", event="상속")[0] == "20210510"
+    assert "증여일" in base_date("2024-01-02", event="증여")[1]
+    assert "지급" in base_date("2024-12-31", event="원천")[1]
+    with pytest.raises(ValueError): base_date("2023", event="양도")
+    with pytest.raises(ValueError): base_date("2023", tax="상증")
+    assert base_date("2023-2")[0] == "20231231"
