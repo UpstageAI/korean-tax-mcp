@@ -35,6 +35,11 @@ def verdict(body):
     if not s or s.startswith("주문과"):
         r = _conclusion(cs)
         return (r or OTHER), re.sub(r"\s+", " ", c.group(1)).strip()[:300] if c else ""
+    if "채택" in s:   # 과세전적부심사: 【채택】=납세자 승, 【불채택】=패
+        yes, no = re.search(r"(?<!불)채택", s), "불채택" in s
+        if yes and no: return PART, t[:300]
+        if yes: return WIN, t[:300]
+        if no: return LOSE, t[:300]
     if "파기" in s: return OTHER, t[:300]   # 파기환송 — 다시 판단
     if "각하" in s and not re.search("취소|경정", s): return OTHER, t[:300]
     taxpayer_lost = re.search(r"(원고|청구인|청구법인|심판청구|심사청구|이의신청|청구)(들)?의?(항소|상고|청구|심판청구|심사청구|이의신청)?(를|을)?(모두)?기각", s)
