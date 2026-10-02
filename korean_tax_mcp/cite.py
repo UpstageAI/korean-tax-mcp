@@ -18,7 +18,7 @@ def _key(t): return re.sub(r"[^0-9A-Za-z가-힣]", "", re.sub(r"\(\d{4}\.[^)]*\)
 
 
 def _check_doc(raw):
-    try: hits = ntis.search(raw, ("해석", "판례"), None, "정확도", 5)
+    try: hits = ntis._search(raw, ("해석", "판례"), None, "정확도", 5)   # 번호 조회는 재정렬 없이
     except Exception as e: return {"인용": raw, "결과": "조회 실패", "이유": str(e)[:80]}
     k = _key(raw)
     m = next((h for h in hits if _key(h["문서번호"]) == k), None)
