@@ -62,6 +62,10 @@ def _texts(o):
     if isinstance(o, dict):
         for k, v in o.items():
             if k.endswith("내용") and k != "개정문내용" and isinstance(v, str): yield v
+            elif k.endswith("내용") and k != "개정문내용" and isinstance(v, list) and all(isinstance(x, str) for x in v):
+                yield "\n".join(v)   # 여러 줄짜리 목(가·나·다)은 문자열 목록으로 온다 — 빠뜨리면 공제율 등 핵심 문언이 사라짐
+            elif isinstance(v, list) and v and all(isinstance(x, list) for x in v):
+                for row in v: yield "\n".join(x for x in row if isinstance(x, str))
             else: yield from _texts(v)
     elif isinstance(o, list):
         for v in o: yield from _texts(v)
