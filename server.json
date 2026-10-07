@@ -1,15 +1,15 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.seungmiyoon/korean-tax-mcp",
+  "name": "io.github.upstageai/korean-tax-mcp",
   "title": "Korea Tax Law",
   "description": "Korea tax law: NTS rulings, court/tribunal decisions, basic rules, treaties, point-in-time statutes",
-  "repository": { "url": "https://github.com/seungmiyoon/korean-tax-mcp", "source": "github" },
-  "version": "0.4.0",
+  "repository": { "url": "https://github.com/UpstageAI/korean-tax-mcp", "source": "github" },
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "korean-tax-mcp",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         { "name": "LAW_OC", "description": "법제처 Open API OC key (optional, for law_article)", "isRequired": false, "isSecret": true },
