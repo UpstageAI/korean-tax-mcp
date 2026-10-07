@@ -1,6 +1,6 @@
 # korean-tax-mcp — Korea Tax Law MCP (한국 세법)
 
-<!-- mcp-name: io.github.upstageai/korean-tax-mcp -->
+<!-- mcp-name: io.github.UpstageAI/korean-tax-mcp -->
 
 ![데모: 법인세법 제52조 인용 해석 조회](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 

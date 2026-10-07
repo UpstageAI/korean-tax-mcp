@@ -1,6 +1,6 @@
 # korean-tax-mcp — Korea Tax Law MCP
 
-<!-- mcp-name: io.github.upstageai/korean-tax-mcp -->
+<!-- mcp-name: io.github.UpstageAI/korean-tax-mcp -->
 
 ![Demo](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
