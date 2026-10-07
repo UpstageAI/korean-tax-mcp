@@ -1,8 +1,8 @@
 # korean-tax-mcp — Korea Tax Law MCP
 
-<!-- mcp-name: io.github.seungmiyoon/korean-tax-mcp -->
+<!-- mcp-name: io.github.upstageai/korean-tax-mcp -->
 
-![Demo](https://raw.githubusercontent.com/seungmiyoon/korean-tax-mcp/main/docs/demo.gif)
+![Demo](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
 An MCP server for **Korean tax law sources**. Plug it into Claude, Cursor, or any MCP client to get National Tax Service (NTS) rulings, court and tax tribunal decisions, basic rules, and statutes — with document numbers.
 

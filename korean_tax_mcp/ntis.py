@@ -29,7 +29,7 @@ KINDS = {"해석": "question", "판례": "precedent"}
 CACHE = Path(os.environ.get("KOREAN_TAX_MCP_CACHE", Path.home() / ".cache" / "korean-tax-mcp"))
 TTL = int(os.environ.get("KOREAN_TAX_MCP_CACHE_TTL", 86400))
 _lock = threading.Lock(); _last = [0.0]
-UA = "korean-tax-mcp (+https://github.com/seungmiyoon/korean-tax-mcp)"
+UA = "korean-tax-mcp (+https://github.com/UpstageAI/korean-tax-mcp)"
 
 
 def _act(action, param, timeout=40):
