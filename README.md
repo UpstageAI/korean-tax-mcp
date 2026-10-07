@@ -61,7 +61,9 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 |---|---|---|
 | 없음 | 해석·판례 검색과 본문, 조문별 모음, 기본통칙, 집행기준, 사례집, 인용 검증(문서번호) | — |
 | `LAW_OC` | `law_article`, `research_issue`, `verify_citations`(조문) — 시점별 조문·3단 위임 | [open.law.go.kr](https://open.law.go.kr) 무료 신청 |
-| `UPSTAGE_API_KEY` | `compare_with_case` (사실관계 대조) | [console.upstage.ai](https://console.upstage.ai) |
+| `UPSTAGE_API_KEY` | `compare_with_case` (사실관계 대조), `compare_outcomes`의 `explain=True` (승패 요약), `lang="en"` 영문 번역 | [console.upstage.ai](https://console.upstage.ai) |
+
+> **데이터 전송 안내** — 기본 검색 기능은 법제처·국세청 공개 API만 호출하며 Upstage로 전송되는 내용은 없습니다. Solar 기능(사실관계 대조, 승패 요약, 영문 번역)은 `UPSTAGE_API_KEY`를 설정한 경우에만 동작하고, 이때 입력 내용이 Upstage API(api.upstage.ai)로 전송되니 **개인정보 등 민감정보는 넣지 마세요**. 망분리 환경에서는 `KOREAN_TAX_MCP_SOLAR_BASE_URL`로 기관 내부 Solar에 연결하면 외부 전송 없이 사용할 수 있습니다.
 
 ## 도구
 
@@ -109,8 +111,8 @@ korean-law-mcp가 법령 전반을, 이 서버가 세법 해석·판례·기본�
 
 국세청 국세법령정보시스템 · 법제처 국가법령정보 공동활용 · 국세청 「2025 세법해석 사례집」
 
-작성 Mia(윤승미) · Upstage
-
 ## 라이선스
 
-MIT
+MIT © 2026 Upstage
+
+Created by Mia(윤승미)
