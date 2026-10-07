@@ -67,10 +67,14 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 
 ## Notes
 
+- **Data transmission** — Core search calls only the public APIs of the Ministry of Government Legislation and the National Tax Service; nothing is sent to Upstage. Solar features (fact comparison, outcome summary, English translation) run only when `UPSTAGE_API_KEY` is set, and then the input is sent to the Upstage API (api.upstage.ai) — **do not enter personal or other sensitive data**. In air-gapped environments, set `KOREAN_TAX_MCP_SOLAR_BASE_URL` to an in-house Solar to avoid any external transmission.
+
 - Rulings and decisions reflect the law at the time they were issued; check the statute in force for the relevant year (`law_article` with `as_of`).
 - Uses the public lookup of the NTS legal information system (taxlaw.nts.go.kr) with a 1-day cache and ≥0.5 s between calls.
 - Results are research aids, not tax advice.
 
 ## License
 
-MIT · Mia (Seungmi Yoon), Upstage
+MIT © 2026 Upstage
+
+Created by Mia (Seungmi Yoon)
