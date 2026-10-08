@@ -1,0 +1,10 @@
+- insert:
+    - id: korean-tax-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: korean-tax-mcp
+        transport: stdio
+        command: uvx
+        args: ['korean-tax-mcp']
+        env:
+          LAW_OC: '${LAW_OC}'

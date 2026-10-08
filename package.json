@@ -1,0 +1,10 @@
+{
+  "name": "korean-tax-mcp",
+  "version": "0.6.0",
+  "description": "Solar Work plugin: Korean tax law, rulings and treaties search with citations (MCP)",
+  "dsh": {
+    "bundle": {
+      "patch": "./plugin.patch.yml"
+    }
+  }
+}
