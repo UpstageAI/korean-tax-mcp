@@ -1,4 +1,5 @@
-"""영문 결과(lang="en") — 결과 키·상태값을 영어로, 짧은 본문(제목·요지)은 Solar 기계 번역(UPSTAGE_API_KEY 있을 때).
+"""영문 결과(lang="en") — 결과 키·상태값을 영어로. 짧은 본문(제목·요지) 번역은 기본적으로 사용자 AI(호스트)가 하고,
+Solar 설정(UPSTAGE_API_KEY 또는 온프렘)이 있을 때만 Solar 기계 번역.
 
 원문이 한국어뿐인 해석·판례·통칙 본문은 번역하지 않고 원문을 둔다(길고, 인용은 원문 기준이어야 하므로).
 """
@@ -22,7 +23,8 @@ KEYS = {
     "회신일": "reply_date", "쟁점": "issue", "답변요지": "answer", "관련법령": "related_law", "체결국": "treaty_countries",
     "법령명": "law", "제한세율": "withholding_caps", "이름": "name", "시행일": "effective", "공포일": "promulgated", "제개정": "amendment_type",
     "상태": "status", "이 조 변경": "article_change", "연혁": "history", "내용": "content", "세법": "tax_law", "소득": "income", "세율": "rates", "세율(%)": "rate_pct", "근거": "basis",
-    "요건·기타": "conditions", "지분요건(%)": "ownership_pct", "기타(%)": "other_pct", "개정 문서 언급": "amending_documents", "검색어": "query", "후보수": "candidates", "id": "id", "error": "error", "번역": "translation",
+    "요건·기타": "conditions", "지분요건(%)": "ownership_pct", "기타(%)": "other_pct", "개정 문서 언급": "amending_documents", "검색어": "query", "후보수": "candidates", "id": "id", "error": "error", "번역": "translation", "판단 안내": "host_ai_instructions", "후보": "candidates", "사실관계": "facts", "우리 논리": "our_view",
+    "갈린 지점": "deciding_points", "이긴 쪽이 입증한 것": "what_winners_proved", "진 쪽에 부족했던 것": "what_losers_lacked", "안내": "guidance", "발췌 위치": "excerpts_at",
 }
 VALUES = {
     "질의회신": "NTS reply", "사전답변": "advance ruling", "과세기준자문": "tax base advisory", "판례": "court decision",
@@ -96,6 +98,14 @@ def english(result, translate=True):
     if isinstance(r, dict) and "error" not in r:
         from . import solar
         done = translate_short(r) if translate else False
-        r["language_note"] = (f"Titles and summaries machine-translated by {solar.where('en')} (originals in *_ko); full texts are original Korean."
-                              if done else "Source texts are Korean (official). Set UPSTAGE_API_KEY or KOREAN_TAX_MCP_SOLAR_BASE_URL (on-prem Solar) to machine-translate titles and summaries.")
+        if done:
+            r["language_note"] = f"Titles and summaries machine-translated by {solar.where('en')} (originals in *_ko); full texts are original Korean."
+            r.setdefault("translation_mode", solar.mode())
+        else:
+            r["language_note"] = ("Official English texts (tax treaties, English statutes) are returned as is. Other source texts are original Korean "
+                                  "(nothing was sent to Upstage).")
+            r["translation_mode"] = "host_ai"
+            r["host_ai_translate"] = ("Translate the Korean strings (titles, summaries, issues, answers, excerpts) into English yourself when presenting them. "
+                                      "Keep document numbers, article numbers and URLs unchanged; quote the Korean original next to any sentence you rely on; "
+                                      "do not add content that is not in the text.")
     return r

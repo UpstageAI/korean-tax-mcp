@@ -19,7 +19,7 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 | `execution_standards` | Tax Execution Standards (집행기준) items, page and link | none |
 | `casebook_search` | NTS 2025 Tax Interpretation Casebook (96 cases) | none |
 | `law_article` | Statute text as in force on a given date, plus Act → Decree → Rule delegation chain | `LAW_OC` |
-| `compare_with_case` | Compare your facts and argument with rulings: supports / contradicts / distinguish | `UPSTAGE_API_KEY` (Solar) |
+| `compare_with_case` | Compare your facts and argument with rulings: supports / contradicts / distinguish. By default returns candidate excerpts plus judging instructions for your AI (`mode: "host_ai"`); Solar judges when configured | none (`UPSTAGE_API_KEY` optional) |
 | `research_issue` | Everything that applied at a past date: statute chain, basic rules, standards, and rulings — flags statute changes and whether each ruling was issued under the same text | `LAW_OC` for statutes |
 | `treaty_withholding_rates` | Treaty withholding caps on dividends, interest, royalties with ownership conditions and the clause text | none |
 | `search_forms` | Statutory annexes (useful-life and depreciation tables) and official tax forms | none |
@@ -36,13 +36,13 @@ Every tool takes `lang="en"`:
 - English field names and labels (`doc_no`, `summary`, `effective_date`, …)
 - Tax treaties: official English text
 - Statutes: official English translation from the Korea Legislation Research Institute (not legally binding; the Korean text prevails). Requires your `LAW_OC` key to be approved for English laws (open.law.go.kr → OPEN API → 영문법령)
-- Rulings, decisions, basic rules: originals are Korean only. With `UPSTAGE_API_KEY`, titles and summaries are machine-translated by Upstage Solar (originals kept in `*_ko`); full texts stay Korean
+- Rulings, decisions, basic rules: originals are Korean only. By default they are returned in Korean with a `host_ai_translate` instruction so your AI translates them (nothing sent to Upstage). Optionally, with `UPSTAGE_API_KEY`, titles and summaries are machine-translated by Upstage Solar (originals kept in `*_ko`); full texts stay Korean
 
 Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for loans to related parties (lang=en)"* or *"Show the dividend article of the Korea–US tax treaty in English."*
 
 ## On-prem Solar
 
-Fact comparison and translation use Solar. To use a Solar instance installed inside a closed network (OpenAI-compatible API), set `KOREAN_TAX_MCP_SOLAR_BASE_URL` (e.g. `http://10.0.0.5:8000/v1`), optionally `KOREAN_TAX_MCP_MODEL`, `KOREAN_TAX_MCP_SOLAR_KEY`, and `KOREAN_TAX_MCP_SOLAR_VERIFY=0` for self-signed certificates.
+Fact comparison, outcome summary and translation are done by your own AI by default; Solar is optional. To use a Solar instance installed inside a closed network (OpenAI-compatible API), set `KOREAN_TAX_MCP_SOLAR_BASE_URL` (e.g. `http://10.0.0.5:8000/v1`), optionally `KOREAN_TAX_MCP_MODEL`, `KOREAN_TAX_MCP_SOLAR_KEY`, and `KOREAN_TAX_MCP_SOLAR_VERIFY=0` for self-signed certificates.
 
 ## Install
 
@@ -63,11 +63,11 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 ```
 
 - `LAW_OC`: free key from [open.law.go.kr](https://open.law.go.kr) (Ministry of Government Legislation)
-- `UPSTAGE_API_KEY`: [console.upstage.ai](https://console.upstage.ai)
+- `UPSTAGE_API_KEY` (optional): [console.upstage.ai](https://console.upstage.ai) — without it, `compare_with_case`, `compare_outcomes` `explain=True` and `lang="en"` still work in `host_ai` mode; with it, Solar does the comparison, summary and translation (`solar_cloud`). `KOREAN_TAX_MCP_SOLAR_BASE_URL` uses an in-house Solar (`solar_onprem`)
 
 ## Notes
 
-- **Data transmission** — Core search calls only the public APIs of the Ministry of Government Legislation and the National Tax Service; nothing is sent to Upstage. Solar features (fact comparison, outcome summary, English translation) run only when `UPSTAGE_API_KEY` is set, and then the input is sent to the Upstage API (api.upstage.ai) — **do not enter personal or other sensitive data**. In air-gapped environments, set `KOREAN_TAX_MCP_SOLAR_BASE_URL` to an in-house Solar to avoid any external transmission.
+- **Data transmission** — By default the server calls only the public APIs of the Ministry of Government Legislation and the National Tax Service, and AI judgment, summaries and translation are done by your own AI — nothing is sent to Upstage. Optional: when `UPSTAGE_API_KEY` is set, Solar performs the comparison, summary and translation, and then the input is sent to the Upstage API (api.upstage.ai) — **do not enter personal or other sensitive data**. In air-gapped environments, set `KOREAN_TAX_MCP_SOLAR_BASE_URL` to an in-house Solar to avoid any external transmission.
 
 - Rulings and decisions reflect the law at the time they were issued; check the statute in force for the relevant year (`law_article` with `as_of`).
 - Uses the public lookup of the NTS legal information system (taxlaw.nts.go.kr) with a 1-day cache and ≥0.5 s between calls.
