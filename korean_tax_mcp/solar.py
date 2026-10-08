@@ -25,6 +25,12 @@ def available():
     return onprem or bool(key)
 
 
+def mode():
+    """'solar_onprem' | 'solar_cloud' | 'host_ai'(Solar 설정 없음 — 판단은 사용자 AI가)."""
+    base, key, _, onprem = config()
+    return "solar_onprem" if onprem else "solar_cloud" if key else "host_ai"
+
+
 def chat_json(prompt, max_tokens=1600, timeout=120):
     base, key, model, onprem = config()
     if not onprem and not key:

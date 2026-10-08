@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 — 2026-10-08
+- AI 판단 기본값 변경: Solar 설정(UPSTAGE_API_KEY·KOREAN_TAX_MCP_SOLAR_BASE_URL)이 없으면 오류 대신 사용자 AI(호스트)가 판단하도록 원문 발췌와 판단 안내를 반환(`mode: "host_ai"`) — Upstage로 전송 없음
+  - compare_with_case: 후보 문서(문서번호·구분·일자·제목·요지·링크)와 지지/반대/구별 필요 판정 안내
+  - compare_outcomes explain=True: 갈린 지점 정리 안내(근거 문서번호 인용, 발췌 밖 사실 창작 금지)
+  - lang="en": 공식 영문(조약·영문 법령)은 그대로, 나머지 한국어 원문에 `host_ai_translate` 번역 안내
+- Solar 설정 시 기존 Solar 판정·요약·번역 유지, 결과에 `mode: "solar_cloud" | "solar_onprem"` 표시
+- README 데이터 전송 안내·키 표·도구 설명 갱신
+
 ## 0.5.1 — 2026-10-07
 - UpstageAI 조직 이전, MCP Registry 이름 io.github.UpstageAI/korean-tax-mcp
 

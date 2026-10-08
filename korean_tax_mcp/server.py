@@ -5,7 +5,8 @@
 
 키 없이: 해석·판례 검색과 본문, 조문별 해석, 기본통칙, 집행기준, 사례집
 LAW_OC(법제처, 무료): 시점별 조문·위임 체계
-UPSTAGE_API_KEY(Solar): 우리 사실관계와 해석·판례 대조
+AI 판단(대조·요약·번역): 기본은 사용자 AI(호스트)가 수행 — 원문 발췌와 판단 안내를 반환, Upstage로 전송 없음
+UPSTAGE_API_KEY 또는 KOREAN_TAX_MCP_SOLAR_BASE_URL(선택): Solar가 대조·요약·번역 수행
 """
 import json
 import os
@@ -41,7 +42,7 @@ def _err(e): return {"error": f"{type(e).__name__}: {e}"}
 import contextvars
 LANG = contextvars.ContextVar("lang", default="ko")
 LangT = Annotated[Literal["ko", "en"], Field(description="Output language. 'en': English keys and labels, official English texts where available "
-                                                     "(tax treaties, statutes), titles/summaries machine-translated by Upstage Solar when UPSTAGE_API_KEY is set. 기본 'ko'")]
+                                                     "(tax treaties, statutes), other Korean texts returned with a host_ai_translate instruction (your AI translates); Solar machine translation only when UPSTAGE_API_KEY or on-prem Solar is configured. 기본 'ko'")]
 
 
 def bilingual(fn):
@@ -220,12 +221,13 @@ def compare_outcomes(
     issue: Annotated[str, Field(description="쟁점 한 문장. 예: '특정 임원만을 위한 퇴직금 지급규정에 따른 퇴직금의 손금산입 여부'")],
     tax: Annotated[Tax | None, Field(description="세목 필터 (선택)")] = None,
     n: Annotated[int, Field(description="본문까지 읽을 결정·판결 수(4~20). 많을수록 느림(건당 약 0.5초)", ge=4, le=20)] = 12,
-    explain: Annotated[bool, Field(description="True면 Solar로 '승패를 가른 지점'을 요약(UPSTAGE_API_KEY 또는 온프렘 Solar 필요)")] = False,
+    explain: Annotated[bool, Field(description="True면 '승패를 가른 지점' 정리. 기본은 사용자 AI용 판단 안내 반환(전송 없음), Solar 설정 시 Solar가 요약")] = False,
 ) -> dict:
     """Win/loss side by side for one issue: taxpayer-won vs lost decisions with both sides' arguments and the deciding reasoning. 같은 쟁점의 조세심판·심사·이의·법원 판결을 납세자 승(인용·취소)/일부 인용/패(기각)로 나누고, 건마다 납세자 주장·과세관청 의견·결정 이유(판단 끝부분)를 나란히.
     언제: 불복·조사 대응에서 '이긴 쪽은 무엇을 입증했고 진 쪽은 무엇이 부족했나'를 볼 때. 이긴 사례만 걸러 보지 않는다(양쪽을 같이).
     결과 판정은 본문 주문(主文)·결론 문장을 규칙으로 읽음(모델 추정 아님). 주장·이유는 본문에서 잘라 온 발췌.
-    반환: {쟁점, 집계, 납세자 승(인용·취소), 일부 인용, 납세자 패(기각), 각하·기타, 갈린 지점?(explain), 주의}.
+    반환: {쟁점, 집계, 납세자 승(인용·취소), 일부 인용, 납세자 패(기각), 각하·기타, 갈린 지점?(explain), mode?, 주의}.
+    explain=True: Solar 설정이 없으면 mode="host_ai" — 갈린 지점에 사용자 AI용 판단 안내(발췌는 위 목록). 설정 시 Solar 요약(mode=solar_cloud/solar_onprem).
     읽기 전용. 국세법령정보시스템 조회, 약 5~10초.
     """
     if not issue.strip(): return {"error": "issue 필요"}
@@ -236,7 +238,13 @@ def compare_outcomes(
         r["안내"] = "납세자 승 사례가 검색 상위에 없음 — 쟁점 문구를 바꾸거나 n을 늘려 다시 찾기"
     if explain:
         sides = [(k, x) for k in (outcome.WIN, outcome.PART, outcome.LOSE) for x in r[k][:5]]
-        if sides:
+        r["mode"] = solar.mode()
+        if sides and r["mode"] == "host_ai":
+            r["갈린 지점"] = {"mode": "host_ai", "발췌 위치": "위 납세자 승·일부 인용·납세자 패 목록의 납세자 주장·과세관청 의견·결정 이유(판단 끝부분)",
+                         "판단 안내": "사용자 AI가 판단: 위 발췌만으로 승패를 가른 지점을 사실·증빙 기준으로 비교해 "
+                                   "{갈린 지점: [한 줄 (근거 문서번호)], 이긴 쪽이 입증한 것: [...], 진 쪽에 부족했던 것: [...]} 로 정리. "
+                                   "각 항목에 근거 문장과 문서번호를 인용하고, 발췌에 없는 사실은 만들지 않으며, 문서번호는 목록에 있는 것만 사용."}
+        elif sides:
             lines = "\n".join(f"[{k}] {x['문서번호']} 납세자: {x.get('납세자 주장', '')[:250]} / 판단: {x.get('결정 이유(판단 끝부분)', '')[-350:]}" for k, x in sides)
             try:
                 j = _solar(f"""같은 세법 쟁점의 결정·판결을 납세자 승/패로 나눈 발췌다. 승패를 가른 지점을 비교한다. 발췌에 없는 사실을 만들지 않는다. 문서번호는 아래 것만.
@@ -258,8 +266,11 @@ def compare_with_case(
 ) -> dict:
     """Check your facts and argument against rulings: supports / contradicts / distinguish. 사실관계·논리를 해석·판례와 대조해 항목마다 지지·반대·구별 필요를 판정.
     언제: 주장의 근거와 반대 사례를 한 번에 점검할 때(의견서·불복 검토). 단순 검색은 search_tax_rulings.
-    반환: {해석: [{문서번호, 구분, 관계, 이유, 사실관계 차이, 링크}], 요약, 주의}. 문서번호는 검색 결과에 있는 것만.
-    읽기 전용. Solar 호출 — UPSTAGE_API_KEY(클라우드) 또는 KOREAN_TAX_MCP_SOLAR_BASE_URL(망분리 온프렘 Solar) 필요, 약 10초.
+    기본(mode="host_ai"): Solar 설정이 없으면 후보 문서의 원문 발췌(제목·요지, 문서번호, 링크)와 판단 안내를 반환 — 판정은 사용자 AI가 수행, Upstage로 전송 없음.
+    반환(host_ai): {mode, 사실관계, 우리 논리, 후보: [{문서번호, 구분, 일자, 제목, 요지, 링크}], 판단 안내, 주의}.
+    선택(Solar): UPSTAGE_API_KEY(클라우드, 입력이 api.upstage.ai로 전송) 또는 KOREAN_TAX_MCP_SOLAR_BASE_URL(망분리 온프렘 Solar) 설정 시
+    반환: {mode, 해석: [{문서번호, 구분, 관계, 이유, 사실관계 차이, 링크}], 요약, 주의}. 문서번호는 검색 결과에 있는 것만. 약 10초.
+    읽기 전용.
     """
     if not facts.strip() or not our_view.strip(): return {"error": "facts·our_view 둘 다 필요"}
     try:
@@ -269,6 +280,14 @@ def compare_with_case(
     pool += [{"구분": "사례집", "문서번호": c["문서번호"], "제목": c["쟁점"], "요지": c["답변요지"], "일자": c["회신일"], "링크": ""}
              for c in casebook.search(f"{facts} {our_view}", None, 3)]
     if not pool: return {"해석": [], "요약": "관련 해석·판례 없음"}
+    if solar.mode() == "host_ai":
+        return {"mode": "host_ai", "사실관계": facts[:1500], "우리 논리": our_view[:500],
+                "후보": [{"문서번호": x["문서번호"], "구분": x["구분"], "일자": x["일자"], "제목": x["제목"], "요지": x["요지"][:800],
+                        "링크": x.get("링크", "")} for x in pool],
+                "판단 안내": "사용자 AI가 판단: 후보 문서마다 우리 논리와의 관계를 지지/반대/구별 필요(무관하면 제외)로 판정하고, "
+                          "판정마다 근거가 된 요지 문장과 문서번호를 인용하며 사실관계 차이를 한 줄로 적는다. 확신이 없으면 '구별 필요'. "
+                          "적힌 내용 밖의 사실을 창작하지 않고, 문서번호는 후보에 있는 것만 쓴다. 필요하면 get_tax_ruling으로 본문 확인.",
+                "주의": "요지 발췌 기준 — 인용 전 본문 확인"}
     keyed = {f"K{i}": x for i, x in enumerate(pool, 1)}
     lines = "\n".join(f"[{k}] {x['구분']} {x['문서번호']} {x['일자']} 제목: {x['제목']} / 요지: {x['요지'][:400]}" for k, x in keyed.items())
     try:
@@ -286,7 +305,7 @@ JSON: {{"해석":[{{"키":"K1","관계":"지지|반대|구별 필요|무관","�
         if x and r.get("관계") in ("지지", "반대", "구별 필요"):
             rows.append({"문서번호": x["문서번호"], "구분": x["구분"], "관계": r["관계"], "이유": r.get("이유", ""),
                          "사실관계 차이": r.get("사실관계 차이", ""), "링크": x.get("링크", "")})
-    return {"해석": rows, "요약": j.get("요약", ""), "주의": f"{solar.where()} 판정은 검토 보조 — 본문 확인 후 인용"}
+    return {"mode": solar.mode(), "해석": rows, "요약": j.get("요약", ""), "주의": f"{solar.where()} 판정은 검토 보조 — 본문 확인 후 인용"}
 
 
 @mcp.tool(annotations=RO)

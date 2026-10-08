@@ -135,3 +135,65 @@ def test_law_id_does_not_fallback_to_act(monkeypatch):
     monkeypatch.setattr(ntis, "laws", lambda: {"법인세법": "1", "법인세법 시행령": "2"})
     assert ntis.law_id("법인세법 시행령") == "2" and ntis.law_id("법인세법시행령") == "2"
     assert ntis.law_id("법인세법 시행규칙") is None
+
+
+def _no_solar(monkeypatch):
+    for k in ("UPSTAGE_API_KEY", "KOREAN_TAX_MCP_SOLAR_KEY", "KOREAN_TAX_MCP_SOLAR_BASE_URL"): monkeypatch.delenv(k, raising=False)
+
+
+_POOL = [{"구분": "질의회신", "문서번호": "서면-2025-법인-1", "일자": "2025-01-01", "제목": "가지급금 인정이자", "요지": "업무무관 가지급금은 인정이자 계산", "링크": "https://x/1", "id": "1"}]
+
+
+def test_compare_with_case_host_ai(monkeypatch):
+    from korean_tax_mcp import ntis, solar
+    _no_solar(monkeypatch)
+    monkeypatch.setattr(ntis, "search", lambda *a, **k: list(_POOL))
+    monkeypatch.setattr(solar, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Solar 호출 금지")))
+    r = _call("compare_with_case", {"facts": "대표에게 무이자 대여", "our_view": "업무무관 가지급금 아님"})
+    assert r["mode"] == "host_ai" and "판단 안내" in r and "지지" in r["판단 안내"]
+    c = r["후보"][0]
+    assert c["문서번호"] == "서면-2025-법인-1" and c["링크"] == "https://x/1" and c["요지"]
+    en = _call("compare_with_case", {"facts": "x", "our_view": "y", "lang": "en"})
+    assert en["mode"] == "host_ai" and "host_ai_instructions" in en and en["translation_mode"] == "host_ai" and "host_ai_translate" in en
+
+
+def test_compare_with_case_solar(monkeypatch):
+    from korean_tax_mcp import ntis, solar
+    _no_solar(monkeypatch); monkeypatch.setenv("UPSTAGE_API_KEY", "test")
+    monkeypatch.setattr(ntis, "search", lambda *a, **k: list(_POOL))
+    monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"해석": [{"키": "K1", "관계": "반대", "이유": "r", "사실관계 차이": "없음"}], "요약": "s"})
+    r = _call("compare_with_case", {"facts": "x", "our_view": "y"})
+    assert r["mode"] == "solar_cloud" and r["해석"][0]["관계"] == "반대" and r["요약"] == "s"
+    monkeypatch.setenv("KOREAN_TAX_MCP_SOLAR_BASE_URL", "http://10.0.0.5/v1")
+    assert _call("compare_with_case", {"facts": "x", "our_view": "y"})["mode"] == "solar_onprem"
+
+
+def _fake_compare(issue, tax, n):
+    from korean_tax_mcp import outcome
+    x = {"문서번호": "조심2025서1", "구분": "심판청구", "일자": "", "제목": "", "링크": "", "납세자 주장": "a", "결정 이유(판단 끝부분)": "b"}
+    return {"쟁점": issue, "집계": {outcome.WIN: 1, outcome.PART: 0, outcome.LOSE: 1, outcome.OTHER: 0},
+            outcome.WIN: [x], outcome.PART: [], outcome.LOSE: [dict(x, 문서번호="조심2025서2")], outcome.OTHER: []}
+
+
+def test_compare_outcomes_explain_modes(monkeypatch):
+    from korean_tax_mcp import outcome, solar
+    _no_solar(monkeypatch)
+    monkeypatch.setattr(outcome, "compare", _fake_compare)
+    monkeypatch.setattr(solar, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Solar 호출 금지")))
+    r = _call("compare_outcomes", {"issue": "퇴직금 손금", "explain": True})
+    assert r["mode"] == "host_ai" and r["갈린 지점"]["mode"] == "host_ai" and "문서번호" in r["갈린 지점"]["판단 안내"]
+    monkeypatch.setenv("UPSTAGE_API_KEY", "test")
+    monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"갈린 지점": ["증빙 (조심2025서1)"]})
+    r = _call("compare_outcomes", {"issue": "퇴직금 손금", "explain": True})
+    assert r["mode"] == "solar_cloud" and r["갈린 지점"]["갈린 지점"] == ["증빙 (조심2025서1)"]
+
+
+def test_english_translation_modes(monkeypatch):
+    from korean_tax_mcp import i18n, solar
+    _no_solar(monkeypatch)
+    r = i18n.english({"결과": [{"제목": "가지급금"}]})
+    assert r["translation_mode"] == "host_ai" and r["results"][0]["title"] == "가지급금" and "host_ai_translate" in r
+    monkeypatch.setenv("UPSTAGE_API_KEY", "test")
+    monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"0": "Provisional payment"})
+    r = i18n.english({"결과": [{"제목": "가지급금"}]})
+    assert r["results"][0]["title"] == "Provisional payment" and r["results"][0]["title_ko"] == "가지급금" and r["translation_mode"] == "solar_cloud"

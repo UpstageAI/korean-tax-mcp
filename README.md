@@ -6,7 +6,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · [English](README-EN.md)
 
-**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; and verify citations in a draft. 13 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; machine-translated summaries via Upstage Solar). → [English README](README-EN.md)
+**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; and verify citations in a draft. 13 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
 ---
 
@@ -35,7 +35,7 @@
 - **국세 기본통칙** 전문, **세법집행기준** 항목
 - **시점별 조문** — 그날 시행 중이던 조문, 법률 → 시행령 → 시행규칙 위임 체계
 - 국세청 「2025 세법해석 사례집」 96건 색인
-- **사실관계 대조** — 우리 주장과 해석·판례가 지지·반대·구별 필요인지 (Upstage Solar)
+- **사실관계 대조** — 우리 주장과 해석·판례가 지지·반대·구별 필요인지 (기본: 사용자 AI가 판단, 선택: Upstage Solar)
 
 ## 설치
 
@@ -61,9 +61,10 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 |---|---|---|
 | 없음 | 해석·판례 검색과 본문, 조문별 모음, 기본통칙, 집행기준, 사례집, 인용 검증(문서번호) | — |
 | `LAW_OC` | `law_article`, `research_issue`, `verify_citations`(조문) — 시점별 조문·3단 위임 | [open.law.go.kr](https://open.law.go.kr) 무료 신청 |
-| `UPSTAGE_API_KEY` | `compare_with_case` (사실관계 대조), `compare_outcomes`의 `explain=True` (승패 요약), `lang="en"` 영문 번역 | [console.upstage.ai](https://console.upstage.ai) |
+| `UPSTAGE_API_KEY` (선택) | 없어도 `compare_with_case`(사실관계 대조)·`compare_outcomes` `explain=True`(승패 요약)·`lang="en"`(영문)은 동작 — 원문 발췌와 판단 안내를 돌려주고 사용자 AI가 판단·번역(`mode: "host_ai"`). 설정하면 Solar가 대조·요약·번역(`mode: "solar_cloud"`) | [console.upstage.ai](https://console.upstage.ai) |
+| `KOREAN_TAX_MCP_SOLAR_BASE_URL` (선택) | 망분리 환경에서 기관 내부 Solar로 위 기능 수행(`mode: "solar_onprem"`) | — |
 
-> **데이터 전송 안내** — 기본 검색 기능은 법제처·국세청 공개 API만 호출하며 Upstage로 전송되는 내용은 없습니다. Solar 기능(사실관계 대조, 승패 요약, 영문 번역)은 `UPSTAGE_API_KEY`를 설정한 경우에만 동작하고, 이때 입력 내용이 Upstage API(api.upstage.ai)로 전송되니 **개인정보 등 민감정보는 넣지 마세요**. 망분리 환경에서는 `KOREAN_TAX_MCP_SOLAR_BASE_URL`로 기관 내부 Solar에 연결하면 외부 전송 없이 사용할 수 있습니다.
+> **데이터 전송 안내** — 기본 동작은 법제처·국세청 공개 API만 호출하며, AI 판단·요약·번역(사실관계 대조, 승패 요약, 영문 번역)은 사용자 AI가 수행합니다. Upstage로 전송되는 내용은 없습니다. 선택: `UPSTAGE_API_KEY`를 설정하면 Solar가 대조·요약·번역을 수행하며, 이때 입력 내용이 Upstage API(api.upstage.ai)로 전송되니 **개인정보 등 민감정보는 넣지 마세요**. 망분리 환경에서는 `KOREAN_TAX_MCP_SOLAR_BASE_URL`로 기관 내부 Solar에 연결하면 외부 전송 없이 사용할 수 있습니다.
 
 ## 도구
 
@@ -76,7 +77,7 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `execution_standards` | 세법집행기준 항목·쪽·링크 |
 | `casebook_search` | 2025 세법해석 사례집 검색 |
 | `law_article` | 시점별 조문 원문, 3단 위임, 통칙·집행기준 함께 |
-| `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) |
+| `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) — 기본은 후보 원문 발췌+판단 안내를 반환해 사용자 AI가 판정, Solar 설정 시 Solar 판정 |
 | `research_issue` | **그 해 기준 묶음** — 사업연도·과세기간 종료일 기준 조문 3단·통칙·집행기준·해석, 현행 대비 조문 변경, 해석마다 당시 조문과 같은지 표시 |
 | `treaty_withholding_rates` | **조약별 원천징수 제한세율** — 배당·이자·사용료 세율과 지분 요건, 근거 조항 원문 |
 | `search_forms` | **별표·서식** — 기준내용연수표·상각률표, 신고서·명세서·통지서 |
