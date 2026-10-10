@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 — 2026-10-10
+- 신규 `residency_check`: 거주자·비거주자 3단계 규칙 판정(소득세법 제1조의2, 시행령 제2조·제2조의2·제3조), 조세조약 tie-break(체결국 목록 실제 조회), 미체결국 양국 과세, 유사 판례 top3, 판단이 갈리는 지점·추가 확인 사항
+- 신규 `residency_report`: 판정은 residency_check 결과 그대로, 서술형 보고서만 생성
+- `tax_treaty`: 키워드 동의어(근로·이사·인적용역·고정사업장), 이사 보수 조문이 없는 조약은 실제 근로소득 조문 번호로 안내(한미 제19조)
+- 조회 안정화: 오류 메시지의 인증키(OC) 가림, 재시도·지수 백오프, 24시간 캐시, TLS 완화는 `KTM_RELAX_TLS`로만
+- 개발: Upstage Solar Pro 4(Solar Code CLI)가 코드 작성, Claude가 검증
+
 ## 0.6.0 — 2026-10-08
 - AI 판단 기본값 변경: Solar 설정(UPSTAGE_API_KEY·KOREAN_TAX_MCP_SOLAR_BASE_URL)이 없으면 오류 대신 사용자 AI(호스트)가 판단하도록 원문 발췌와 판단 안내를 반환(`mode: "host_ai"`) — Upstage로 전송 없음
   - compare_with_case: 후보 문서(문서번호·구분·일자·제목·요지·링크)와 지지/반대/구별 필요 판정 안내
