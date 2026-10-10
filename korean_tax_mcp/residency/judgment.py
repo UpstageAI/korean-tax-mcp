@@ -175,7 +175,7 @@ def find_similar_cases(query: str, top: int = 3) -> list[Precedent]:
         s = _keyword_score(p, query)
         if s > 0:
             ranked.append((s, p))
-    ranked.sort(key=lambda x: (-x[0], x[1].date))
+    ranked.sort(key=lambda x: (-x[0], tuple(-ord(c) for c in x[1].date)))
     return [p for _, p in ranked[:top]]
 
 
@@ -657,11 +657,44 @@ def run_check(inp: "ResidencyInput", treaty_info: dict | None = None) -> Residen
     s2 = stage2(inp, s1)
     s3 = stage3(inp, s1, s2, treaty_info)
 
-    # 판례 매칭 (입력 사실 종합 키워드)
-    query = " ".join(str(x) for x in [
-        inp.family_desc, inp.asset_desc, inp.economic_activity_desc,
-        inp.overseas_job_desc, inp.foreign_nationality_desc,
-        f"체류 {s1.residence_days}일", inp.treaty_country,
+    # 판례 매칭 (입력 사실 종합 키워드 + 체크 항목·판정 결과 번역)
+    def _kw() -> list[str]:
+        k: list[str] = []
+        # 체크 항목 → 판례 keywords 어휘
+        if inp.family_in_korea:
+            k.append("국내 가족")
+        elif not inp.family_in_korea and inp.family_desc:
+            k.append("가족 국외")
+        if inp.domestic_assets:
+            k.append("국내 자산")
+        if inp.domestic_business_activity:
+            k.append("경영활동 국내 수행")
+        if inp.foreign_permanent_residency:
+            k.append("영주권")
+        if inp.dispatched_by_korean_company and not inp.local_hire_not_dispatch:
+            k.append("해외 파견")
+        elif inp.public_official_overseas:
+            k.append("해외 파견")
+        # 판정 결과 → 판례 keywords 어휘
+        if s1.residence_judgment == "183일 이상 거소":
+            k.append("183일 이상 거소")
+        elif s1.residence_judgment == "183일 미만 거소":
+            k.append("183일 미만")
+        if s2.dual == "이중거주자":
+            k.extend(["이중거주자", "조세조약 tie-break", "증명책임"])
+        if s3.decisive_stage:
+            k.append(s3.decisive_stage)
+        return k
+
+    query = " ".join([
+        *(_kw()),
+        str(inp.family_desc or ""),
+        str(inp.asset_desc or ""),
+        str(inp.economic_activity_desc or ""),
+        str(inp.overseas_job_desc or ""),
+        str(inp.foreign_nationality_desc or ""),
+        f"체류 {s1.residence_days}일",
+        str(inp.treaty_country or ""),
     ])
     # 6-4절 제외하고 상위 3건
     cases = find_similar_cases(query, top=3)
