@@ -22,9 +22,11 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 | `basic_rules` | Full text of NTS Basic Rules (기본통칙) by article | none |
 | `execution_standards` | Tax Execution Standards (집행기준) items, page and link | none |
 | `casebook_search` | NTS 2025 Tax Interpretation Casebook (96 cases) | none |
-| `law_article` | Statute text as in force on a given date, plus Act → Decree → Rule delegation chain | `LAW_OC` |
+| `find_article` | **Find statute articles by keyword** — first step when you don't know the article number. Searches article titles and bodies across major tax laws (National Tax Basic Act, Collection Act, Income Tax Act, Corporation Tax Act, VAT Act, Inheritance/Gift Tax Act, Special Tax Treatment Control Act, International Tax Adjustment Act + their enforcement decrees), returns top n by keyword score. Result: [{law, article, title, effective_date, matching_sentences}], next step: `law_article` for the specific article. | `LAW_OC` |
+| `law_article` | Statute text as in force on a given date, plus Act → Decree → Rule delegation chain. For long articles (>4,000 chars) use `keyword` (only paragraphs containing the keyword) or `paragraph` (a specific paragraph like "②" or "제1항") to get just the relevant part — without either, returns a paragraph list and a guide. | `LAW_OC` |
 | `compare_with_case` | Compare your facts and argument with rulings: supports / contradicts / distinguish. By default returns candidate excerpts plus judging instructions for your AI (`mode: "host_ai"`); Solar judges when configured | none (`UPSTAGE_API_KEY` optional) |
 | `research_issue` | Everything that applied at a past date: statute chain, basic rules, standards, and rulings — flags statute changes and whether each ruling was issued under the same text | `LAW_OC` for statutes |
+| `compare_outcomes` | Win/loss side by side for one issue: taxpayer-won vs lost decisions with both sides' arguments and the deciding reasoning. Same issue's Tax Tribunal, objection, and court decisions split into taxpayer win / partial / loss; each with taxpayer argument, tax office opinion, and deciding reasoning. | none |
 | `treaty_withholding_rates` | Treaty withholding caps on dividends, interest, royalties with ownership conditions and the clause text | none |
 | `search_forms` | Statutory annexes (useful-life and depreciation tables) and official tax forms | none |
 | `article_history` | When an article changed and whether an upcoming amendment changes it | `LAW_OC` |
@@ -32,6 +34,8 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 | `search_nts_publications` | Full-text search in NTS guidebooks — transfer pricing, APA reports, overseas business guides | none |
 | `search_local_documents` | Page-level search over PDFs you downloaded (e.g. OECD Transfer Pricing Guidelines) — set `KOREAN_TAX_MCP_DOCS` | none |
 | `verify_citations` | Check that cited ruling numbers and statute articles in a draft actually exist | `LAW_OC` for statutes |
+| `residency_check` | Rule-based 3-stage residence/non-residence determination (Income Tax Act §1-2, Enforcement Decree §2·§3·§4): domicile/residence/dispatch exception → resident/non-resident; dual residence; treaty tie-break (permanent home → centre of vital interests → habitual abode → nationality → mutual agreement). Includes similar case top-3 (keyword match from rules.md) and legal principle notice (supreme court 92누11695). | none |
+| `residency_report` | Residency check result + rules.md fed to Solar Pro 4 to write a review report (report_template.md format). Conclusion follows the code-based check result — Solar writes only the narrative. | `UPSTAGE_API_KEY` optional |
 
 ## English output
 

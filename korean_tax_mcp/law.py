@@ -9,7 +9,7 @@ import ssl
 import time
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache, wraps
 
 from . import _mask_oc
@@ -209,7 +209,25 @@ def article(law, article_no, as_of=""):
     mst, ef = version(law, as_of)
     if not mst: return {"error": f"'{law}'를 찾지 못했거나 {as_of or '오늘'} 이전 시행본이 없음 — 정식 법령명 확인"}
     d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={ef}&JO={jo6(norm)}")
-    body = "\n".join(t.strip() for t in _texts(d.get("법령", d)) if t.strip())
+    lines = [t.strip() for t in _texts(d.get("법령", d)) if t.strip()]
+    # DRF 응답 구조상 "항"→"호" 순회가 "조문내용"보다 먼저 yield될 수 있으므로
+    # 조 제목 라인(제N조(...) 형태)과 편·장·절·관 제목을 명시적으로 분리한다.
+    HEAD_RE = re.compile(r'^제\d+조(?:의\d+)?\s*\(')
+    GUAN_RE = re.compile(r'^제\d+(관|장|절|관)\b')
+    head = None
+    body_lines = []
+    for ln in lines:
+        if GUAN_RE.match(ln):
+            continue  # 편·장·절·관 제목 제거
+        if HEAD_RE.match(ln) and head is None:
+            head = ln  # 조 제목 라인 저장 (맨 앞에 배치)
+            continue
+        body_lines.append(ln)
+    if head is not None:
+        # 머리말 라인에서 개정/신설 표시 제거 (완전 태그 + 잘린 꺾쇠)
+        head = re.sub(r'<개정[^>]*>|<개정\b|<신설[^>]*>|<신설\b', '', head).strip()
+        body_lines.insert(0, head)
+    body = "\n".join(body_lines)
     return {"법령": law, "조": norm, "적용 시행일": ef, "본문": body or "조문 없음 — 조번호 확인",
             "링크": f"https://www.law.go.kr/법령/{urllib.parse.quote(law)}/{norm}"}
 
@@ -291,3 +309,473 @@ def history(law, article_no, last=8):
     return {"법령": law, "조": norm, "연혁": rows,
             "요약": ("시행 예정 개정에서 이 조가 바뀜: " + ", ".join(r["시행일"] for r in upcoming)) if upcoming else "시행 예정 개정 중 이 조 변경 없음",
             "주의": f"최근 {len(rows)}개 시행본만 비교(법률 조문 본문 기준). 더 이전은 law_article(as_of)로 확인"}
+# ── 조문 위치 찾기 (find_article) ────────────────────────────────────────────
+
+_DEFAULT_LAWS = (
+    "국세기본법", "국세징수법", "소득세법", "법인세법", "부가가치세법",
+    "상속세 및 증여세법", "조세특례제한법", "국제조세조정에 관한 법률",
+    "국세기본법 시행령", "국세징수법 시행령", "소득세법 시행령", "법인세법 시행령",
+    "부가가치세법 시행령", "상속세 및 증여세법 시행령", "조세특례제한법 시행령",
+)
+
+_FIND_CACHE = {}
+_FIND_CACHE_TTL = int(os.environ.get("KTM_CACHE_TTL", 86400))
+
+
+def _find_cache_key(law, ef):
+    return (law, ef)
+
+
+def _fetch_law_articles(law, ef):
+    """한 법령의 조문 전부(제목+본문)를 조회해 캐시. 조문 번호 1~50을 병렬 조회."""
+    key = _find_cache_key(law, ef)
+    if (cached := _FIND_CACHE.get(key)) and time.time() < cached[1]:
+        return cached[0]
+    mst, actual_ef = version(law, ef)
+    if not mst:
+        _FIND_CACHE[key] = ([], time.time() + _FIND_CACHE_TTL)
+        return []
+    articles = {}
+    with ThreadPoolExecutor(8) as ex:
+        futures = [ex.submit(_article_once, mst, actual_ef, i) for i in range(1, 51)]
+        for fut in as_completed(futures, timeout=30):
+            try:
+                res = fut.result(timeout=15)
+                if res:
+                    articles[res["조"]] = res
+            except Exception:
+                pass
+    result = list(articles.values())
+    _FIND_CACHE[key] = (result, time.time() + _FIND_CACHE_TTL)
+    return result
+
+
+def _article_once(mst, ef, no):
+    jo = f"{no:04d}00"
+    try:
+        d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={ef}&JO={jo}")
+        body = "\n".join(t.strip() for t in _texts(d.get("법령", d)) if t.strip())
+        if not body:
+            return None
+        first_line = body.split("\n")[0].strip()
+        m = re.match(r"^(제\d+조(?:의\d+)?)\s*\((.+?)\)\s*$", first_line)
+        title = m.group(2) if m else ""
+        return {"조": f"제{no}조", "제목": title, "본문": body, "적용 시행일": ef}
+    except Exception:
+        return None
+
+
+def _kw_split(kw):
+    return [w for w in re.split(r"\s+", kw.strip()) if w]
+
+
+def _sentences_with_keywords(text, kw_words, max_chars=200):
+    """키워드 단어가 모두 들어간 문장 1~2개(각 200자 이내)."""
+    if not text or not kw_words:
+        return []
+    parts = re.split(r"([。\。\n]+)", text)
+    sents = []
+    buf = ""
+    for p in parts:
+        if p in ("。", "。", "\n", ""):
+            if buf.strip():
+                sents.append(buf.strip())
+            buf = ""
+        else:
+            buf += p
+    if buf.strip():
+        sents.append(buf.strip())
+    if len(sents) <= 1 and len(text) > 200:
+        sents = [s.strip() for s in text.split("\n") if s.strip()]
+    # 키워드 단어가 하나라도 포함된 문장 중, 많이 포함된 순서로 상위 2개
+    scored_sents = []
+    for s in sents:
+        if len(s) > max_chars:
+            s = s[:max_chars]
+        cnt = sum(1 for w in kw_words if w in s)
+        if cnt > 0:
+            scored_sents.append((cnt, s))
+    scored_sents.sort(key=lambda x: -x[0])
+    return [s for _, s in scored_sents[:2]]
+
+
+def _title_score(keyword, title, kw_words):
+    if not title:
+        return 0
+    tl = title.lower()
+    if all(w.lower() in tl for w in kw_words):
+        return 100 + sum(title.count(w) for w in kw_words)
+    return sum(1 for w in kw_words if w.lower() in tl)
+
+
+def _body_score(keyword, body, kw_words):
+    bl = body.lower()
+    return sum(1 for w in kw_words if w.lower() in bl)
+
+
+def find_article(keyword, law_name=None, as_of="", n=5):
+    """키워드로 조문 위치를 찾는다. 조문 번호를 모를 때 first step.
+
+    law_name 생략 시 주요 세법(국세기본법·징수법·소득세법·법인세법·부가가치세법·
+    상속세및증여세법·조세특례제한법·국제조세조정에관한법률 + 각 시행령)을 모두 조회.
+    """
+    kw_words = _kw_split(keyword)
+    if not kw_words:
+        return {"error": "keyword 필요"}
+    if n < 1:
+        n = 1
+    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
+    if len(ef) != 8:
+        return {"error": "as_of는 YYYYMMDD 또는 YYYY-MM-DD"}
+
+    target_laws = list(_DEFAULT_LAWS) if law_name is None else ([law_name] if isinstance(law_name, str) else list(law_name))
+    all_articles = []
+    for law in target_laws:
+        try:
+            arts = _fetch_law_articles(law, ef)
+            for a in arts:
+                a["_law"] = law
+            all_articles.extend(arts)
+        except Exception:
+            continue
+
+    if not all_articles:
+        return {"error": "조문을 찾지 못함 — law_name 확인 또는 LAW_OC 키 설정",
+                "다음 단계": "law_article(law_name, 조, keyword=...)로 해당 항만 조회"}
+
+    scored = []
+    for a in all_articles:
+        title_s = _title_score(keyword, a.get("제목", ""), kw_words)
+        body_s = _body_score(keyword, a.get("본문", ""), kw_words)
+        if title_s == 0 and body_s == 0:
+            continue
+        all_in_title = all(w.lower() in a.get("제목", "").lower() for w in kw_words)
+        all_in_body = all(w.lower() in a.get("본문", "").lower() for w in kw_words)
+        total = title_s * 5 + body_s + (20 if all_in_title else 0) + (10 if all_in_body else 0)
+        scored.append((total, a))
+
+    scored.sort(key=lambda x: -x[0])
+    top = scored[:n]
+
+    results = []
+    for _, a in top:
+        matched = _sentences_with_keywords(a.get("본문", ""), kw_words)
+        if not matched and a.get("제목"):
+            tl = a["제목"].lower()
+            if all(w.lower() in tl for w in kw_words):
+                matched = [a["제목"][:200]]
+        results.append({
+            "법령": a.get("_law", law_name or ""),
+            "조": a.get("조", ""),
+            "제목": a.get("제목", ""),
+            "적용 시행일": a.get("적용 시행일", ef),
+            "일치 문장": matched[:2] if matched else [],
+        })
+
+    out = {"결과": results,
+           "다음 단계": "law_article(law_name, 조, keyword=...)로 해당 항만 조회"}
+    return out
+
+
+# ── law_article용 항(paragraph) 파싱 헬퍼 ─────────────────────────────────────
+
+_HANG_CIRCLED = {chr(0x2460 + i): str(i + 1) for i in range(10)}  # ①→1, ②→2, …
+
+
+def _normalize_paragraph_spec(spec):
+    """'①'·'1'·'제1항'·'2' 등을 '제1항' 형태로 정규화."""
+    if spec is None:
+        return None
+    s = str(spec).strip()
+    if not s:
+        return None
+    if s in _HANG_CIRCLED:
+        return f"제{_HANG_CIRCLED[s]}항"
+    m = re.match(r"^제(\d+)항$", s)
+    if m:
+        return f"제{m.group(1)}항"
+    m = re.match(r"^(\d+)$", s)
+    if m:
+        return f"제{m.group(1)}항"
+    m = re.match(r"^(\d+)항$", s)
+    if m:
+        return f"제{m.group(1)}항"
+    return None
+
+
+def _parse_paragraphs(body):
+    """본문을 항 단위로 분할. 각 항: {항 번호, 첫 문장(80자)}."""
+    if not body:
+        return []
+    parts = re.split(r"(?<=\S)[①-⑩](?=\s)", body)
+    out = []
+    for i, p in enumerate(parts):
+        p = p.strip()
+        if not p:
+            continue
+        m = re.match(r"^(\S+)\s*(.*)", p)
+        head, rest = (m.group(1), m.group(2)) if m else ("", p)
+        circled = re.match(r"^[①-⑩]$", head)
+        hang_no = _HANG_CIRCLED.get(head) if circled else None
+        if not circled:
+            hm = re.match(r"^(제\d+항)$", head)
+            if hm:
+                hang_no = hm.group(1)
+        if hang_no is None:
+            hang_no = str(i + 1)
+        first_line = rest.strip().split("\n")[0].strip()
+        highlight = first_line[:80] if first_line else ""
+        out.append({"항 번호": f"제{hang_no}항" if str(hang_no).isdigit() else str(hang_no),
+                    "첫 문장": highlight})
+    return out
+
+
+def _pick_paragraph(body, paragraph_spec):
+    """paragraph_spec에 해당하는 항 본문만 반환. 없으면 None."""
+    if not body or not paragraph_spec:
+        return None
+    markers = list(re.finditer(r"[①-⑩]|(제\d+항)", body))
+    if not markers:
+        return None
+    spec_norm = _normalize_paragraph_spec(paragraph_spec)
+    if spec_norm is None:
+        return None
+    for idx, m in enumerate(markers):
+        mk_norm = _normalize_paragraph_spec(m.group(0))
+        if mk_norm == spec_norm:
+            end = markers[idx + 1].start() if idx + 1 < len(markers) else len(body)
+            return body[m.start():end].strip()
+    return None
+
+
+def _paragraphs_matching_keyword(body, kw):
+    """키워드가 들어간 항 번호 목록(제N항 형태). 항 구분이 없으면 빈 리스트."""
+    if not body or not kw:
+        return []
+    markers = list(re.finditer(r"[①-⑩]|(제\d+항)", body))
+    if not markers:
+        return []
+    kw_lower = kw.lower()
+    matched = []
+    for idx, m in enumerate(markers):
+        end = markers[idx + 1].start() if idx + 1 < len(markers) else len(body)
+        chunk = body[m.start():end]
+        if kw_lower in chunk.lower():
+            norm = _normalize_paragraph_spec(m.group(0))
+            if norm:
+                matched.append(norm)
+    # 중복 제거 + 항 번호 순 정렬
+    seen = set()
+    result = []
+    for m in matched:
+        if m not in seen:
+            seen.add(m)
+            result.append(m)
+    return sorted(result, key=lambda x: int(re.search(r"\d+", x).group()))
+
+
+def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, keyword):
+    """law_article 본문 반환 — paragraph/keyword 제한, 긴 본문 항 목록 처리.
+
+    keyword 지정 시 항 → 호 → 목 순으로 필터링. 일치한 호 단위만 반환하되
+    조 제목·해당 항 머리말 문장(상위 문맥)을 한 줄로 함께 붙인다.
+    일치 위치("일치_위치")와, 일치 없을 때 "일치 없음" + 항·호 목록을 반환.
+    """
+    a = article(law_name, norm, ef)
+    body = a.get("본문", "")
+    scope = "전체"
+
+    if paragraph:
+        picked = _pick_paragraph(body, paragraph)
+        if picked is not None:
+            body = picked
+            spec_norm = _normalize_paragraph_spec(paragraph)
+            scope = f"제{int(re.search(r'\d+', spec_norm).group())}항" if spec_norm else "제○항"
+        else:
+            a["안내"] = f"'{paragraph}'항은 이 조문 본문에서 확인되지 않음 — 항 번호 확인"
+    elif keyword:
+        km = _호_목_매칭(body, keyword)
+        if km:
+            # 조 머리말: 본문 첫 줄에서 개정 표시(<개정 …>, 미완결 "<개정") 제거.
+            # 대괄호 접두사([항_머리말]/[호_머리말])는 호 본문과 중복되므로 붙이지 않는다.
+            first_line = body.split("\n")[0].strip() if body else ""
+            jo_head = re.sub(r"<개정[^>]*>|<개정\b", "", first_line).strip()
+            chunks = []
+            match_locs = []
+            jo_label = a.get("조", "")  # "전체" 대체용 실제 조 번호
+            for hit in km:
+                항_l = hit["항"]; 호_l = hit["호"]
+                # "전체" 라벨은 실제 조 번호로 치환 (호-only 조문에서 항 마커 없을 때)
+                disp_항 = jo_label if 항_l == "전체" else 항_l
+                loc = f"{disp_항} {호_l}" if 호_l else disp_항
+                match_locs.append(loc)
+                # 대괄호 접두사 제거(호 본문과 중복 방지). 호 번호가 있으면 본문에 유지(t5c #4).
+                body_hit = hit["호_본문"]
+                if 호_l:
+                    ho_no = re.search(r"\d+", 호_l).group()  # "제18호" → "18"
+                    body_hit = f"{ho_no}. {body_hit}"
+                chunks.append(body_hit)
+            body = jo_head + "\n" + "\n".join(chunks)
+            a["일치_위치"] = match_locs
+            scope = f"keyword 일치(호): {', '.join(match_locs)}"
+        else:
+            # 항·호·목 어디에도 keyword 없음 → "일치 없음" + 항·호 목록(번호+앞30자)
+            ctx_all = _호_목_맥락_분할(body)
+            jo_label = a.get("조", "")
+            ho_list = []
+            for c in ctx_all:
+                disp_항 = jo_label if c['항'] == "전체" else c['항']
+                label = f"{disp_항} {c['호']}" if c['호'] else disp_항
+                snippet = c['호_머리말'] or c['항_머리말'] or c['본문'][:30]
+                ho_list.append({"위치": label, "앞30자": snippet[:30]})
+            # 항 단위 보기 추가 (항 정보만, 호 없으면 호 목록)
+            if not ho_list:
+                # 항 마커조차 없는 짧은 본문 → 본문 앞 30자
+                ho_list.append({"위치": "전체", "앞30자": body[:30]})
+            a["일치 없음"] = f"'{keyword}'가 포함된 항·호·목이 확인되지 않음"
+            a["항_호_목록"] = ho_list
+            body = body[:2000]
+            scope = "일치 없음"
+    elif not paragraph and len(body) > 4000:
+        a["항 목록"] = _parse_paragraphs(body)
+        a["안내"] = "keyword 또는 paragraph로 필요한 항만 조회하세요"
+        body = body[:2000]
+        scope = "항 목록"
+
+    a["본문"] = body
+    a["반환 범위"] = scope
+    if hang_from_input:
+        a["요청 항"] = hang_from_input
+    return a
+
+
+# ── law_article 키워드 필터: 호·목 단위 (SPEC t5b) ──────────────────────────────
+
+_HO_HOL = re.compile(r"제(\d+)호")          # 제1호, 제2호 …
+_HO_NUM = re.compile(r"^\s*(\d+)[\.\)]")   # 1. …, 2) … (chunk 시작 위치의 숫자+닷/괄호)
+_MOK = re.compile(r"(?:^|\s)[가-힣]\.|\([가-힣]+\)")  # (가), (나) …, 가. 나. … (문장 말미 "다." 오인 방지)
+
+
+def _호_목_분할(body):
+    """본문을 항 → 호 → 목 트리 리스트로 분할.
+
+    반환: [{"항": "제1항", "호": [{"호": "제1호", "목": ["가.", "나."], "본문": "…"}]}]
+    항 표시가 없으면 전체를 하나의 항으로, 호 표시만 있으면 그 호들로 분할.
+    같은 위치의 circled digit(①)과 텍스트(제1항)가 중복 마커로 잡히는 경우
+    간격 5자 미만의 뒤쪽 마커를 제거해 중복을 방지한다.
+    """
+    if not body:
+        return []
+    ant = list(re.finditer(r"[①-⑩]|제\d+항", body))
+    if not ant:
+        return [_항_블록(body, None)]
+    # 중복 마커 필터링: circled digit(①)과 바로 뒤 텍스트 마커(제1항)는 중복.
+    # 텍스트 마커가 직전 마커(끝 위치 기준) 10자 이내에 있으면 제거.
+    filtered = []
+    for m in ant:
+        if filtered and m.start() - filtered[-1].end() < 10:
+            continue
+        filtered.append(m)
+    out = []
+    for idx, m in enumerate(filtered):
+        start = m.start()
+        end = filtered[idx + 1].start() if idx + 1 < len(filtered) else len(body)
+        block = body[start:end].strip()
+        if block:
+            norm = _normalize_paragraph_spec(m.group(0))
+            out.append(_항_블록(block, norm))
+    return out
+
+
+def _항_블록(block, 항_norm):
+    """하나의 항 블록을 호·목으로 분할."""
+    hos = list(re.finditer(r"제\d+호|\d+[\.\)]", block))
+    if not hos:
+        return {"항": 항_norm or "전체", "호": [{"호": None, "목": [], "본문": block.strip()}]}
+    out = []
+    for idx, m in enumerate(hos):
+        start = m.start()
+        end = hos[idx + 1].start() if idx + 1 < len(hos) else len(block)
+        chunk = block[start:end].strip()
+        gm = _HO_HOL.match(chunk)
+        gn = _HO_NUM.match(chunk)
+        gmk = _MOK.match(chunk) if chunk else None
+        if gm:
+            ho_label = f"제{gm.group(1)}호"
+            body_start = gm.end()
+        elif gn:
+            ho_label = f"제{gn.group(1)}호"
+            body_start = gn.end()
+        elif gmk:
+            ho_label = None
+            body_start = gmk.end()
+        else:
+            ho_label = None
+            body_start = 0
+        rest = chunk[body_start:].strip()
+        mok_seq = [m2.group() for m2 in _MOK.finditer(rest)]
+        out.append({"호": ho_label, "목": mok_seq, "본문": rest})
+    merged = []
+    for b in out:
+        if b["호"] is None and not merged:
+            merged.append({"호": None, "목": b["목"], "본문": b["본문"]})
+        else:
+            merged.append(b)
+    return {"항": 항_norm or "전체", "호": merged}
+
+def _호_목_매칭(body, kw):
+    """keyword가 포함된 호·목 단위 위치 목록.
+
+    각 항목: {항, 호, 호_본문, 목_일치}
+    """
+    if not body or not kw:
+        return []
+    kw_lower = kw.lower()
+    tree = _호_목_분할(body)
+    matched = []
+    for ant in tree:
+        for ho in ant["호"]:
+            hb = ho["본문"]
+            if not hb:
+                continue
+            if kw_lower in hb.lower():
+                mok_hits = []
+                for mk in ho["목"]:
+                    mk_pos = hb.find(mk)
+                    if mk_pos != -1:
+                        mk_text = hb[mk_pos + len(mk):]
+                        nxt = _MOK.search(mk_text)
+                        mk_text = mk_text[:nxt.start()] if nxt else mk_text
+                        if kw_lower in mk_text.lower():
+                            mok_hits.append(mk)
+                matched.append({"항": ant["항"], "호": ho["호"], "호_본문": hb, "목_일치": mok_hits})
+    return matched
+
+
+def _호_목_맥락_분할(body):
+    """호 본문 + 항/호 머리말(한 줄 요약) 정보를 함께 반환.
+
+    반환: [{"항": …, "항_머리말": …, "호": …, "호_머리말": …, "본문": …}]
+    - 항 마커가 없는 호-only 구조에서는 항_머리말을 비운다(호 간 중복 방지).
+    - 각 항의 항_머리말은 그 항의 첫 호 본문 첫 줄을 사용한다(다른 항의 머리말이
+      섞이지 않도록). 호-only 구조에서는 항 마커 없이 호들만 있으므로 항_머리말·호_머리말이
+      동일해지는 것을 막기 위해 항_머리말을 ""로 둔다.
+    """
+    tree = _호_목_분할(body)
+    # 항 마커가 하나도 없는 호-only 구조 → 항_머리말 사용 안 함
+    no_ant_markers = bool(tree) and tree[0]["항"] == "전체"
+    out = []
+    for ant in tree:
+        항_label = ant["항"]
+        if no_ant_markers:
+            head = ""
+        else:
+            # 이 항의 첫 호 본문 첫 줄을 항_머리말로 사용
+            first_in_this_ant = ant["호"][0]["본문"] if ant["호"] else ""
+            head = first_in_this_ant.split("\n")[0].strip()[:80] if first_in_this_ant else ""
+        for ho in ant["호"]:
+            hb = ho["본문"]
+            hfirst = hb.split("\n")[0].strip()[:80] if hb else ""
+            out.append({"항": 항_label, "항_머리말": head, "호": ho["호"],
+                        "호_머리말": hfirst, "본문": hb})
+    return out

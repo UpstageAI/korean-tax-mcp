@@ -1,5 +1,5 @@
 """한국 세법 근거 MCP 서버."""
-__version__ = "0.7.2"
+__version__ = "0.8.1"
 
 import re
 

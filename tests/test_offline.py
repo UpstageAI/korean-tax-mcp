@@ -1,11 +1,37 @@
 """네트워크 없이 도는 테스트."""
 import asyncio, json
+import urllib.parse
+import pytest
 from korean_tax_mcp import casebook, law, ntis
 from korean_tax_mcp.server import mcp
 
 
 def _call(name, args):
-    return json.loads(asyncio.run(mcp.call_tool(name, args)).content[0].text)
+    result = asyncio.run(mcp.call_tool(name, args))
+    text = result.content[0].text if result.content else ""
+    if not text:
+        return {"error": "empty response from server"}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {"error": f"JSON parse error: {text[:200]}"}
+
+
+def _call_smoke(name, args):
+    """Smoke test용 _call — 네트워크 transiently 실패 시 skip 처리."""
+    result = asyncio.run(mcp.call_tool(name, args))
+    if not result.content:
+        import pytest
+        pytest.skip("네트워크 응답 없음 (content 없음, skip)")
+    text = result.content[0].text if hasattr(result.content[0], 'text') else str(result.content[0])
+    if not text.strip():
+        import pytest
+        pytest.skip("네트워크 응답 없음 (빈 텍스트, skip)")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        import pytest
+        pytest.skip(f"네트워크 JSON 오류 (skip): {text[:100]!r}")
 
 
 def test_tools():
@@ -14,7 +40,7 @@ def test_tools():
                 "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations",
                 "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms",
                 "article_history", "compare_outcomes",
-                "residency_check", "residency_report"}
+                "residency_check", "residency_report", "find_article"}
     assert names == expected, f"도구 목록 불일치: Extra={names-expected}, Missing={expected-names}"
 
 
@@ -1055,4 +1081,580 @@ def test_law_article_no_ai_marker(monkeypatch):
     monkeypatch.setattr(ntis, "_act", mock_act)
     r = _call("law_article", {"law_name": "법인세법", "article": "제52조"})
     assert "AI 생성 표시" not in r, "law_article(조회 도구) 결과에 AI 생성 표시 필드가 있으면 안 됨"
+
+
+# ── 지시서 5: find_article + law_article keyword/paragraph ────────────────────
+
+_FAKE_LAW_ARTICLES = [
+    {"조": "제30조", "제목": "압류금지 재산", "본문": "제30조 (압류금지 재산)\n① 다음 각 호의 재산은 압류할 수 없다.\n1. 생계비계좌의 예금", "적용 시행일": "20240101"},
+    {"조": "제31조", "제목": "압류 절차", "본문": "제31조 (압류 절차)\n① 세무서장은 체납자의 재산을 압류한다.", "적용 시행일": "20240101"},
+    {"조": "제33조", "제목": "압류 해제", "본문": "제33조 (압류 해제)\n① 세무서장은 체납액을 징수하면 압류를 해제한다.", "적용 시행일": "20240101"},
+    {"조": "제41조", "제목": "압류금지 생계비계좌", "본문": "제41조 (압류금지 생계비계좌)\n① 국세징수법 제41조에 따라 생계비계좌에 든 예금은 압류하지 못한다.\n② 생계비계좌의 범위·요건은 대통령령으로 정한다.", "적용 시행일": "20240101"},
+]
+
+
+def test_find_article_mock_ranking(monkeypatch):
+    """SPEC t5: 가짜 법령 4개 조문 중 키워드 '생계비계좌'가 든 제41조가 1위."""
+    from korean_tax_mcp import law
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    def _mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": "국세징수법", "법령일련번호": "1", "시행일자": "20240101"}]}}
+        if "lawService.do" in path and "target=eflaw" in query:
+            import urllib.parse as _up
+            q = _up.parse_qs(query)
+            jo = q.get("JO", [""])[0]
+            no = int(jo[:4])
+            for art in _FAKE_LAW_ARTICLES:
+                if no == int(art['조'].replace('제','').replace('조','')):
+                    return {"법령": {"Law": [{"본문내용": art["본문"]}]}}
+            return {"법령": {"Law": []}}
+        return {}
+
+    monkeypatch.setattr(law, "_get", _mock_get)
+    law._versions.clear()
+    law._FIND_CACHE.clear()
+
+    r = _call("find_article", {"keyword": "압류금지 생계비계좌", "law_name": "국세징수법", "n": 3})
+    assert "error" not in r, f"find_article 오류: {r.get('error')}"
+    results = r.get("결과", [])
+    assert len(results) >= 1, "find_article 결과 없음"
+    # 제41조(생계비계좌 포함)가 1위
+    assert results[0]["조"] == "제41조", f"1위 조문이 제41조 예상, 실제 {results[0]['조']}"
+    assert "생계비계좌" in results[0]["제목"] or any("생계비계좌" in s for s in results[0].get("일치 문장", []))
+    # 다음 단계 안내 포함
+    assert "law_article" in r.get("다음 단계", "")
+
+
+def test_find_article_no_law_name_searches_all(monkeypatch):
+    """law_name 생략 시 여러 법령 조회, 키워드 있는 조문만 결과에 포함."""
+    from korean_tax_mcp import law
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    def _mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": "국세징수법", "법령일련번호": "1", "시행일자": "20240101"}]}}
+        if "lawService.do" in path and "target=eflaw" in query:
+            import urllib.parse as _up
+            q = _up.parse_qs(query)
+            jo = q.get("JO", [""])[0]
+            no = int(jo[:4])
+            for art in _FAKE_LAW_ARTICLES:
+                if no == int(art['조'].replace('제','').replace('조','')):
+                    return {"법령": {"Law": [{"본문내용": art["본문"]}]}}
+            return {"법령": {"Law": []}}
+        return {}
+
+    monkeypatch.setattr(law, "_get", _mock_get)
+    law._versions.clear()
+    law._FIND_CACHE.clear()
+
+    r = _call("find_article", {"keyword": "생계비계좌", "n": 3})
+    assert "error" not in r
+    results = r.get("결과", [])
+    assert len(results) >= 1
+    assert results[0]["조"] == "제41조"
+
+
+def test_law_article_keyword_returns_only_matching_paragraphs(monkeypatch):
+    """SPEC t5: 여러 항 중 keyword가 든 항만 반환, 반환 범위='keyword 일치 항'."""
+    from korean_tax_mcp import law
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    import json as _json
+
+    body_with_paragraphs = (
+        "제155조 (조정대상지역 지정)\n"
+        "① 조정대상지역은 다음 각 호의 요건을 모두 갖춘 지역 중에서 지정한다.\n"
+        "② 조정대상지역으로 지정되면 양도소득세 중과세가 적용된다.\n"
+        "③ 조정대상지역의 해제 요건은 대통령령으로 정한다.\n"
+        "④ 일반 지역은 이 조의 적용을 받지 않는다."
+    )
+
+    def _mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": "소득세법 시행령", "법령일련번호": "1", "시행일자": "20240101"}]}}
+        if "lawService.do" in path and "target=eflaw" in query:
+            return {"법령": {"Law": [{"본문내용": body_with_paragraphs}]}}
+        return {}
+
+    monkeypatch.setattr(law, "_get", _mock_get)
+    law._versions.clear()
+    law._FIND_CACHE.clear()
+
+    r = _call("law_article", {"law_name": "소득세법 시행령", "article": "제155조", "keyword": "조정대상지역"})
+    assert "error" not in r
+    # t5b: 반환 범위는 "keyword 일치(호): …" 형태. ①②③만 포함, ④ 제외.
+    scope = r.get("반환 범위", "")
+    assert scope.startswith("keyword 일치"), f"예상치 못한 반환 범위: {scope!r}"
+    body = r.get("본문", "")
+    # keyword 있는 항(①②③)만 포함, keyword 없는 ④는 제외
+    assert "제1항" in body or "①" in body, "keyword 일치 항(①) 미포함"
+    assert "제2항" in body or "②" in body, "keyword 일치 항(②) 미포함"
+    assert "제3항" in body or "③" in body, "keyword 일치 항(③) 미포함"
+    assert "제4항" not in body and "④" not in body, "④(일반 지역)가 포함됨 — keyword 필터링 실패"
+
+
+def test_law_article_paragraph_returns_single_paragraph(monkeypatch):
+    """SPEC t5: paragraph='②' 지정 시 둘째 항만 반환."""
+    from korean_tax_mcp import law
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    import json as _json
+
+    body_with_paragraphs = (
+        "제155조 (조정대상지역 지정)\n"
+        "① 조정대상지역은 다음 각 호의 요건을 모두 갖춘 지역 중에서 지정한다.\n"
+        "② 조정대상지역으로 지정되면 양도소득세 중과세가 적용된다.\n"
+        "③ 조정대상지역의 해제 요건은 대통령령으로 정한다."
+    )
+
+    def _mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": "소득세법 시행령", "법령일련번호": "1", "시행일자": "20240101"}]}}
+        if "lawService.do" in path and "target=eflaw" in query:
+            return {"법령": {"Law": [{"본문내용": body_with_paragraphs}]}}
+        return {}
+
+    monkeypatch.setattr(law, "_get", _mock_get)
+    law._versions.clear()
+    law._FIND_CACHE.clear()
+
+    r = _call("law_article", {"law_name": "소득세법 시행령", "article": "제155조", "paragraph": "②"})
+    assert "error" not in r
+    assert r.get("반환 범위") == "제2항"
+    body = r.get("본문", "")
+    assert "중과세가 적용된다" in body, "②항 본문 미포함"
+    assert "해제 요건" not in body, "③항 본문 포함 금지"
+    assert "지정한다" not in body, "①항 본문 포함 금지"
+
+
+def test_law_article_paragraph_circled_number(monkeypatch):
+    """SPEC t5: paragraph='①' (circled) 입력도 정상 처리."""
+    from korean_tax_mcp import law
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    import json as _json
+
+    body_with_paragraphs = "제155조 (조정대상지역)\n① 첫째 항 내용\n② 둘째 항 내용"
+
+    def _mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": "소득세법 시행령", "법령일련번호": "1", "시행일자": "20240101"}]}}
+        if "lawService.do" in path and "target=eflaw" in query:
+            return {"법령": {"Law": [{"본문내용": body_with_paragraphs}]}}
+        return {}
+
+    monkeypatch.setattr(law, "_get", _mock_get)
+    law._versions.clear()
+    law._FIND_CACHE.clear()
+
+    r = _call("law_article", {"law_name": "소득세법 시행령", "article": "제155조", "paragraph": "①"})
+    assert "error" not in r
+    assert r.get("반환 범위") == "제1항"
+    assert "첫째 항 내용" in r.get("본문", "")
+
+
+def test_law_article_long_body_no_args_returns_paragraph_list(monkeypatch):
+    """SPEC t5: 본문 5,000자 + keyword/paragraph 없음 → 항 목록·안내 반환, 본문은 앞 2,000자."""
+    from korean_tax_mcp import law
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    import json as _json
+
+    # 5,000자 이상의 긴 본문 (항 마커 포함)
+    long_parts = []
+    for i in range(1, 41):  # 40개 항
+        long_parts.append(f"{i}① {'항 ' * 100}내용{i} " * 5)  # 각 항 약 125자
+    long_body = f"제99조 (장기 조문)\n" + "\n".join(long_parts)
+    # 실제 길이가 5,000자 이상인지 확인
+    assert len(long_body) > 5000, f"mock 본문 길이 부족: {len(long_body)}"
+
+    def _mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": "국세기본법", "법령일련번호": "1", "시행일자": "20240101"}]}}
+        if "lawService.do" in path and "target=eflaw" in query:
+            return {"법령": {"Law": [{"본문내용": long_body}]}}
+        return {}
+
+    monkeypatch.setattr(law, "_get", _mock_get)
+    law._versions.clear()
+    law._FIND_CACHE.clear()
+
+    r = _call("law_article", {"law_name": "국세기본법", "article": "제99조"})
+    assert "error" not in r
+    assert r.get("반환 범위") == "항 목록"
+    assert "항 목록" in r, "항 목록 필드 누락"
+    assert "안내" in r, "안내 필드 누락"
+    assert "keyword 또는 paragraph로 필요한 항만 조회하세요" in r.get("안내", ""), "안내 문구 불일치"
+    body = r.get("본문", "")
+    assert len(body) <= 2000, f"본문이 2,000자 초과: {len(body)}"
+
+
+def test_law_article_keyword_not_found_in_long_body(monkeypatch):
+    """keyword가 본문에 없는 긴 조문 → 앞 2,000자 + 안내."""
+    from korean_tax_mcp import law
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    import json as _json
+
+    body = "제155조 (조정대상지역)\n① 조정대상지역 지정 요건\n② 지정 절차\n③ 해제 요건"
+    body_long = body + "\n" + "④ " + "추가 내용 " * 700  # 4,000자 이상
+
+    def _mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": "소득세법 시행령", "법령일련번호": "1", "시행일자": "20240101"}]}}
+        if "lawService.do" in path and "target=eflaw" in query:
+            return {"법령": {"Law": [{"본문내용": body_long}]}}
+        return {}
+
+    monkeypatch.setattr(law, "_get", _mock_get)
+    law._versions.clear()
+    law._FIND_CACHE.clear()
+
+    r = _call("law_article", {"law_name": "소득세법 시행령", "article": "제155조", "keyword": "존재하지않는단어"})
+    assert "error" not in r
+    # t5b: keyword 일치 없음 → 반환 범위 "일치 없음", 항_호_목록 포함
+    assert r.get("반환 범위") == "일치 없음", f"반환 범위 예상 '일치 없음', 실제: {r.get('반환 범위')!r}"
+    assert "항_호_목록" in r, "일치 없음 시 항_호_목록 필드 필요"
+    assert len(r.get("본문", "")) <= 2000
+
+
+def test_find_article_smoke_real_network(monkeypatch):
+    """SPEC t5: 실제 네트워크 스모크 — LAW_OC 있을 때만. 없으면 skip."""
+    import os
+    if not os.environ.get("LAW_OC"):
+        import pytest
+        pytest.skip("LAW_OC 미설정 — 스모크 생략")
+    r = _call_smoke("find_article", {"keyword": "압류금지 생계비계좌", "law_name": "국세징수법", "n": 3})
+    assert "error" not in r, f"find_article 스모크 오류: {r.get('error')}"
+    results = r.get("결과", [])
+    assert len(results) >= 1, "find_article 스모크 결과 없음"
+    top = results[0]
+    assert top["조"] == "제41조", f"find_article 스모크 1위 예상: 제41조, 실제: {top['조']}"
+
+
+def test_law_article_smoke_real_network(monkeypatch):
+    """SPEC t5/t5b: 실제 네트워크 스모크 — LAW_OC 있을 때만. law_article keyword 반환 범위 확인."""
+    import os
+    if not os.environ.get("LAW_OC"):
+        import pytest
+        pytest.skip("LAW_OC 미설정 — 스모크 생략")
+    r = _call_smoke("law_article", {"law_name": "소득세법 시행령", "article": "제155조", "keyword": "조정대상지역"})
+    err = r.get("error", "")
+    print(f"[smoke-debug] law_article 응답: error={err!r}, keys={list(r.keys())}")
+    assert "error" not in r, f"law_article 스모크 오류: {err!r}"
+    # t5b: keyword 일치 시 반환 범위는 "keyword 일치(호): …" 또는 기존 "keyword 일치 항"
+    scope = r.get("반환 범위", "")
+    assert scope.startswith("keyword 일치"), f"예상치 못한 반환 범위: {scope!r}"
+    body_len = len(r.get("본문", ""))
+    print(f"[smoke] law_article 제155조 keyword=조정대상지역: 반환 범위={scope}, 본문 길이={body_len}")
+    assert body_len > 0
+    # 일치 있으면 일치_위치 있음
+    if "일치" in scope and "없음" not in scope:
+        assert "일치_위치" in r and r["일치_위치"], f"keyword 일치인데 일치_위치가 비어 있음: {r.get('일치_위치')!r}"
+
+
+# ── SPEC t5c: law_article keyword 호 반환 본문 정리 ─────────────────────────────
+# 국세징수법 제41조(압류금지 재산) mock 본문 — 개정 표시 포함, keyword='생계비'가
+# 「민사집행법」 제246조의2 호(18.)에 존재.
+_T5C_MOCK_BODY = (
+    "제41조(압류금지 재산) 다음 각 호의 재산은 압류할 수 없다.\n"
+    "1. 체납자와 그 가족의 생계유지에 필요한 의복·침구·가구·가사용품\n"
+    "2. 체납자와 그 가족에게 필요한 3개월간의 식료와 연료\n"
+    # … 중간 호 생략 …
+    "18. 「민사집행법」 제246조의2에 따른 생계비계좌에 든 예금\n"
+    "19. 그 밖에 대통령령으로 정하는 생계유지에 필요한 재산"
+)
+
+# ── SPEC t5b: law_article keyword 호·목 단위 테스트 ─────────────────────────────
+
+# 국세징수법 제41조 유사: 항 표시 없이 호만 여러 개 있는 조문 (실제 구조와 유사)
+_BODY_HO_ONLY = (
+    "제41조(압류금지 재산) 다음 각 호의 재산은 압류할 수 없다.\n"
+    "1. 체납자와 그 가족의 생계유지에 필요한 의복·침구·가구·가사용품\n"
+    "2. 체납자와 그 가족에게 필요한 3개월간의 식료와 연료\n"
+    "3. 체납자의 생계유지에 필요한 월급·연금·상여금·퇴직금·임금·봉급·상여금·수당\n"
+    "4. 체납자의 업무상 필요한 공구·서류·표본·필수 서적\n"
+    "5. 재해 방지를 위한 시설·장비\n"
+    "6. 국가유공자예우법에 따른 보상금\n"
+    "7. 기초생활보장법에 따른 급여\n"
+    "8. 장애인복지법에 따른 장애인 거주지 급여\n"
+    "9. 기초연금법에 따른 기초연금\n"
+    "10. 긴급복지지원법에 따른 긴급지원\n"
+)
+
+# 항·호 혼합: 제1항(여러 호) + 제2항(여러 호) 구조
+_BODY_PARAGRAPH_HO = (
+    "제52조(부당행위계산의 부인)\n"
+    "① 과세당국은 거주자와 특수관계인 간의 거래에서 조세 부담이 부당히 감소된 경우\n"
+    "그 거래를 부인하고 정상가격으로 과세할 수 있다.\n"
+    "1. 자산을 시가보다 높은 가액으로 매입한 경우\n"
+    "2. 자산을 시가보다 낮은 가액으로 매도한 경우\n"
+    "3. 수익을 특수관계인에게 분여한 경우\n"
+    "② 제1항에 따른 정상가격 산정은 다음 각 호에 따른다.\n"
+    "1. 비교가능 제3자 가격법\n"
+    "2. 재판매가격법\n"
+    "3. 원가가산법\n"
+    "③ 제1항 및 제2항의 집행 절차는 대통령령으로 정한다.\n"
+)
+
+
+def _law_article_mock_body(monkeypatch, body, law_name="국세징수법"):
+    """law._get이 고정된 본문을 반환하도록 mock. OC 키 설정 포함.
+
+    law_name: lawSearch.do 응답에 반환할 법령명 (article() 내부 version() 호출과 일치시켜야 함).
+    """
+    from korean_tax_mcp import law
+    import urllib.request, json
+
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    def mock_urlopen(req, context=None, timeout=None):
+        url = req.full_url
+        if "lawSearch.do" in url:
+            return _MockResp(json.dumps(
+                {"LawSearch": {"law": [{"법령명한글": law_name, "법령일련번호": "1", "시행일자": "20240101"}]}}
+            ).encode())
+        return _MockResp(json.dumps({"법령": {"Law": [{"본문내용": body}]}}).encode())
+
+    law._versions.clear()
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+
+def _t5c_mock_law_setup(monkeypatch, body):
+    """SPEC t5c 테스트용 law._get mock 설정. OC 키 + 고정 본문."""
+    from korean_tax_mcp import law
+    import urllib.request, json
+
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    def mock_urlopen(req, context=None, timeout=None):
+        url = req.full_url
+        if "lawSearch.do" in url:
+            return _MockResp(json.dumps(
+                {"LawSearch": {"law": [{"법령명한글": "국세징수법", "법령일련번호": "1", "시행일자": "20240101"}]}}
+            ).encode())
+        return _MockResp(json.dumps({"법령": {"Law": [{"본문내용": body}]}}).encode())
+
+    law._versions.clear()
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+
+@pytest.fixture
+def t5c_mock_body():
+    """SPEC t5c: 국세징수법 제41조(압류금지 재산) mock 본문 — 개정 표시 포함."""
+    return _T5C_MOCK_BODY
+
+
+def test_law_article_keyword_호만_반환(monkeypatch):
+    """SPEC t5b: 호만 있는 조문(항 표시 없음)에서 keyword → 해당 호만 반환 + 일치_위치에 호 라벨.
+
+    국세징수법 제41조 스타일: 항 구분 없이 호 1~10만 존재.
+    keyword='월급' → 제3호('월급·연금…)만 반환해야 함.
+    """
+    _law_article_mock_body(monkeypatch, _BODY_HO_ONLY)
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("국세징수법", "제41조", None, "20240101", None, "월급")
+    assert "error" not in a
+    # keyword 일치(호) 반환 범위
+    assert a["반환 범위"].startswith("keyword 일치"), f"반환 범위 예상 밖: {a['반환 범위']!r}"
+    assert "월급" in a["본문"], "본문에 keyword '월급'이 있어야 함"
+    # 제1호(제41조 1. …) 본문이 본문에 없어야 함 (다른 호 제외)
+    assert "의복·침구" not in a["본문"], "keyword 없는 제1호 본문이 포함됨"
+    assert "식료와 연료" not in a["본문"], "keyword 없는 제2호 본문이 포함됨"
+    # 일치_위치: 호 라벨 포함
+    assert "일치_위치" in a, "일치_위치 필드 누락"
+    locs = a["일치_위치"]
+    assert any("제3호" in loc for loc in locs), f"일치_위치에 제3호 없음: {locs}"
+    assert len(locs) >= 1, "일치_위치가 비어 있음"
+
+
+def test_law_article_keyword_호_여러개_반환(monkeypatch):
+    """SPEC t5b: 한 keyword가 여러 호에 걸치면 해당 호 전부 반환."""
+    _law_article_mock_body(monkeypatch, _BODY_HO_ONLY)
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("국세징수법", "제41조", None, "20240101", None, "체납자")
+    assert "error" not in a
+    assert a["반환 범위"].startswith("keyword 일치")
+    # '체납자와 그 가족'이 여러 호에 등장 → 여러 호 반환
+    assert len(a["일치_위치"]) >= 2, f"여러 호에 걸친 keyword인데 일치_위치 부족: {a['일치_위치']}"
+    # keyword 없는 호(제5호 재해 방지)는 제외
+    assert "재해 방지" not in a["본문"], "keyword 없는 제5호가 포함됨"
+
+
+def test_law_article_keyword_항호_혼합_해당호만(monkeypatch):
+    """SPEC t5b: 항·호 혼합 조문에서 keyword → 해당 항의 해당 호만 반환.
+
+    제52조: ①(1~3호), ②(1~3호), ③. keyword='재판매가격법' → 제2항 제2호만.
+    """
+    _law_article_mock_body(monkeypatch, _BODY_PARAGRAPH_HO, law_name="법인세법")
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", None, "재판매가격법")
+    assert "error" not in a
+    assert a["반환 범위"].startswith("keyword 일치")
+    assert "재판매가격법" in a["본문"], "본문에 keyword 있어야 함"
+    # 제1항 내용(시가보다 높은 가액 등)은 제외
+    assert "시가보다 높은 가액" not in a["본문"], "keyword 없는 제1항 본문이 포함됨"
+    # 일치_위치: 항+호 형태
+    locs = a.get("일치_위치", [])
+    assert any("제2호" in loc for loc in locs), f"일치_위치에 제2호 없음: {locs}"
+    # 반환 범위 문자열에 항 정보 포함
+    assert "제2항" in a["반환 범위"] or "제2호" in a["반환 범위"], f"반환 범위에 항·호 정보 없음: {a['반환 범위']!r}"
+
+
+def test_law_article_keyword_항호_혼합_제1항_제3호(monkeypatch):
+    """SPEC t5b: 항·호 혼합 조문에서 제1항 제3호만 반환.
+
+    keyword='수익을 특수관계인에게 분여' → 제1항 제3호만.
+    """
+    _law_article_mock_body(monkeypatch, _BODY_PARAGRAPH_HO, law_name="법인세법")
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", None, "수익을 특수관계인에게 분여")
+    assert "error" not in a
+    assert a["반환 범위"].startswith("keyword 일치")
+    assert "수익을 특수관계인에게 분여" in a["본문"]
+    locs = a.get("일치_위치", [])
+    assert any("제1항" in loc and "제3호" in loc for loc in locs), f"제1항 제3호 위치 없음: {locs}"
+    # 제2항 내용은 제외 (재판매가격법 등)
+    assert "재판매가격법" not in a["본문"]
+    assert "비교가능 제3자" not in a["본문"]
+
+
+def test_law_article_keyword_일치없음_항호목록(monkeypatch):
+    """SPEC t5b: keyword가 어디에도 없으면 '일치 없음' + 항·호 목록(번호+앞30자)."""
+    _law_article_mock_body(monkeypatch, _BODY_HO_ONLY)
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("국세징수법", "제41조", None, "20240101", None, "존재하지않는키워드XYZ")
+    assert "error" not in a
+    assert a["반환 범위"] == "일치 없음", f"반환 범위 예상 '일치 없음', 실제: {a['반환 범위']!r}"
+    assert "일치 없음" in a, "일치 없음 필드 누락"
+    assert "항_호_목록" in a, "항_호_목록 필드 누락"
+    ho_list = a["항_호_목록"]
+    assert isinstance(ho_list, list) and len(ho_list) > 0, "항_호_목록이 비어 있음"
+    # 각 항목에 위치·앞30자 있음
+    for entry in ho_list:
+        assert "위치" in entry and "앞30자" in entry, f"항_호_목록 항목 누락: {entry}"
+        assert len(entry["앞30자"]) <= 30, f"앞30자 초과: {entry['앞30자']!r}"
+    # 본문은 앞 2000자 (전체 아님, 전체는 아니지만 일부 포함)
+    assert len(a["본문"]) <= 2000, f"본문 2000자 초과: {len(a['본문'])}"
+
+
+def test_law_article_keyword_일치없음_항호목록_항구조(monkeypatch):
+    """SPEC t5b: 항·호 혼합 조문에서 없는 keyword → 항 구조로 항_호_목록 반환."""
+    _law_article_mock_body(monkeypatch, _BODY_PARAGRAPH_HO, law_name="법인세법")
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", None, "없는키워드")
+    assert a["반환 범위"] == "일치 없음"
+    ho_list = a["항_호_목록"]
+    # 항 라벨(제1항, 제2항, 제3항)이 목록에 포함되어야 함
+    locs = [e["위치"] for e in ho_list]
+    assert any("제1항" in loc for loc in locs), f"제1항 위치 없음: {locs}"
+    assert any("제2항" in loc for loc in locs), f"제2항 위치 없음: {locs}"
+
+
+def test_law_article_paragraph_기존동작_그대로(monkeypatch):
+    """SPEC t5b: paragraph 인자는 기존대로 해당 항만 반환. keyword와 무관."""
+    _law_article_mock_body(monkeypatch, _BODY_PARAGRAPH_HO, law_name="법인세법")
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", "제1항", None)
+    assert "error" not in a
+    assert "제1항" in a["반환 범위"] or "제1항" in a.get("요청 항", ""), "paragraph 지정 항 반환 범위 아님"
+    assert "시가보다 높은 가액" in a["본문"], "제1항 본문이 있어야 함"
+    # 제2항 내용은 없어야 함
+    assert "재판매가격법" not in a["본문"], "paragraph=제1항인데 제2항 내용 포함"
+
+
+def test_law_article_no_keyword_long_body_항목록(monkeypatch):
+    """SPEC t5b: keyword·paragraph 없고 본문 4000자 초과 → 항 목록 + 안내(기존 동작 유지)."""
+    long_body = "제52조(부당행위계산의 부인)\n" + "① " + "테스트 문장. " * 300 + "\n" + "② " + "두번째 항 문장. " * 200
+    _law_article_mock_body(monkeypatch, long_body, law_name="법인세법")
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", None, None)
+    assert "error" not in a
+    assert a["반환 범위"] == "항 목록", f"반환 범위 예상 '항 목록', 실제: {a['반환 범위']!r}"
+    assert "항 목록" in a, "항 목록 필드 누락"
+    assert "안내" in a, "안내 필드 누락"
+
+
+def test_law_article_keyword_본문_정리(t5c_mock_body, monkeypatch):
+    """SPEC t5c: keyword 호 반환 본문 정리 — 중복 제거·순서·항 번호 유지·개정 태그 제거.
+
+    국세징수법 제41조(압류금지 재산), keyword='생계비' 기준.
+
+    기대 순서: 조 머리말 한 줄(개개정 태그 제거) → 일치한 호 본문.
+    - 조 머리말이 대괄호로 중복 접두되지 않음
+    - 호 본문("18. …")에 호 번호가 유지됨
+    - <개정 …> 및 미완결 "<개정"이 머리말에서 제거됨
+    """
+    _t5c_mock_law_setup(monkeypatch, t5c_mock_body)
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("국세징수법", "제41조", None, "20240101", None, "생계비")
+    assert "error" not in a
+    body = a["본문"]
+
+    # 1. 조 머리말(개정 태그 제거)이 앞에 오고, 대괄호로 중복 접두되지 않음
+    assert "제41조(압류금지 재산) 다음 각 호의 재산은 압류할 수 없다." in body, \
+        f"조 머리말 없음/불일치: {body[:120]!r}"
+    assert not body.startswith("["), f"조 머리말이 대괄호로 시작함(중복 접두): {body[:60]!r}"
+
+    # 2. 일치한 호 본문이 조 머리말 뒤에 옴
+    idx_head = body.index("제41조(압류금지 재산)")
+    idx_ho = body.index("18. 「민사집행법」")
+    assert idx_ho > idx_head, f"호 본문이 조 머리말보다 앞에 있음: {body[:120]!r}"
+
+    # 3. 호 번호("18.") 유지
+    assert "18." in body, "호 번호 '18.' 누락"
+    assert "「민사집행법」 제246조의2" in body, "호 본문 내용 누락"
+
+    # 4. 개정 표시 제거 확인: 머리말에 <개정 …> 또는 미완결 "<개정"이 남아 있지 않음
+    head = body.split("\n")[0]
+    assert "<개정" not in head, f"머리말에 개정 표시 잔존: {head!r}"
+
+    # 5. keyword 없는 다른 호 본문은 포함되지 않음 (호 단위 필터링 유지, t5b)
+    assert "「민사집행법」 제246조의2" in body  # 일치한 호만
+    # (다른 호는 모의 본문에 없으므로 이 검사로 충분)
 

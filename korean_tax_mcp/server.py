@@ -25,7 +25,8 @@ from . import _mask_oc, casebook, cite, i18n, law, localdocs, ntis, outcome, res
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
     instructions="한국 세법 쟁점의 근거(국세청 해석·판례·통칙·집행기준·조문)를 찾는다. search_tax_rulings로 넓게 찾고, get_tax_ruling으로 본문을 읽고, "
-                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 특정 사업연도 기준 정리는 research_issue, 쟁점의 납세자 승·패 사례 비교는 compare_outcomes, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
+                 "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 조문 번호를 모르면 find_article로 먼저 찾고, 긴 조문은 law_article의 keyword/paragraph로 필요한 항만 보라. "
+                 "특정 사업연도 기준 정리는 research_issue, 쟁점의 납세자 승·패 사례 비교는 compare_outcomes, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
                  "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다.")
 
 TAXES = tuple(ntis.TAX_CODES)
@@ -208,14 +209,18 @@ def _truncate_text(text, limit=RESP_MAX_CHARS):
 @bilingual
 def law_article(
     law_name: Annotated[str, Field(description="법령 정식 명칭. 예: '법인세법', '법인세법 시행령', '법인세법 시행규칙'")],
-    article: Annotated[str, Field(description=ART)],
+    article: Annotated[str, Field(description=ART + ". '제52조 제1항'처럼 항을 함께 줄 수 있음")],
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 그날 시행 중이던 연혁본. 생략하면 오늘")] = "",
     with_delegation: Annotated[bool, Field(description="True면 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단)")] = False,
     with_rules: Annotated[bool, Field(description="True면 그 조의 기본통칙 전문과 집행기준 항목도 함께")] = False,
+    keyword: Annotated[str, Field(description="키워드가 들어간 항(①②…/제1항…)만 반환. 긴 조문(4,000자 초과)에서 항 번호 모를 때 사용")] = "",
+    paragraph: Annotated[str, Field(description="원하는 항만 지정. '①'·'1'·'제1항'·'②' 등. 그 항만 반환")] = "",
 ) -> dict:
     """Get statute text as in force on a date, with optional Act → Decree → Rule chain. 조문 원문(기준일 시행본)과 3단 위임.
+
     언제: 세액·요건 판단처럼 사실 발생 시점의 법령이 필요할 때. 해석·판례는 회신 당시 법 기준이므로 이 도구로 적용 연도 조문과 대조.
-    반환: {법령, 조, 적용 시행일, 본문, 링크} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
+    조문 번호를 모르면 find_article로 먼저 찾는다. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록과 안내 반환.
+    반환: {법령, 조, 적용 시행일, 본문, 링크, 반환 범위} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
     읽기 전용. 법제처 공식 API — 환경변수 LAW_OC(무료) 필요, 없으면 발급 안내 오류.
     """
     ef = re.sub(r"\D", "", as_of or "")
@@ -233,10 +238,10 @@ def law_article(
                                      "적용 시행일": t["적용 시행일"], "본문": _truncate_text(t.get("본문", ""))}
                                     for t in tiers]}
             else:
-                a = law.article(law_name, norm, ef)
+                a = law._article_body_with_scope(law_name, norm, hang, ef, paragraph, keyword)
                 a["본문"] = _truncate_text(a.get("본문", ""))
                 out = a
-        if hang:
+        if hang and not paragraph:
             out["요청 항"] = hang
     except ValueError as e:
         return {"error": str(e)}
@@ -256,6 +261,33 @@ def law_article(
                 out[k] = r
             except Exception as e: out[k] = _err(e)
     return out
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def find_article(
+    keyword: Annotated[str, Field(description="찾을 키워드(공백으로 여러 단어). 예: '압류금지 생계비계좌'")],
+    law_name: Annotated[str | None, Field(description="법령명(정식 명칭). 생략하면 주요 세법 전부(국세기본법·징수법·소득세법·법인세법·부가가치세법·상속세및증여세법·조세특례제한법·국제조세조정법 + 각 시행령)에서 조회")] = None,
+    as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
+    n: Annotated[int, Field(description="반환 건수(1~20)", ge=1, le=20)] = 5,
+) -> dict:
+    """Find statute articles by keyword — first step when you don't know the article number. 키워드로 조문 위치를 찾는다.
+
+    언제: 쟁점 키워드는 있는데 조문 번호를 모를 때 first step. 예: '압류금지 생계비계좌' → 국세징수법 제41조.
+    반환: [{법령, 조, 제목, 적용 시행일, 일치 문장: 키워드가 든 문장 1~2개(각 200자 이내)}], 다음 단계: law_article(law_name, 조, keyword=...)로 해당 항만 조회.
+    결과 길이 4,000자 이내. 읽기 전용. 법제처 공식 API — LAW_OC 필요, 없으면 오류.
+    """
+    if not keyword.strip():
+        return {"error": "keyword 필요"}
+    if n < 1 or n > 20:
+        return {"error": "n은 1~20"}
+    ef = re.sub(r"\D", "", as_of or "")
+    if ef and len(ef) != 8:
+        return {"error": "as_of는 YYYYMMDD 또는 YYYY-MM-DD"}
+    try:
+        return law.find_article(keyword, law_name, as_of or "", n)
+    except Exception as e:
+        return _err(e)
 
 
 def _solar(prompt):
