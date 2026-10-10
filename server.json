@@ -4,12 +4,12 @@
   "title": "Korea Tax Law",
   "description": "Korea tax law: NTS rulings, court/tribunal decisions, basic rules, treaties, point-in-time statutes",
   "repository": { "url": "https://github.com/UpstageAI/korean-tax-mcp", "source": "github" },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "korean-tax-mcp",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         { "name": "LAW_OC", "description": "법제처 Open API OC key (optional, for law_article)", "isRequired": false, "isSecret": true },
