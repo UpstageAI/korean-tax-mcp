@@ -597,24 +597,33 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
         km = _호_목_매칭(body, keyword)
         if km:
             # 조 머리말: 본문 첫 줄에서 개정 표시(<개정 …>, 미완결 "<개정") 제거.
-            # 대괄호 접두사([항_머리말]/[호_머리말])는 호 본문과 중복되므로 붙이지 않는다.
             first_line = body.split("\n")[0].strip() if body else ""
             jo_head = re.sub(r"<개정[^>]*>|<개정\b", "", first_line).strip()
-            chunks = []
             match_locs = []
             jo_label = a.get("조", "")  # "전체" 대체용 실제 조 번호
+            # 항별로 그룹화: 각 항마다 항_머리말 1줄 + 매칭된 호 문장들
+            항_groups = {}
             for hit in km:
                 항_l = hit["항"]; 호_l = hit["호"]
-                # "전체" 라벨은 실제 조 번호로 치환 (호-only 조문에서 항 마커 없을 때)
                 disp_항 = jo_label if 항_l == "전체" else 항_l
                 loc = f"{disp_항} {호_l}" if 호_l else disp_항
                 match_locs.append(loc)
-                # 대괄호 접두사 제거(호 본문과 중복 방지). 호 번호가 있으면 본문에 유지(t5c #4).
+                if disp_항 not in 항_groups:
+                    항_groups[disp_항] = {"항_머리말": hit.get("항_머리말", ""), "호들": []}
+                # 호 본문: 호 번호가 있으면 호 번호 접두사 유지(t5c #4), 없으면 그대로
                 body_hit = hit["호_본문"]
                 if 호_l:
                     ho_no = re.search(r"\d+", 호_l).group()  # "제18호" → "18"
                     body_hit = f"{ho_no}. {body_hit}"
-                chunks.append(body_hit)
+                항_groups[disp_항]["호들"].append(body_hit)
+            chunks = []
+            for 항_l in sorted(항_groups.keys(), key=lambda x: int(re.search(r"\d+", x).group()) if re.search(r"\d+", x) else 0):
+                group = 항_groups[항_l]
+                # 항 머리말: 개정 표시 제거 후 추가. 조 머리말과 동일하면 중복이므로 생략.
+                항_head = re.sub(r"<개정[^>]*>|<개정\b", "", group["항_머리말"]).strip()
+                if 항_head and 항_head != jo_head:
+                    chunks.append(항_head)
+                chunks.extend(group["호들"])
             body = jo_head + "\n" + "\n".join(chunks)
             a["일치_위치"] = match_locs
             scope = f"keyword 일치(호): {', '.join(match_locs)}"
@@ -652,34 +661,32 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
 # ── law_article 키워드 필터: 호·목 단위 (SPEC t5b) ──────────────────────────────
 
 _HO_HOL = re.compile(r"제(\d+)호")          # 제1호, 제2호 …
-_HO_NUM = re.compile(r"^\s*(\d+)[\.\)]")   # 1. …, 2) … (chunk 시작 위치의 숫자+닷/괄호)
+_HO_NUM = re.compile(r"^\s*(\d{1,2})[\.\)]")   # 1. …, 2) … (chunk 시작 위치의 숫자+닷/괄호, 호 번호는 1~2자리)
 _MOK = re.compile(r"(?:^|\s)[가-힣]\.|\([가-힣]+\)")  # (가), (나) …, 가. 나. … (문장 말미 "다." 오인 방지)
+
+# 항 블록 내 호 마커 탐색용: 줄 시작(\n 뒤) 위치의 호 마커만 인식.
+# 항 머리말 내 "제1호에 해당하는" 같은 문장 내 제N호를 호 마커로 오인하지 않도록,
+# 호 마커는 반드시 \n 뒤에 있는 것으로 제한 (블록 시작 위치 제외).
+_HO_MARKER_IN_BLOCK = re.compile(r"\n\s*(?:제\d+호|\d{1,2}[\.\)])")
 
 
 def _호_목_분할(body):
     """본문을 항 → 호 → 목 트리 리스트로 분할.
 
-    반환: [{"항": "제1항", "호": [{"호": "제1호", "목": ["가.", "나."], "본문": "…"}]}]
+    반환: [{"항": "제1항", "항_머리말": "…", "호": [{"호": "제1호", "목": ["가.", "나."], "본문": "…"}]}]
     항 표시가 없으면 전체를 하나의 항으로, 호 표시만 있으면 그 호들로 분할.
-    같은 위치의 circled digit(①)과 텍스트(제1항)가 중복 마커로 잡히는 경우
-    간격 5자 미만의 뒤쪽 마커를 제거해 중복을 방지한다.
+    항 마커는 동그라미 숫자(①~⑩)만 사용한다. 텍스트 "제1항"은 문장 내 참조일 수 있어
+    항 마커로 사용하지 않는다(중복 필터링 불필요).
     """
     if not body:
         return []
-    ant = list(re.finditer(r"[①-⑩]|제\d+항", body))
+    ant = list(re.finditer(r"[①-⑩]", body))
     if not ant:
         return [_항_블록(body, None)]
-    # 중복 마커 필터링: circled digit(①)과 바로 뒤 텍스트 마커(제1항)는 중복.
-    # 텍스트 마커가 직전 마커(끝 위치 기준) 10자 이내에 있으면 제거.
-    filtered = []
-    for m in ant:
-        if filtered and m.start() - filtered[-1].end() < 10:
-            continue
-        filtered.append(m)
     out = []
-    for idx, m in enumerate(filtered):
+    for idx, m in enumerate(ant):
         start = m.start()
-        end = filtered[idx + 1].start() if idx + 1 < len(filtered) else len(body)
+        end = ant[idx + 1].start() if idx + 1 < len(ant) else len(body)
         block = body[start:end].strip()
         if block:
             norm = _normalize_paragraph_spec(m.group(0))
@@ -688,45 +695,57 @@ def _호_목_분할(body):
 
 
 def _항_블록(block, 항_norm):
-    """하나의 항 블록을 호·목으로 분할."""
-    hos = list(re.finditer(r"제\d+호|\d+[\.\)]", block))
+    """하나의 항 블록을 호·목으로 분할.
+
+    반환: {"항": …, "항_머리말": …, "호": […]}
+    항_머리말은 항 마커 뒤 첫 호 마커 앞까지의 텍스트(항의 도입부).
+    개정 태그(<개정 …>) 내 날짜 숫자(예: 2019.12.31)가 호 마커로 오인되지 않도록
+    호 마커 탐색 전에 개정 태그를 제거한다.
+    호 마커는 \n 뒤에만 있는 것으로 제한하여 항 머리말 내 제N호를 오인하지 않는다.
+    """
+    # 개정 태그 제거 (호 마커 탐색용 별도 문자열)
+    block_for_ho = re.sub(r"<개정[^>]*>|<개정\b[^>]*>", "", block)
+    hos = list(re.finditer(_HO_MARKER_IN_BLOCK, block_for_ho))
     if not hos:
-        return {"항": 항_norm or "전체", "호": [{"호": None, "목": [], "본문": block.strip()}]}
+        return {"항": 항_norm or "전체", "항_머리말": block.strip(), "호": [{"호": None, "목": [], "본문": block.strip()}]}
+    # 첫 호 마커 앞의 텍스트를 항_머리말로 보존 (원문 기준).
+    first_ho_match = hos[0]
+    항_머리말 = block[:first_ho_match.start()].strip()
     out = []
     for idx, m in enumerate(hos):
-        start = m.start()
-        end = hos[idx + 1].start() if idx + 1 < len(hos) else len(block)
-        chunk = block[start:end].strip()
-        gm = _HO_HOL.match(chunk)
-        gn = _HO_NUM.match(chunk)
-        gmk = _MOK.match(chunk) if chunk else None
+        # 호 마커 매치: \n\s*(제\d+호|\d{1,2}[\.\)])
+        # 매치 그룹에서 호 번호 추출
+        full_match = m.group(0)
+        # 호 마커 부분 추출 (첫 줄바꿈 제외)
+        ho_marker = full_match.strip()  # "\n1." → "1."
+        # 호 라벨 파싱
+        gm = _HO_HOL.match(ho_marker)
+        gn = _HO_NUM.match(ho_marker)
         if gm:
             ho_label = f"제{gm.group(1)}호"
-            body_start = gm.end()
         elif gn:
             ho_label = f"제{gn.group(1)}호"
-            body_start = gn.end()
-        elif gmk:
-            ho_label = None
-            body_start = gmk.end()
         else:
             ho_label = None
-            body_start = 0
-        rest = chunk[body_start:].strip()
-        mok_seq = [m2.group() for m2 in _MOK.finditer(rest)]
-        out.append({"호": ho_label, "목": mok_seq, "본문": rest})
+        # 호 내용 시작 위치: 매치 끝 위치 (호 마커 직후)
+        body_start = m.end()
+        # 다음 호 마커까지의 텍스트
+        end = hos[idx + 1].start() if idx + 1 < len(hos) else len(block_for_ho)
+        chunk = block_for_ho[body_start:end].strip()
+        mok_seq = [m2.group() for m2 in _MOK.finditer(chunk)]
+        out.append({"호": ho_label, "목": mok_seq, "본문": chunk})
     merged = []
     for b in out:
         if b["호"] is None and not merged:
             merged.append({"호": None, "목": b["목"], "본문": b["본문"]})
         else:
             merged.append(b)
-    return {"항": 항_norm or "전체", "호": merged}
+    return {"항": 항_norm or "전체", "항_머리말": 항_머리말, "호": merged}
 
 def _호_목_매칭(body, kw):
     """keyword가 포함된 호·목 단위 위치 목록.
 
-    각 항목: {항, 호, 호_본문, 목_일치}
+    각 항목: {항, 호, 항_머리말, 호_본문, 목_일치}
     """
     if not body or not kw:
         return []
@@ -734,6 +753,7 @@ def _호_목_매칭(body, kw):
     tree = _호_목_분할(body)
     matched = []
     for ant in tree:
+        항_머리말 = ant.get("항_머리말", "")
         for ho in ant["호"]:
             hb = ho["본문"]
             if not hb:
@@ -748,7 +768,7 @@ def _호_목_매칭(body, kw):
                         mk_text = mk_text[:nxt.start()] if nxt else mk_text
                         if kw_lower in mk_text.lower():
                             mok_hits.append(mk)
-                matched.append({"항": ant["항"], "호": ho["호"], "호_본문": hb, "목_일치": mok_hits})
+                matched.append({"항": ant["항"], "호": ho["호"], "항_머리말": 항_머리말, "호_본문": hb, "목_일치": mok_hits})
     return matched
 
 
@@ -757,9 +777,8 @@ def _호_목_맥락_분할(body):
 
     반환: [{"항": …, "항_머리말": …, "호": …, "호_머리말": …, "본문": …}]
     - 항 마커가 없는 호-only 구조에서는 항_머리말을 비운다(호 간 중복 방지).
-    - 각 항의 항_머리말은 그 항의 첫 호 본문 첫 줄을 사용한다(다른 항의 머리말이
-      섞이지 않도록). 호-only 구조에서는 항 마커 없이 호들만 있으므로 항_머리말·호_머리말이
-      동일해지는 것을 막기 위해 항_머리말을 ""로 둔다.
+    - 각 항의 항_머리말은 `_호_목_분할`이 보존한 실제 항 머리말(항 마커 뒤 첫 호 앞 텍스트)을 사용한다.
+      호-only 구조에서는 항 마커 없이 호들만 있으므로 항_머리말을 ""로 둔다.
     """
     tree = _호_목_분할(body)
     # 항 마커가 하나도 없는 호-only 구조 → 항_머리말 사용 안 함
@@ -770,9 +789,8 @@ def _호_목_맥락_분할(body):
         if no_ant_markers:
             head = ""
         else:
-            # 이 항의 첫 호 본문 첫 줄을 항_머리말로 사용
-            first_in_this_ant = ant["호"][0]["본문"] if ant["호"] else ""
-            head = first_in_this_ant.split("\n")[0].strip()[:80] if first_in_this_ant else ""
+            # `_호_목_분할` → `_항_블록`이 보존한 실제 항 머리말 사용
+            head = ant.get("항_머리말", "")
         for ho in ant["호"]:
             hb = ho["본문"]
             hfirst = hb.split("\n")[0].strip()[:80] if hb else ""
