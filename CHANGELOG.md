@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 — 2026-10-10
+- AI 생성 표시: `compare_with_case`·`compare_outcomes(explain=True)`·`lang="en"` 번역·`residency_report`에서 Solar(클라우드/온프렘)가 생성한 결과에 `AI 생성 표시` 필드 추가 — 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」 제31조에 따른 생성형 AI 결과물 표시
+- host_ai 모드(사용자 AI 판단): 결과에 AI 생성 표시 없음, 안내 문구에 "판단 결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요" 추가
+- 조회 도구(`residency_check`, `law_article` 등)와 규칙 판정에는 AI 생성 표시 미적용
+- README 국문·영문 면책·AI 사용 고지 섹션 추가
+- 버전 0.7.1 (pyproject.toml·server.json·__init__.py·CHANGELOG)
+
 ## 0.7.0 — 2026-10-10
 - 신규 `residency_check`: 거주자·비거주자 3단계 규칙 판정(소득세법 제1조의2, 시행령 제2조·제2조의2·제3조), 조세조약 tie-break(체결국 목록 실제 조회), 미체결국 양국 과세, 유사 판례 top3, 판단이 갈리는 지점·추가 확인 사항
 - 신규 `residency_report`: 판정은 residency_check 결과 그대로, 서술형 보고서만 생성

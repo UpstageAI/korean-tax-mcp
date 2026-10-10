@@ -101,6 +101,8 @@ def english(result, translate=True):
         if done:
             r["language_note"] = f"Titles and summaries machine-translated by {solar.where('en')} (originals in *_ko); full texts are original Korean."
             r.setdefault("translation_mode", solar.mode())
+            if solar.mode() in ("solar_cloud", "solar_onprem"):
+                r["AI 생성 표시"] = "Judgments, summaries and translations in this result were written by generative AI (Upstage Solar Pro 4). Check them against the cited sources."
         else:
             r["language_note"] = ("Official English texts (tax treaties, English statutes) are returned as is. Other source texts are original Korean "
                                   "(nothing was sent to Upstage).")
