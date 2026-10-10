@@ -6,7 +6,7 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Developed with Upstage Solar Pro 4 since 0.7.0** (0.6.0 and earlier predate it). Residency determination (`residency_check`, `residency_report`), treaty keyword synonyms and lookup hardening (retries, cache, key masking) were written by Solar Pro 4 (Solar Code CLI) and verified by Claude.
+> **Developed with Upstage Solar Pro 4 since 0.7.0** (0.6.0 and earlier predate it). Residency determination (`residency_check`, `residency_report`), treaty keyword synonyms and lookup hardening (retries, cache, key masking) were written by Solar Pro 4 (Solar Code CLI), reviewed on each PR by CodeSolar (Solar Pro 4-based code review) and cross-checked with tests by Claude.
 
 An MCP server for **Korean tax law sources**. Plug it into Claude, Cursor, or any MCP client to get National Tax Service (NTS) rulings, court and tax tribunal decisions, basic rules, and statutes — with document numbers.
 
