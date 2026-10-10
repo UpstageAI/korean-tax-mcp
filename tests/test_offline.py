@@ -405,6 +405,7 @@ def test_scenario_a_resident():
     # 판례 매칭 결과 확인 (6-4절 판례는 나오지 않아야 함)
     cases = r["유사 판례 top3"]
     case_nos = {c["사건번호"] for c in cases}
+    assert len(cases) >= 1, f"시나리오A 유사 판례 top3가 비어 있음 — 예상 1건 이상: {case_nos}"
     assert "2018두71798" not in case_nos, "6-4절(찾지 못함) 판례가 인용됨"
     assert "2010두8171" not in case_nos, "6-4절(사실관계 미확인) 판례가 인용됨"
     # 법리 명시 확인
@@ -473,6 +474,14 @@ def test_kim_basic_nonresident():
     assert s1["거소 판정"] == "183일 미만 거소", f"김가나 기본 거소: {s1['거소 판정']}"
     assert s1["국내 체류일수"] == 150
     assert r["최종 판정"] == "비거주자", f"김가나 기본 최종: {r['최종 판정']}"
+    # SPEC_r2d: 체크 항목만 입력해도 유사 판례 1건 이상 나와야 함
+    cases = r["유사 판례 top3"]
+    case_nos = {c["사건번호"] for c in cases}
+    assert len(cases) >= 1, (
+        f"김가나 기본 유사 판례 top3가 비어 있음 — SPEC_r2d 위반: 예상 1건 이상, 실제 {case_nos}"
+    )
+    assert "2018두71798" not in case_nos, "6-4절(찾지 못함) 판례가 인용됨"
+    assert "2010두8171" not in case_nos, "6-4절(사실관계 미확인) 판례가 인용됨"
 
 
 # ── 김가나 시나리오 B: 국내 거주자 + 이중거주 → 조약 제3조 ②(a) 주거로 한국 거주자
@@ -507,6 +516,17 @@ def test_kim_scenario_b_resident_treaty():
     assert s3["최종 거주지국"] == "한국 거주자", f"김가나B 3단계: {s3['최종 거주지국']}"
     assert s3["결정 단계"] == "항구적 주거", f"김가나B 결정 단계: {s3['결정 단계']} — 예상: 항구적 주거(§3 ②(a))"
     assert r["최종 판정"] == "거주자", f"김가나B 최종: {r['최종 판정']}"
+    # SPEC_r2d: 유사 판례에 이중거주자·tie-break 관련 판례 포함 (2014두13959 또는 2016두37584)
+    cases = r["유사 판례 top3"]
+    case_nos = {c["사건번호"] for c in cases}
+    assert len(cases) >= 1, f"김가나B 유사 판례 top3가 비어 있음 — 예상 1건 이상"
+    dual_tiebreak_nos = {"2014두13959", "2016두37584"}
+    assert case_nos & dual_tiebreak_nos, (
+        f"김가나B 유사 판례에 이중거주자·tie-break 판례 없음 — "
+        f"예상: {dual_tiebreak_nos} 중 1건 이상, 실제: {case_nos}"
+    )
+    assert "2018두71798" not in case_nos, "6-4절(찾지 못함) 판례가 인용됨"
+    assert "2010두8171" not in case_nos, "6-4절(사실관계 미확인) 판례가 인용됨"
 
 
 # ── 파견(§3 적용 → 거주자) vs 현지 채용(§3 미적용) 분기 ─────────────────────
