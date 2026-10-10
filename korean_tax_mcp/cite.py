@@ -6,7 +6,7 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-from . import law, ntis
+from . import _mask_oc, law, ntis
 
 DOC = re.compile(r"(?:(?:서면|사전|기준|질의|법규|법령해석|이의|심사|심판|조심|국심|감심)[-\s]?(?:[가-힣]+[-\s]?)?\d{4}[-\s]?[가-힣]*[-\s]?\d{2,5}"
                  r"|[가-힣]{1,10}법원(?:\([가-힣]+\))?[-\s]?\d{4}[-\s]?[가-힣]{1,3}[-\s]?\d{2,6}"
@@ -33,8 +33,8 @@ def _check_law(name, art, as_of):
     except law.NoKey:
         return {"인용": f"{name} {art}", "결과": "미검증", "이유": "LAW_OC 없음"}
     except Exception as e:
-        return {"인용": f"{name} {art}", "결과": "조회 실패", "이유": str(e)[:80]}
-    if r.get("error"): return {"인용": f"{name} {art}", "결과": "법령명 미확인", "이유": r["error"]}
+        return {"인용": f"{name} {art}", "결과": "조회 실패", "이유": _mask_oc(str(e))[:80]}
+    if r.get("error"): return {"인용": f"{name} {art}", "결과": "법령명 미확인", "이유": _mask_oc(r["error"])}
     ok = r.get("본문") and not r["본문"].startswith("조문 없음")
     return {"인용": f"{name} {art}", "결과": "확인" if ok else "조문 없음", "적용 시행일": r.get("적용 시행일")}
 
