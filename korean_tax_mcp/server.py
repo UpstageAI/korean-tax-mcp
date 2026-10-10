@@ -267,7 +267,8 @@ def compare_outcomes(
             r["갈린 지점"] = {"mode": "host_ai", "발췌 위치": "위 납세자 승·일부 인용·납세자 패 목록의 납세자 주장·과세관청 의견·결정 이유(판단 끝부분)",
                          "판단 안내": "사용자 AI가 판단: 위 발췌만으로 승패를 가른 지점을 사실·증빙 기준으로 비교해 "
                                    "{갈린 지점: [한 줄 (근거 문서번호)], 이긴 쪽이 입증한 것: [...], 진 쪽에 부족했던 것: [...]} 로 정리. "
-                                   "각 항목에 근거 문장과 문서번호를 인용하고, 발췌에 없는 사실은 만들지 않으며, 문서번호는 목록에 있는 것만 사용."}
+                                   "각 항목에 근거 문장과 문서번호를 인용하고, 발췌에 없는 사실은 만들지 않으며, 문서번호는 목록에 있는 것만 사용. "
+                                   "판단 결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요."}
         elif sides:
             lines = "\n".join(f"[{k}] {x['문서번호']} 납세자: {x.get('납세자 주장', '')[:250]} / 판단: {x.get('결정 이유(판단 끝부분)', '')[-350:]}" for k, x in sides)
             try:
@@ -276,6 +277,7 @@ def compare_outcomes(
 {lines}
 JSON: {{"갈린 지점":["사실·증빙 기준 한 줄 (근거 문서번호)"],"이긴 쪽이 입증한 것":["..."],"진 쪽에 부족했던 것":["..."]}}""")
                 r["갈린 지점"] = {**j, "주의": f"{solar.where()} 요약 — 본문 확인 후 인용"}
+                r["AI 생성 표시"] = "이 결과의 판단·요약·번역 문장은 생성형 AI(Upstage Solar Pro 4)가 작성했습니다. 근거 원문과 대조해 확인하세요."
             except Exception as e:
                 r["갈린 지점"] = {"error": f"Solar 요약 실패: {e}"}
     return r
@@ -310,7 +312,8 @@ def compare_with_case(
                         "링크": x.get("링크", "")} for x in pool],
                 "판단 안내": "사용자 AI가 판단: 후보 문서마다 우리 논리와의 관계를 지지/반대/구별 필요(무관하면 제외)로 판정하고, "
                           "판정마다 근거가 된 요지 문장과 문서번호를 인용하며 사실관계 차이를 한 줄로 적는다. 확신이 없으면 '구별 필요'. "
-                          "적힌 내용 밖의 사실을 창작하지 않고, 문서번호는 후보에 있는 것만 쓴다. 필요하면 get_tax_ruling으로 본문 확인.",
+                          "적힌 내용 밖의 사실을 창작하지 않고, 문서번호는 후보에 있는 것만 쓴다. 필요하면 get_tax_ruling으로 본문 확인. "
+                          "판단 결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요.",
                 "주의": "요지 발췌 기준 — 인용 전 본문 확인"}
     keyed = {f"K{i}": x for i, x in enumerate(pool, 1)}
     lines = "\n".join(f"[{k}] {x['구분']} {x['문서번호']} {x['일자']} 제목: {x['제목']} / 요지: {x['요지'][:400]}" for k, x in keyed.items())
@@ -329,7 +332,13 @@ JSON: {{"해석":[{{"키":"K1","관계":"지지|반대|구별 필요|무관","�
         if x and r.get("관계") in ("지지", "반대", "구별 필요"):
             rows.append({"문서번호": x["문서번호"], "구분": x["구분"], "관계": r["관계"], "이유": r.get("이유", ""),
                          "사실관계 차이": r.get("사실관계 차이", ""), "링크": x.get("링크", "")})
-    return {"mode": solar.mode(), "해석": rows, "요약": j.get("요약", ""), "주의": f"{solar.where()} 판정은 검토 보조 — 본문 확인 후 인용"}
+    result = {"mode": solar.mode(), "해석": rows, "요약": j.get("요약", ""), "주의": f"{solar.where()} 판정은 검토 보조 — 본문 확인 후 인용"}
+    if mode := solar.mode():
+        if mode in ("solar_cloud", "solar_onprem"):
+            result["AI 생성 표시"] = "이 결과의 판단·요약·번역 문장은 생성형 AI(Upstage Solar Pro 4)가 작성했습니다. 근거 원문과 대조해 확인하세요."
+        elif mode == "host_ai":
+            result["판단 안내"] = result.get("판단 안내", "") + " 판단 결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요."
+    return result
 
 
 @mcp.tool(annotations=RO)
@@ -721,10 +730,10 @@ def residency_report(
     )
 
     # 2) Solar 설정 확인
+    _lang = LANG.get()
     mode = solar.mode()
     if mode == "host_ai":
         # 키 없음 → 안내 + check 결과만 반환
-        _lang = LANG.get()
         lang_note = (
             "한국어 안내: Upstage API 키(UPSTAGE_API_KEY) 또는 온프렘 Solar(KOREAN_TAX_MCP_SOLAR_BASE_URL) 설정 후 "
             "다시 실행하면 판정 검토 보고서를 작성합니다. 현재는 키 없이 residency_check 결과만 반환합니다. "
@@ -739,6 +748,7 @@ def residency_report(
             "안내": lang_note,
             "residency_check 결과": check_result,
             "Solar 설정 방법": "export UPSTAGE_API_KEY=발급키  또는  export KOREAN_TAX_MCP_SOLAR_BASE_URL=http://온프렘주소/v1",
+            "AI 생성 표시 안내": "판단 결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요.",
         }
 
     # 3) Solar 호출 → 보고서 작성
@@ -766,9 +776,10 @@ def residency_report(
 
     return {
         "mode": mode,
-        "solar": solar.where(lang),
+        "solar": solar.where(_lang),
         "보고서": report_md,
         "residency_check 결과": check_result,
+        "AI 생성 표시": "이 결과의 판단·요약·번역 문장은 생성형 AI(Upstage Solar Pro 4)가 작성했습니다. 근거 원문과 대조해 확인하세요.",
         "주의": "보고서는 서술만 제공할 뿐 residency_check의 판정 결과를 바꾸지 않는다. 판정은 코드(규칙 기반)로 고정된다.",
     }
 
