@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "korean-tax-mcp"
-version = "0.7.1"
+version = "0.7.2"
 description = "Korea (South Korea) tax law MCP server — NTS rulings, court and tax tribunal decisions, basic rules, tax treaties, point-in-time statutes. 한국 세법 근거 MCP"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -122,8 +122,13 @@ def rulings_by_article(
     kinds = tuple(kinds or ["해석", "판례"])
     if any(k not in ntis.KINDS for k in kinds): return {"error": "kinds: 해석 | 판례"}
     try:
-        return {"법령": law_name, "조": article, "결과": ntis.search(keyword or law_name.split()[0], kinds, tax, sort, max(1, min(int(n), 30)),
-                                                                   article=article.strip(), law=law_name)}
+        norm, hang = law.normalize_article(article)
+        r = {"법령": law_name, "조": norm, "결과": ntis.search(keyword or law_name.split()[0], kinds, tax, sort, max(1, min(int(n), 30)),
+                                                                   article=norm, law=law_name)}
+        if hang: r["요청 항"] = hang
+        return r
+    except ValueError as e:
+        return {"error": str(e)}
     except Exception as e:
         return _err(e)
 
@@ -140,7 +145,14 @@ def basic_rules(
     반환: {법령, 기준(고시 연도), 통칙: [{통칙(번호·제목), 본문}], 링크}.
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
-    try: return ntis.basic_rules(law_name, article, keyword)
+    try:
+        norm, hang = law.normalize_article(article)
+        r = ntis.basic_rules(law_name, norm, keyword)
+        r["조"] = norm
+        if hang: r["요청 항"] = hang
+        return r
+    except ValueError as e:
+        return {"error": str(e)}
     except Exception as e: return _err(e)
 
 
@@ -156,7 +168,14 @@ def execution_standards(
     반환: {법령, 기준(발간 연도), 항목: [{항목(번호·제목), 쪽}], 링크, 주의}.
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
-    try: return ntis.exec_standards(law_name, article, keyword)
+    try:
+        norm, hang = law.normalize_article(article)
+        r = ntis.exec_standards(law_name, norm, keyword)
+        r["조"] = norm
+        if hang: r["요청 항"] = hang
+        return r
+    except ValueError as e:
+        return {"error": str(e)}
     except Exception as e: return _err(e)
 
 
@@ -202,20 +221,25 @@ def law_article(
     ef = re.sub(r"\D", "", as_of or "")
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
     try:
+        norm, hang = law.normalize_article(article)
         if LANG.get() == "en" and not with_delegation:   # 영어: 공식 영문 번역본 + 한국어 원문 시행본
-            out = law.article_en(law_name, article.strip())
-            ko = law.article(law_name, article.strip(), ef)
+            out = law.article_en(law_name, norm)
+            ko = law.article(law_name, norm, ef)
             out["원문(한국어)"] = {"적용 시행일": ko.get("적용 시행일"), "본문": _truncate_text(ko.get("본문", ""))}
         else:
             if with_delegation:
-                tiers = law.tiers(law_name, article.strip(), ef)
+                tiers = law.tiers(law_name, norm, ef)
                 out = {"위임체계": [{"단계": t["단계"], "법령": t["법령"], "조": t["조"],
                                      "적용 시행일": t["적용 시행일"], "본문": _truncate_text(t.get("본문", ""))}
                                     for t in tiers]}
             else:
-                a = law.article(law_name, article.strip(), ef)
+                a = law.article(law_name, norm, ef)
                 a["본문"] = _truncate_text(a.get("본문", ""))
                 out = a
+        if hang:
+            out["요청 항"] = hang
+    except ValueError as e:
+        return {"error": str(e)}
     except law.NoKey as e:
         return {"error": str(e)}
     except Exception as e:
@@ -224,7 +248,7 @@ def law_article(
         base = re.sub(r"\s*(시행령|시행규칙)$", "", law_name)
         for k, f in (("기본통칙", ntis.basic_rules), ("집행기준", ntis.exec_standards)):
             try:
-                r = f(base, article.strip())
+                r = f(base, norm)
                 if "통칙" in r:
                     r["통칙"] = [{"통칙": t["통칙"], "본문": _truncate_text(t.get("본문", ""))} for t in r["통칙"]]
                 if "항목" in r:
@@ -358,7 +382,11 @@ def research_issue(
     반환: {기준일, 기준일 근거, 그 해 조문(3단), 현행과 비교, 기본통칙[], 집행기준[], 해석·판례[{…, 기준일 조문과}], 주의}.
     읽기 전용. 조문 부분은 LAW_OC 필요(없으면 해석·통칙만 반환). 10~30초.
     """
-    try: return timeline.research(law_name, article.strip(), period, tax, n, event, registered or None)
+    try:
+        norm, hang = law.normalize_article(article)
+        r = timeline.research(law_name, norm, period, tax, n, event, registered or None)
+        if hang: r["요청 항"] = hang
+        return r
     except ValueError as e: return {"error": str(e)}
     except Exception as e: return _err(e)
 
@@ -393,7 +421,14 @@ def tax_treaty(
     반환: {국가, 발효일, 조문: [{조, 제목, 영문 제목, 본문}], 링크} — 조문 번호는 조약마다 다르니 keyword로 찾는 게 정확.
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
-    try: return ntis.treaty(country, article.strip(), keyword.strip(), english)
+    try:
+        norm, hang = law.normalize_article(article)
+        r = ntis.treaty(country, norm or article.strip(), keyword.strip(), english)
+        if norm: r["조"] = norm
+        if hang: r["요청 항"] = hang
+        return r
+    except ValueError as e:
+        return {"error": str(e)}
     except Exception as e: return _err(e)
 
 
@@ -471,7 +506,13 @@ def article_history(
     반환: {법령, 조, 연혁: [{시행일, 공포일, 제개정, 상태(연혁/현행/시행예정), 이 조 변경(바뀜/그대로)}], 요약, 주의}.
     읽기 전용. 법제처 공식 API — LAW_OC 필요.
     """
-    try: return law.history(law_name, article.strip(), last)
+    try:
+        norm, hang = law.normalize_article(article)
+        r = law.history(law_name, norm, last)
+        if hang: r["요청 항"] = hang
+        return r
+    except ValueError as e:
+        return {"error": str(e)}
     except law.NoKey as e: return {"error": str(e)}
     except Exception as e: return _err(e)
 

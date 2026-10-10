@@ -257,6 +257,88 @@ def test_law_article_mock_success(monkeypatch):
     assert r.get("본문") or r.get("위임체계")
 
 
+def test_law_article_various_article_formats(monkeypatch):
+    """SPEC t4: 조문 번호 표기 정규화 — 다양한 입력 형식이 같은 조문을 반환(네트워크 mock)."""
+    from korean_tax_mcp import law
+    import urllib.request, json
+
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    def mock_urlopen(req, context=None, timeout=None):
+        url = req.full_url
+        if "lawSearch.do" in url:
+            return _MockResp(json.dumps(
+                {"LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": "1", "시행일자": "20240101"}]}}
+            ).encode())
+        return _MockResp(json.dumps(_MOCK_LAW_RESPONSE).encode())
+
+    law._versions.clear()
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    # 같은 조문을 가리키는 다양한 입력 형식 — 모두 같은 본문을 반환해야 함
+    formats = [
+        "제52조",     # 표준 형식
+        "52조",       # 제 생략
+        "52",         # 단순 숫자
+        "52-0",       # 하이픈 (가지번호 0)
+    ]
+    results = []
+    for fmt in formats:
+        r = _call("law_article", {"law_name": "법인세법", "article": fmt})
+        results.append(r.get("본문", ""))
+    # mock은 JO 파라미터와 관계없이 같은 응답을 반환 → 모든 형식이 같은 본문
+    assert all(r == results[0] for r in results), \
+        f"조문 번호 정규화 실패: 형식별 본문 불일치 {[(f, r[:30]) for f, r in zip(formats, results)]}"
+
+    # 가지번호 있는 조문: 26의2 / 26조의2 / 제26조의2 / 26-2 모두 같은 조문
+    branch_formats = ["26의2", "26조의2", "제26조의2", "26-2", "26_2"]
+    branch_results = []
+    for fmt in branch_formats:
+        r = _call("law_article", {"law_name": "법인세법", "article": fmt})
+        branch_results.append(r.get("본문", ""))
+    assert all(r == branch_results[0] for r in branch_results), \
+        f"가지번호 조문 정규화 실패: {[(f, r[:30]) for f, r in zip(branch_formats, branch_results)]}"
+
+
+def test_normalize_article_non_numeric_pass_through(monkeypatch):
+    """SPEC t4: '의정서' 등 숫자 아닌 article은 변환하지 않고 그대로 통과."""
+    from korean_tax_mcp.law import normalize_article
+
+    # 조약 특수 문서명은 정규화 대상에서 제외 (숫자가 전혀 없는 값)
+    assert normalize_article("의정서") == ("의정서", None)
+    assert normalize_article("부속서") == ("부속서", None)
+    assert normalize_article("") == (None, None)
+    assert normalize_article(None) == (None, None)
+
+
+def test_normalize_article_prefixes_and_hang(monkeypatch):
+    """SPEC t4 추가: §/Art. 접두사 제거, 항·호 분리 확인."""
+    from korean_tax_mcp.law import normalize_article
+
+    # §/Art./Article 접두사 → 정규화
+    assert normalize_article("§26의2") == ("제26조의2", None)
+    assert normalize_article("Art. 26-2") == ("제26조의2", None)
+    assert normalize_article("Article 10") == ("제10조", None)
+    assert normalize_article("§10") == ("제10조", None)
+
+    # 항·호 붙은 입력 → 조만 정규화하고 항 정보는 분리
+    assert normalize_article("제26조의2 제1항") == ("제26조의2", "제1항")
+    assert normalize_article("26의2①") == ("제26조의2", "제1항")
+    assert normalize_article("제10조 ②") == ("제10조", "제2항")
+    assert normalize_article("10조 3항") == ("제10조", "제3항")
+    assert normalize_article("제45조의3 제2호") == ("제45조의3", "제2호")
+    assert normalize_article("45-3 2호") == ("제45조의3", "제2호")
+
+    # 접두사 + 항·호 조합
+    assert normalize_article("§26의2 제1항") == ("제26조의2", "제1항")
+
+
 def test_law_get_timeout_then_retry(monkeypatch):
     """law._get 타임아웃 발생 후 재시도 — 지수 백오프 동작 확인."""
     import os, json
@@ -295,6 +377,52 @@ def test_law_get_timeout_then_retry(monkeypatch):
     r = law.article("법인세법", "제52조")
     assert calls[0] == 4  # lawSearch.do 3회(초기+재시도2) + lawService.do 1회
     assert "본문" in r
+
+
+def test_law_article_prefixes_and_hang(monkeypatch):
+    """SPEC t4: §/Art. 접두사 입력과 항·호 입력도 도구가 올바르게 처리(mock)."""
+    from korean_tax_mcp import law
+    import urllib.request, json
+
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    def mock_urlopen(req, context=None, timeout=None):
+        url = req.full_url
+        if "lawSearch.do" in url:
+            return _MockResp(json.dumps(
+                {"LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": "1", "시행일자": "20240101"}]}}
+            ).encode())
+        return _MockResp(json.dumps(_MOCK_LAW_RESPONSE).encode())
+
+    law._versions.clear()
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    # §/Art. 접두사 입력도 같은 조문을 반환
+    prefix_formats = ["§52", "Art. 52", "Article 52"]
+    prefix_results = []
+    for fmt in prefix_formats:
+        r = _call("law_article", {"law_name": "법인세법", "article": fmt})
+        prefix_results.append(r.get("본문", ""))
+        assert r.get("조") == "제52조", f"{fmt}: 조={r.get('조')!r} — 제52조 예상"
+    assert all(r == prefix_results[0] for r in prefix_results), \
+        f"접두사 형식별 본문 불일치"
+
+    # 항·호 입력이면 조는 정규화되고 '요청 항' 필드에 항 정보 유지
+    hang_cases = [
+        ("제52조 제1항", "제52조", "제1항"),
+        ("52조 ②", "제52조", "제2항"),
+        ("§52의2 제3항", "제52조의2", "제3항"),
+    ]
+    for art, exp_norm, exp_hang in hang_cases:
+        r = _call("law_article", {"law_name": "법인세법", "article": art})
+        assert r.get("조") == exp_norm, f"{art}: 조={r.get('조')!r} ≠ {exp_norm!r}"
+        assert r.get("요청 항") == exp_hang, f"{art}: 요청 항={r.get('요청 항')!r} ≠ {exp_hang!r}"
 
 
 def test_error_message_no_oc_exposure(monkeypatch):

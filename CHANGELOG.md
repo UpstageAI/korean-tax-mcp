@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 — 2026-10-10
+- 조문 번호 표기 정규화: law_article·article_history·rulings_by_article·basic_rules·execution_standards·research_issue·tax_treaty의 article 파라미터가 "26의2", "26조의2", "제26조의2", "26-2", "26_2", "§26의2", "Art. 26-2" 등 다양한 표기를 "제26조의2"로 자동 정규화 — "10", "10조" → "제10조", 항·호 정보는 "요청 항"으로 분리, "의정서" 등 숫자 아닌 값은 그대로 통과
+- 정규화된 조문 번호가 결과 "조" 필드에 표시되어 모델이 다음 호출에 같은 형식을 사용하도록 유도
+- 테스트: 다양한 article 형식이 mock 환경에서 같은 조문을 반환, "의정서" 등 비숫자 값 변환 없음 확인
+
 ## 0.7.1 — 2026-10-10
 - AI 생성 표시: `compare_with_case`·`compare_outcomes(explain=True)`·`lang="en"` 번역·`residency_report`에서 Solar(클라우드/온프렘)가 생성한 결과에 `AI 생성 표시` 필드 추가 — 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」 제31조에 따른 생성형 AI 결과물 표시
 - host_ai 모드(사용자 AI 판단): 결과에 AI 생성 표시 없음, 안내 문구에 "판단 결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요" 추가
