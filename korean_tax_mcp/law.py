@@ -10,7 +10,9 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from functools import lru_cache
+from functools import lru_cache, wraps
+
+from . import _mask_oc
 
 DRF = "https://www.law.go.kr/DRF"
 CTX = ssl.create_default_context(); CTX.verify_flags &= ~ssl.VERIFY_X509_STRICT
@@ -26,11 +28,58 @@ def _oc():
     return oc
 
 
-@lru_cache(maxsize=512)
 def _get(path, query):
+    """법제처 DRF API 호출. 재시도 2회(지수 백오프), 타임아웃 20초."""
     u = f"{DRF}/{path}?OC={_oc()}&type=JSON&{query}"
-    with urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "korean-tax-mcp"}), context=CTX, timeout=40) as r:
-        return json.loads(r.read())
+    last_exc = None
+    for attempt in range(3):  # 최대 2회 재시도 (총 3회 시도)
+        try:
+            with urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "korean-tax-mcp"}), context=CTX, timeout=20) as r:
+                return json.loads(r.read())
+        except Exception as e:
+            last_exc = e
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # 지수 백오프: 1초, 2초
+    raise last_exc
+
+
+# 메모리 캐시용 TTL (기본 24시간)
+_CACHE_TTL = int(os.environ.get("KTM_CACHE_TTL", 86400))
+
+
+def _ttl_cache(maxsize=128, ttl=_CACHE_TTL):
+    """TTL 기반 메모리 캐시 데코레이터. 날짜가 바뀌면 시행본 재조회."""
+
+    def decorator(func):
+        cache = {}
+        order = []
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            key = (args, frozenset(kwargs.items()))
+            now = time.time()
+            if key in cache:
+                val, expiry = cache[key]
+                if now < expiry:
+                    return val
+                del cache[key]
+                order.remove(key)
+            result = func(*args, **kwargs)
+            cache[key] = (result, now + ttl)
+            order.append(key)
+            if len(order) > maxsize:
+                old = order.pop(0)
+                cache.pop(old, None)
+            return result
+
+        def clear():
+            cache.clear()
+            order.clear()
+
+        wrapper.clear = clear
+        return wrapper
+
+    return decorator
 
 
 def _list(x): return x if isinstance(x, list) else ([x] if x else [])
@@ -43,7 +92,7 @@ def jo6(article):
     return f"{int(m.group(1)):04d}{int(m.group(2) or 0):02d}"
 
 
-@lru_cache(maxsize=128)
+@_ttl_cache(maxsize=128)
 def _versions(law):
     d = _get("lawSearch.do", "target=eflaw&display=100&query=" + urllib.parse.quote(law))
     return [v for v in _list(d.get("LawSearch", {}).get("law")) if v.get("법령명한글") == law]

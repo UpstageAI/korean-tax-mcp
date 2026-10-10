@@ -6,7 +6,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) · [English](README-EN.md)
 
-**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; and verify citations in a draft. 13 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
+**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 15 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
 ---
 
@@ -86,6 +86,8 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `search_nts_publications` | **국세청 발간책자 본문 검색** — 이전가격·APA 연차보고서·해외진출기업 세무 가이드 등 |
 | `search_local_documents` | **내 PC의 PDF 검색** — OECD 이전가격 지침처럼 각자 받은 자료를 쪽 단위로 |
 | `verify_citations` | **인용 검증** — 초안의 문서번호·조문이 실제로 있는지 (지어낸 번호·없는 조문 찾기) |
+| `residency_check` | **거주자·비거주자 3단계 판정** (규칙 기반, 외부 호출 없이 동작) — 소득세법 §1의2·시행령 §2·§3·§4로 주소/거소/파견 특례 판정, 이중거주자 여부(증명책임: 대법원 2006두3964), 조세조약 tie-break(항구적 주거 → 중대한 이해관계 중심지 → 일상적 거소 → 국적 → 상호합의)까지. 입력: 판정 연도, 국내 체류일수 또는 입국·출국 날짜 목록(입국 다음날~출국일 자동 계산, 일시 출국 포함), 국내 가족·자산·직업, 외국 국적·영주권, 파견 vs 현지채용 구분, 상대국·조세조약·항구적 주거·중대한 이해관계 중심지·일상적 거소·국적. rules.md 판례 top3(사실관계 키워드 매칭, 판결요지 요약) 첨부. 6-4절(찾지 못함/추정) 판례는 인용하지 않음. 법리(대법원 92누11695: 국내 생활관계만으로 판단) 명시. `lang` 지원. |
+| `residency_report` | **residency_check 결과 + rules.md를 Solar Pro 4에 넣어 판정 검토 보고서 작성** (report_template.md 형식). Solar 선택 구조 기존과 동일: 키 없으면 안내 + residency_check 결과만 반환, 키 있으면 Solar가 보고서 작성. 결론은 residency_check 결과를 바꾸지 못함(Solar는 서술만, 판정은 코드). |
 
 ## 함께 쓰면 좋은 MCP
 
