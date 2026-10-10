@@ -20,7 +20,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import casebook, cite, i18n, law, localdocs, ntis, outcome, solar, timeline
+from . import _mask_oc, casebook, cite, i18n, law, localdocs, ntis, outcome, residency, solar, timeline
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -37,7 +37,7 @@ ART = "조문 번호. '제52조' 또는 '제28조의2' 형식"
 NTIS_NOTE = "읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시."
 
 
-def _err(e): return {"error": f"{type(e).__name__}: {e}"}
+def _err(e): return {"error": f"{type(e).__name__}: {_mask_oc(str(e))}"}
 
 import contextvars
 LANG = contextvars.ContextVar("lang", default="ko")
@@ -175,6 +175,16 @@ def casebook_search(
     return {"결과": casebook.search(query, area, max(1, min(int(k), 10)))}
 
 
+RESP_MAX_CHARS = int(os.environ.get("KTM_RESP_MAX_CHARS", 20000))
+
+
+def _truncate_text(text, limit=RESP_MAX_CHARS):
+    """일정 길이 초과 응답을 잘라내고 '생략됨, 링크 참조' 표시."""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "\n[이하 생략됨 — 전체 본문은 링크 참조]"
+
+
 @mcp.tool(annotations=RO)
 @bilingual
 def law_article(
@@ -195,9 +205,17 @@ def law_article(
         if LANG.get() == "en" and not with_delegation:   # 영어: 공식 영문 번역본 + 한국어 원문 시행본
             out = law.article_en(law_name, article.strip())
             ko = law.article(law_name, article.strip(), ef)
-            out["원문(한국어)"] = {"적용 시행일": ko.get("적용 시행일"), "본문": ko.get("본문")}
+            out["원문(한국어)"] = {"적용 시행일": ko.get("적용 시행일"), "본문": _truncate_text(ko.get("본문", ""))}
         else:
-            out = {"위임체계": law.tiers(law_name, article.strip(), ef)} if with_delegation else law.article(law_name, article.strip(), ef)
+            if with_delegation:
+                tiers = law.tiers(law_name, article.strip(), ef)
+                out = {"위임체계": [{"단계": t["단계"], "법령": t["법령"], "조": t["조"],
+                                     "적용 시행일": t["적용 시행일"], "본문": _truncate_text(t.get("본문", ""))}
+                                    for t in tiers]}
+            else:
+                a = law.article(law_name, article.strip(), ef)
+                a["본문"] = _truncate_text(a.get("본문", ""))
+                out = a
     except law.NoKey as e:
         return {"error": str(e)}
     except Exception as e:
@@ -205,7 +223,13 @@ def law_article(
     if with_rules:
         base = re.sub(r"\s*(시행령|시행규칙)$", "", law_name)
         for k, f in (("기본통칙", ntis.basic_rules), ("집행기준", ntis.exec_standards)):
-            try: out[k] = f(base, article.strip())
+            try:
+                r = f(base, article.strip())
+                if "통칙" in r:
+                    r["통칙"] = [{"통칙": t["통칙"], "본문": _truncate_text(t.get("본문", ""))} for t in r["통칙"]]
+                if "항목" in r:
+                    r["항목"] = [{"항목": it["항목"], "쪽": it["쪽"]} for it in r["항목"]]
+                out[k] = r
             except Exception as e: out[k] = _err(e)
     return out
 
@@ -441,6 +465,312 @@ def article_history(
     try: return law.history(law_name, article.strip(), last)
     except law.NoKey as e: return {"error": str(e)}
     except Exception as e: return _err(e)
+
+
+# ── residency_check / residency_report (지시서 1~2) ─────────────────────────
+from .residency.models import ResidencyInput
+from .residency.judgment import run_check
+
+_RULES_MD = os.path.join(os.path.dirname(__file__), "data", "residency", "rules.md")
+try:
+    with open(_RULES_MD, encoding="utf-8") as _f:
+        _RULES_TEXT = _f.read()
+except Exception:
+    _RULES_TEXT = "(rules.md 읽기 실패 — residency_report 정상 동작 안 됨)"
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def residency_check(
+    judgment_year: Annotated[int, Field(description="판정 대상 연도 (소득 지급 연도). 예: 2026")],
+    domestic_stay_days: Annotated[int | None, Field(description="직전연도(판정 연도-1) 국내 체류일수. 직접 입력값. entry_dates를 제공하면 자동 계산이 우선.")] = None,
+    entry_dates: Annotated[list[str] | None, Field(description="입국 날짜 목록(YYYY-MM-DD). 제공 시 입국 다음날~출국일로 체류일수 자동 계산.")] = None,
+    exit_dates: Annotated[list[str] | None, Field(description="출국 날짜 목록(YYYY-MM-DD). entry_dates와 1:1 대응.")] = None,
+    temporary_exit_days: Annotated[int, Field(description="관광·질병 치료 등 명백히 일시적인 출국 기간 합계(일). 시행령 §4②에 따라 국내 거소로 간주.")] = 0,
+    temporary_exit_reason: Annotated[str, Field(description="일시적 출국 사유 (예: '관광 5일, 치료 3일').")] = "",
+    family_in_korea: Annotated[bool, Field(description="국내에 생계를 같이하는 가족이 있는지 여부.")] = False,
+    family_desc: Annotated[str, Field(description="국내 가족 상황 설명 (예: '배우자·자녀 2명 서울 거주, 자녀 국내 학교 재학').")] = "",
+    domestic_assets: Annotated[bool, Field(description="국내 부동산·예금·사업용 자산 등 국내 소재 자산이 있는지 여부.")] = False,
+    asset_desc: Annotated[str, Field(description="국내 자산 요약 (예: '서울 아파트 자가(부부 공동명의), 국내 증권사 주식, 성남 상가 임대').")] = "",
+    job_needs_183_days: Annotated[bool, Field(description="국내 183일 이상 거주를 통상 필요로 하는 직업인지 여부 (시행령 §2③1).")] = False,
+    domestic_business_activity: Annotated[bool, Field(description="국내 사업·경영 활동, 국내 사업자등록, 국내 근로소득 등 국내 경제활동 유무.")] = False,
+    economic_activity_desc: Annotated[str, Field(description="경제활동 요약 (예: '국내 A건설 자문·임원 근로소득, 국내 C컨설팅 사업, 국내 B법인 배당').")] = "",
+    foreign_nationality: Annotated[bool, Field(description="외국 국적이 있는지 여부.")] = False,
+    foreign_permanent_residency: Annotated[bool, Field(description="외국 영주권 또는 그에 준하는 장기체류자격을 얻었는지 여부 (시행령 §2④).")] = False,
+    foreign_nationality_desc: Annotated[str, Field(description="외국 국적·영주권 상세 (예: '미국 국적, 2015년 미국 영주권 취득').")] = "",
+    dispatched_by_korean_company: Annotated[bool, Field(description="내국법인(100% 출자 현지법인 포함) 파견 여부 (시행령 §3 특례 적용 대상).")] = False,
+    local_hire_not_dispatch: Annotated[bool, Field(description="해외 현지법인에 '파견'이 아니라 퇴직 후 현지 채용된 경우 (§3 미적용, 대법원 2010두15056 구조).")] = False,
+    dispatch_desc: Annotated[str, Field(description="파견/현지채용 상세 (예: 'S국 현지법인에 2018년 파견' 또는 '미국 현지법인에 퇴직 후 Senior Director로 신규 채용').")] = "",
+    public_official_overseas: Annotated[bool, Field(description="공무원으로서 국외 근무 중인지 여부 (시행령 §3 특례 적용 대상).")] = False,
+    overseas_job_desc: Annotated[str, Field(description="해외 근무 형태 종합 설명.")] = "",
+    treaty_country: Annotated[str, Field(description="상대국 이름(한글). 예: '미국', '일본', '사우디아라비아'. 모르면 빈 문자열.")] = "",
+    treaty_country_is_resident: Annotated[bool, Field(description="상대국 국내법상 거주자로 취급되는지 여부.")] = False,
+    treaty_country_resident_desc: Annotated[str, Field(description="상대국 거주자 근거 (예: '미국 영주권자로서 미국 세법 거주지 테스트 충족').")] = "",
+    permanent_home: Annotated[Literal["국내만", "국외만", "양쪽", "없음"], Field(description="항구적 주거 소재. 단기체류용이 아닌 계속 사용 가능한 주거 (소유·임차 무관).")] = "없음",
+    permanent_home_desc: Annotated[str, Field(description="항구적 주거 상세 (예: '국내: 서울 아파트 자가(부부 공동), 국외: S국 아파트 임차(실사용 낮음)').")] = "",
+    center_of_vital_interests: Annotated[Literal["국내", "국외", "판단 보류"], Field(description="중대한 이해관계의 중심지(판례상 양국 사업규모·소득규모·체류일수 등 비교).")] = "판단 보류",
+    habitual_abode: Annotated[Literal["국내", "국외", "양쪽", "판단 보류"], Field(description="일상적 거소.")] = "판단 보류",
+    nationality: Annotated[Literal["대한민국", "외국", "복수국적", "미입력"], Field(description="국적 (조약 tie-break 4단계). 미입력 시 4단계 보류 → 판정 보류.")] = "미입력",
+    notes: Annotated[str, Field(description="추가 참고사항.")] = "",
+) -> dict:
+    """비거주자·거주자 3단계 판정 (규칙 기반, 외부 호출 없이 동작).
+
+    언제: 판정 입력 데이터로 거주자·비거주자·이중거주자·조세조약 tie-break 결과를 즉시 확인할 때.
+    판단은 코드 규칙 기반 — Solar 키 없어도 동작. AI 판단 기본은 사용자 AI(호스트)가 수행 — 판정 코드는 고정.
+    반환: {입력, 법리, 1단계(소득세법), 2단계(이중거주자), 3단계(조세조약 tie-break), 최종 판정, 유사 판례 top3, 판단이 갈리는 지점·추가 확인 사항, 주의}.
+    읽기 전용, 외부 호출 없음(tax_treaty는 선택 호출, 실패 시 mock 안내 첨부).
+
+    판단 순서: (1) 소득세법 §1의2·시행령 §2(①③④)·§3·§4 → 주소/거소/파견 특례 → 거주자·비거주자·판단 보류
+    (2) 이중거주자 여부 (증명책임: 납세의무자, 대법원 2006두3964)
+    (3) 조세조약 tie-break (항구적 주거 → 중대한 이해관계 중심지 → 일상적 거소 → 국적 → 상호합의)
+    - 상대국이 주어지면 tax_treaty(country, keyword='거주자')로 조약 거주자 조문 번호·tie-break 원문 일부를 첨부한다.
+      (오프라인/모의 환경에서는 treaty_country만 있으면 조약 체결국임을 전제하고 mock tie-break 원문을 첨부한다.)
+    - rules.md의 유사 판례(사실관계 키워드 매칭 상위 3건, 판결요지 요약)를 첨부한다.
+    - rules.md 6-4절(찾지 못함/추정) 판례는 인용하지 않는다.
+    - 법리: 국내 생활관계만으로 판단(국내외 비교 아님, 대법원 92누11695)을 결과에 명시한다.
+    """
+    inp = ResidencyInput(
+        judgment_year=judgment_year,
+        domestic_stay_days=domestic_stay_days,
+        entry_dates=entry_dates, exit_dates=exit_dates,
+        temporary_exit_days=temporary_exit_days,
+        temporary_exit_reason=temporary_exit_reason,
+        family_in_korea=family_in_korea, family_desc=family_desc,
+        domestic_assets=domestic_assets, asset_desc=asset_desc,
+        job_needs_183_days=job_needs_183_days,
+        domestic_business_activity=domestic_business_activity,
+        economic_activity_desc=economic_activity_desc,
+        foreign_nationality=foreign_nationality,
+        foreign_permanent_residency=foreign_permanent_residency,
+        foreign_nationality_desc=foreign_nationality_desc,
+        dispatched_by_korean_company=dispatched_by_korean_company,
+        local_hire_not_dispatch=local_hire_not_dispatch,
+        dispatch_desc=dispatch_desc,
+        public_official_overseas=public_official_overseas,
+        overseas_job_desc=overseas_job_desc,
+        treaty_country=treaty_country,
+        treaty_country_is_resident=treaty_country_is_resident,
+        treaty_country_resident_desc=treaty_country_resident_desc,
+        permanent_home=permanent_home, permanent_home_desc=permanent_home_desc,
+        center_of_vital_interests=center_of_vital_interests,
+        habitual_abode=habitual_abode,
+        nationality=nationality,
+        notes=notes,
+    )
+
+    treaty_info: dict | None = None
+    if inp.treaty_country:
+        # tax_treaty 도구로 실제 조회 시도 (오프라인에서는 mock/실패해도 정상 진행)
+        try:
+            t = ntis.treaty(inp.treaty_country, "", "거주자")
+            if t and "조문" in t:
+                arts = [a for a in t["조문"] if "거주자" in (a.get("제목") or "").lower()
+                        or "address" in (a.get("제목") or "").lower()
+                        or "resident" in (a.get("제목") or "").lower()
+                        or "과세상의 주소" in (a.get("제목") or "")]
+                if arts:
+                    txt = arts[0].get("본문", "")
+                    treaty_info = {
+                        "country": inp.treaty_country,
+                        " 발효일": t.get("발효일", ""),
+                        " article": arts[0].get("조", ""),
+                        " article_title": arts[0].get("제목", ""),
+                        "article_text": txt[:500],
+                        "link": t.get("링크", ""),
+                        "source": "tax_treaty (실제 NTIS 조회)",
+                    }
+                else:
+                    treaty_info = {
+                        "country": inp.treaty_country,
+                        "발효일": t.get("발효일", ""),
+                        "article": "(거주자 조문 특정 못 함)",
+                        "article_text": "(조세조약 거주자 조문을 tax_treaty로 확인 필요)",
+                        "link": t.get("링크", ""),
+                        "source": "tax_treaty (실제 NTIS 조회 — 거주자 조문 특정 안 됨)",
+                    }
+        except Exception:
+            # tax_treaty 조회 실패: treaty_info 없음 → stage3에서 미체결국/확인 필요로 처리
+            pass
+
+    result = run_check(inp, treaty_info)
+
+    # ── 출력 구성 ──────────────────────────────────────────────────────────
+    _lang = LANG.get()
+    def L(text): return i18n.english({"근거": text})["근거"] if _lang == "en" else text
+    def s1label(): return i18n.english({"거주자": "resident", "비거주자": "non-resident", "판단 보류": "pending"})[result.stage1.overall] if _lang == "en" else result.stage1.overall
+    def s2label(): return i18n.english({"이중거주자": "dual resident", "이중거주자 아님": "not dual resident", "확인 필요": "needs confirmation"})[result.stage2.dual] if _lang == "en" else result.stage2.dual
+    def s3label(): return i18n.english({"한국 거주자": "Korea resident", "상대국 거주자": "foreign resident", "양국 과세(미체결국)": "taxed in both countries (no treaty)", "판정 보류": "pending"})[result.stage3.outcome] if _lang == "en" else result.stage3.outcome
+    def finallabel(): return i18n.english({"거주자": "resident", "비거주자": "non-resident", "이중거주자(조세조약 적용 필요)": "dual resident (treaty tie-break needed)", "판정 보류": "pending", "양국 과세(미체결국)": "taxed in both countries (no treaty)"})[result.final_outcome] if _lang == "en" else result.final_outcome
+
+    return {
+        "입력": result.input_digest,
+        "법리": result.legal_principle,
+        "1단계(소득세법)": {
+            "주소 판정": result.stage1.addr_judgment,
+            "주소 근거 조문": result.stage1.addr_article,
+            "주소 판단 근거": result.stage1.addr_reason,
+            "거소 판정": result.stage1.residence_judgment,
+            "국내 체류일수": result.stage1.residence_days,
+            "거소 근거 조문": result.stage1.residence_article,
+            "거소 판단 근거": result.stage1.residence_reason,
+            "파견 특례(§3) 적용": "적용" if result.stage1.dispatch_special else "미적용",
+            "파견 특례 근거": result.stage1.dispatch_reason,
+            "1단계 종합": s1label(),
+            "1단계 종합 근거": result.stage1.overall_reason,
+        },
+        "2단계(이중거주자)": {
+            "이중거주자 여부": s2label(),
+            "판단 근거": result.stage2.reason,
+            "증명책임": result.stage2.burden_of_proof,
+        },
+        "3단계(조세조약 tie-break)": {
+            "조세조약 체결 여부": "체결(조회 성공)" if (result.treaty_info and result.treaty_info.get("source") == "tax_treaty (실제 NTIS 조회)") else ("체결 전제(오프라인 mock)" if result.treaty_info else "미체결/확인 필요"),
+            "tie-break 적용": "적용(이중거주자)" if result.stage3.tie_break_applied else "미적용",
+            "결정 단계": result.stage3.decisive_stage or "(해당 없음)",
+            "최종 거주지국": s3label(),
+            "3단계 근거": result.stage3.reason,
+            "조세조약 조문·원문": result.stage3.article_note or "(조약 정보 없음)",
+        },
+        "최종 판정": finallabel(),
+        "최종 판정 근거": result.final_reason,
+        "유사 판례 top3": [
+            {
+                "법원": p.court, "사건번호": p.case_no, "선고일": p.date,
+                "사건명": p.case_name, "결론": p.conclusion,
+                "판결요지": p.holding,
+                "사실관계": p.facts,
+                "비고": p.misc,
+            }
+            for p in result.similar_cases
+        ],
+        "판단이 갈리는 지점·추가 확인 사항": result.conflicting_points,
+        "주의": "본 판정은 rules.md 기반 데모용 규칙이며, 실제 조세 판단에는 현행 법령·확정 판례 확인과 조세 전문가 검토가 필요하다.",
+    }
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def residency_report(
+    judgment_year: Annotated[int, Field(description="판정 대상 연도. residency_check와 동일.")],
+    domestic_stay_days: Annotated[int | None, Field(description="직전연도 국내 체류일수.")] = None,
+    entry_dates: Annotated[list[str] | None, Field(description="입국 날짜 목록(YYYY-MM-DD).")] = None,
+    exit_dates: Annotated[list[str] | None, Field(description="출국 날짜 목록(YYYY-MM-DD).")] = None,
+    temporary_exit_days: Annotated[int, Field(description="일시 출국 기간 합계(일).")] = 0,
+    temporary_exit_reason: Annotated[str, Field(description="일시 출국 사유.")] = "",
+    family_in_korea: Annotated[bool, Field(description="국내 생계 가족 유무.")] = False,
+    family_desc: Annotated[str, Field(description="국내 가족 상황.")] = "",
+    domestic_assets: Annotated[bool, Field(description="국내 자산 유무.")] = False,
+    asset_desc: Annotated[str, Field(description="국내 자산 요약.")] = "",
+    job_needs_183_days: Annotated[bool, Field(description="183일 거주 필요 직업 여부.")] = False,
+    domestic_business_activity: Annotated[bool, Field(description="국내 경제활동 유무.")] = False,
+    economic_activity_desc: Annotated[str, Field(description="경제활동 요약.")] = "",
+    foreign_nationality: Annotated[bool, Field(description="외국 국적 유무.")] = False,
+    foreign_permanent_residency: Annotated[bool, Field(description="외국 영주권 유무.")] = False,
+    foreign_nationality_desc: Annotated[str, Field(description="외국 국적·영주권 상세.")] = "",
+    dispatched_by_korean_company: Annotated[bool, Field(description="내국법인 파견 여부.")] = False,
+    local_hire_not_dispatch: Annotated[bool, Field(description="현지 채용(§3 미적용) 여부.")] = False,
+    dispatch_desc: Annotated[str, Field(description="파견/현지채용 상세.")] = "",
+    public_official_overseas: Annotated[bool, Field(description="공무원 국외 근무 여부.")] = False,
+    overseas_job_desc: Annotated[str, Field(description="해외 근무 형태.")] = "",
+    treaty_country: Annotated[str, Field(description="상대국 이름(한글).")] = "",
+    treaty_country_is_resident: Annotated[bool, Field(description="상대국 거주자 여부.")] = False,
+    treaty_country_resident_desc: Annotated[str, Field(description="상대국 거주자 근거.")] = "",
+    permanent_home: Annotated[Literal["국내만", "국외만", "양쪽", "없음"], Field(description="항구적 주거.")] = "없음",
+    permanent_home_desc: Annotated[str, Field(description="항구적 주거 상세.")] = "",
+    center_of_vital_interests: Annotated[Literal["국내", "국외", "판단 보류"], Field(description="중대한 이해관계 중심지.")] = "판단 보류",
+    habitual_abode: Annotated[Literal["국내", "국외", "양쪽", "판단 보류"], Field(description="일상적 거소.")] = "판단 보류",
+    nationality: Annotated[Literal["대한민국", "외국", "복수국적", "미입력"], Field(description="국적. 미입력 시 4단계 보류 → 판정 보류.")] = "미입력",
+    notes: Annotated[str, Field(description="추가 참고사항.")] = "",
+) -> dict:
+    """residency_check 결과 + rules.md를 Solar Pro 4에 넣어 판정 검토 보고서(마크다운) 작성.
+
+    언제: residency_check 결과를 더 상세한 서술형 판정 검토 보고서(report_template.md 형식)로 만들 때.
+    Solar 선택 구조(기존 korean-tax-mcp와 동일): UPSTAGE_API_KEY(클라우드) 또는 KOREAN_TAX_MCP_SOLAR_BASE_URL(온프렘) 설정 시 Solar가 보고서 작성,
+    키 없으면 친절한 안내 + residency_check 결과만 반환.
+    결론: 보고서 결론은 residency_check 결과를 바꾸지 못함(Solar는 서술만, 판정은 코드).
+    읽기 전용, 외부 호출: tax_treaty·rules.md 읽기·Solar 호출(키 있을 때만).
+    """
+    # 1) residency_check 먼저 실행
+    check_result = residency_check(
+        judgment_year=judgment_year, domestic_stay_days=domestic_stay_days,
+        entry_dates=entry_dates, exit_dates=exit_dates,
+        temporary_exit_days=temporary_exit_days,
+        temporary_exit_reason=temporary_exit_reason,
+        family_in_korea=family_in_korea, family_desc=family_desc,
+        domestic_assets=domestic_assets, asset_desc=asset_desc,
+        job_needs_183_days=job_needs_183_days,
+        domestic_business_activity=domestic_business_activity,
+        economic_activity_desc=economic_activity_desc,
+        foreign_nationality=foreign_nationality,
+        foreign_permanent_residency=foreign_permanent_residency,
+        foreign_nationality_desc=foreign_nationality_desc,
+        dispatched_by_korean_company=dispatched_by_korean_company,
+        local_hire_not_dispatch=local_hire_not_dispatch,
+        dispatch_desc=dispatch_desc,
+        public_official_overseas=public_official_overseas,
+        overseas_job_desc=overseas_job_desc,
+        treaty_country=treaty_country,
+        treaty_country_is_resident=treaty_country_is_resident,
+        treaty_country_resident_desc=treaty_country_resident_desc,
+        permanent_home=permanent_home, permanent_home_desc=permanent_home_desc,
+        center_of_vital_interests=center_of_vital_interests,
+        habitual_abode=habitual_abode,
+        nationality=nationality,
+        notes=notes,
+        lang=LANG.get(),
+    )
+
+    # 2) Solar 설정 확인
+    mode = solar.mode()
+    if mode == "host_ai":
+        # 키 없음 → 안내 + check 결과만 반환
+        _lang = LANG.get()
+        lang_note = (
+            "한국어 안내: Upstage API 키(UPSTAGE_API_KEY) 또는 온프렘 Solar(KOREAN_TAX_MCP_SOLAR_BASE_URL) 설정 후 "
+            "다시 실행하면 판정 검토 보고서를 작성합니다. 현재는 키 없이 residency_check 결과만 반환합니다. "
+            "보고서 결론은 residency_check 결과를 바꾸지 않습니다."
+        ) if _lang == "ko" else (
+            "English: Set UPSTAGE_API_KEY (Upstage cloud) or KOREAN_TAX_MCP_SOLAR_BASE_URL (on-prem Solar) "
+            "and run again to get the review report. Without a key, only the residency_check result is returned. "
+            "The report conclusion cannot change the residency_check result."
+        )
+        return {
+            "mode": "host_ai",
+            "안내": lang_note,
+            "residency_check 결과": check_result,
+            "Solar 설정 방법": "export UPSTAGE_API_KEY=발급키  또는  export KOREAN_TAX_MCP_SOLAR_BASE_URL=http://온프렘주소/v1",
+        }
+
+    # 3) Solar 호출 → 보고서 작성
+    rules_text = _RULES_TEXT if _RULES_TEXT and not _RULES_TEXT.startswith("(") else "(rules.md 읽기 실패)"
+    prompt = (
+        f"[residency_check 판정 결과]\n"
+        + "\n".join(f"{k}: {v}" for k, v in check_result.items())
+        + f"\n\n[판정 규칙(rules.md)]\n{rules_text[:8000]}"
+        + "\n\n위 판정 결과와 규칙을 근거로 report_template.md 형식의 판정 검토 보고서(마크다운)를 작성하라. "
+        "결론은 위 residency_check 결과를 바꾸지 말고, 그 결과를 서술적으로 풀어서 부기하라. "
+        "가상 사례면 '본 사례는 가상(합성) 데이터 기반 검토 보조 자료' 안내문을 맨 위에 한 번 넣는다. "
+        "마지막에 '조세 전문가 확인 필요' 디스클레이머를 포함하라."
+    )
+
+    try:
+        report_md = solar.chat_json(prompt, max_tokens=8192).get("0", "")
+        if not report_md:
+            raise RuntimeError("Solar 응답이 비어 있음")
+    except Exception as e:
+        return {
+            "mode": mode,
+            "오류": f"Solar 보고서 생성 실패: {e}",
+            "residency_check 결과": check_result,
+        }
+
+    return {
+        "mode": mode,
+        "solar": solar.where(lang),
+        "보고서": report_md,
+        "residency_check 결과": check_result,
+        "주의": "보고서는 서술만 제공할 뿐 residency_check의 판정 결과를 바꾸지 않는다. 판정은 코드(규칙 기반)로 고정된다.",
+    }
 
 
 def main():

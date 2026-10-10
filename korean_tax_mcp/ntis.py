@@ -20,6 +20,8 @@ import urllib.request
 from functools import lru_cache
 from pathlib import Path
 
+from . import _mask_oc
+
 BASE = "https://taxlaw.nts.go.kr"
 CTX = ssl.create_default_context(); CTX.verify_flags &= ~ssl.VERIFY_X509_STRICT
 TAX_CODES = {"국기": "301", "국징": "302", "법인": "303", "소득": "305", "부가": "306", "양도": "307", "상증": "308", "조특": "309", "국조": "310", "종부": "311"}
@@ -243,19 +245,63 @@ def treaties():
             for x in _act("ASISTC001MR01", {"txaAgrmClCd": "01"}).get("txaTraDVOList") or []}
 
 
+TREATY_SYNONYMS = {
+    "근로": ["근로", "급여", "종속적 인적용역", "고용", "dependent personal services", "employment"],
+    "급여": ["근로", "급여", "종속적 인적용역", "고용", "dependent personal services", "employment"],
+    "종속적 인적용역": ["종속적 인적용역", "근로", "급여", "고용", "dependent personal services", "employment"],
+    "고용": ["근로", "급여", "종속적 인적용역", "고용", "dependent personal services", "employment"],
+    "이사": ["이사", "이사회", "directors", "board"],
+    "이사회": ["이사", "이사회", "directors", "board"],
+    "directors": ["이사", "이사회", "directors", "board"],
+    "인적용역": ["인적용역", "독립적 인적용역", "personal services", "independent personal services"],
+    "독립적 인적용역": ["인적용역", "독립적 인적용역", "personal services", "independent personal services"],
+    "고정사업장": ["고정사업장", "PE", "permanent establishment"],
+    "PE": ["고정사업장", "PE", "permanent establishment"],
+    "permanent establishment": ["고정사업장", "PE", "permanent establishment"],
+}
+
+
 def treaty(country, article="", keyword="", english=False):
     """country: 국가명(예: '미국', '중국'). article: '제10조'·'의정서' 등. keyword: 조문 제목·본문 검색."""
     t = treaties()
     name = country if country in t else next((n for n in t if country and (country in n or n in country)), None)
     if not name: return {"error": f"조약 체결국에서 '{country}'를 찾지 못함", "체결국": sorted(t)}
     rows = _act("ASISTC002MR01", {"txaAgrmBscId": t[name]["id"]}).get("txaTraDVOList") or []
+
+    # keyword 동의어 확장
+    search_terms = [keyword]
+    if keyword and keyword in TREATY_SYNONYMS:
+        search_terms = TREATY_SYNONYMS[keyword]
+
     out = []
     for r in rows:
         no, title = (r.get("txaAgrmTextUqnm") or "").strip(), (r.get("txaAgrmTextNm") or "").strip()
         body = (r.get("txaAgrmTextEnglCntn") if english else r.get("txaAgrmTextCntn")) or ""
+        en_title = r.get("txaAgrmTextEnglNm") or ""
         if article and article.replace(" ", "") not in no.replace(" ", ""): continue
-        if keyword and keyword not in f"{title} {body} {r.get('txaAgrmTextEnglNm') or ''}": continue
-        out.append({"조": no, "제목": title, "영문 제목": r.get("txaAgrmTextEnglNm") or "", "본문": body.strip()[:6000]})
+        if keyword:
+            haystack = f"{title} {body} {en_title}"
+            if not any(term and term in haystack for term in search_terms): continue
+        out.append({"조": no, "제목": title, "영문 제목": en_title, "본문": body.strip()[:6000]})
+
+    if not out and keyword and keyword in TREATY_SYNONYMS:
+        # 동의어 확장으로도 결과가 없으면 안내 제공
+        if keyword in ("이사", "이사회", "directors"):
+            # 같은 조약에서 근로소득/인적용역 조문의 실제 조 번호를 찾아 안내
+            labor_rows = [r for r in rows
+                          if any(term in (r.get("txaAgrmTextNm") or "")
+                                 for term in TREATY_SYNONYMS["근로"])
+                          and "의정서" not in (r.get("txaAgrmTextUqnm") or "")]
+            if labor_rows:
+                labor_no = labor_rows[0].get("txaAgrmTextUqnm", "").strip()
+                labor_title = labor_rows[0].get("txaAgrmTextNm", "").strip()
+                안내 = f"이사 보수 조문 없음 → 근로소득 조항({labor_no} {labor_title}) 검토 권장"
+            else:
+                안내 = "이사 보수 조문 없음 → 근로소득 조항 검토 권장"
+            return {"국가": name, "발효일": t[name]["발효일"], "조문": [],
+                    "안내": 안내,
+                    "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
+
     return {"국가": name, "발효일": t[name]["발효일"], "조문": out,
             "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
 

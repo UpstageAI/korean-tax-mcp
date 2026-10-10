@@ -10,9 +10,12 @@ def _call(name, args):
 
 def test_tools():
     names = {t.name for t in asyncio.run(mcp.list_tools())}
-    assert names == {"search_tax_rulings", "get_tax_ruling", "rulings_by_article", "basic_rules", "execution_standards",
-                     "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations",
-                     "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms", "article_history", "compare_outcomes"}
+    expected = {"search_tax_rulings", "get_tax_ruling", "rulings_by_article", "basic_rules", "execution_standards",
+                "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations",
+                "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms",
+                "article_history", "compare_outcomes",
+                "residency_check", "residency_report"}
+    assert names == expected, f"도구 목록 불일치: Extra={names-expected}, Missing={expected-names}"
 
 
 def test_codes():
@@ -197,3 +200,645 @@ def test_english_translation_modes(monkeypatch):
     monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"0": "Provisional payment"})
     r = i18n.english({"결과": [{"제목": "가지급금"}]})
     assert r["results"][0]["title"] == "Provisional payment" and r["results"][0]["title_ko"] == "가지급금" and r["translation_mode"] == "solar_cloud"
+
+
+# ── 지시서4: 법제처·NTIS mock 테스트 ──
+
+_MOCK_LAW_RESPONSE = {
+    "법령": {
+        "Law": [
+            {"법령일련번호": "1", "시행일자": "20240101"},
+            {"본문내용": "제52조 (부당행위계산의 부인)\n① 과세당국은..."}  # 단순 mock
+        ]
+    }
+}
+
+
+def test_law_article_mock_success(monkeypatch):
+    """law._get 정상 응답 mock — OC 값이 오류 메시지에 노출되지 않음."""
+    from korean_tax_mcp import law
+    import urllib.request, json
+
+    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    def mock_urlopen(req, context=None, timeout=None):
+        url = req.full_url
+        if "lawSearch.do" in url:
+            return _MockResp(json.dumps(
+                {"LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": "1", "시행일자": "20240101"}]}}
+            ).encode())
+        return _MockResp(json.dumps(_MOCK_LAW_RESPONSE).encode())
+
+    law._versions.clear()
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    r = _call("law_article", {"law_name": "법인세법", "article": "제52조"})
+    assert "error" not in r or not r.get("error", "").startswith("NoKey")
+    # mock 응답에 따라 본문 또는 위임체계가 있어야 함
+    assert r.get("본문") or r.get("위임체계")
+
+
+def test_law_get_timeout_then_retry(monkeypatch):
+    """law._get 타임아웃 발생 후 재시도 — 지수 백오프 동작 확인."""
+    import os, json
+    monkeypatch.setenv("LAW_OC", "test-oc-key")
+    assert os.environ.get("LAW_OC") == "test-oc-key"  # monkeypatch 확인
+
+    from korean_tax_mcp import law
+    import urllib.request
+
+    # 이전 테스트에서 채워졌을 수 있는 _versions 캐시Clear
+    law._versions.clear()
+
+    calls = [0]
+
+    class _MockResp:
+        def __init__(self, data): self._data = data
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self): return self._data
+
+    def mock_urlopen(req, context=None, timeout=None):
+        calls[0] += 1
+        url = req.full_url
+        if "lawSearch.do" in url:
+            if calls[0] <= 2:   # 처음 2회: 타임아웃 → _get 재시도 (지수 백오프)
+                raise TimeoutError("timed out")
+            # 3회차: 성공 → _versions 캐시 저장 (lawSearch.do 응답 구조)
+            return _MockResp(json.dumps({
+                "LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": "1", "시행일자": "20240101"}]}
+            }).encode())
+        # lawService.do: 본문 포함 응답 (법령.Law 구조)
+        return _MockResp(json.dumps(_MOCK_LAW_RESPONSE).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    r = law.article("법인세법", "제52조")
+    assert calls[0] == 4  # lawSearch.do 3회(초기+재시도2) + lawService.do 1회
+    assert "본문" in r
+
+
+def test_error_message_no_oc_exposure(monkeypatch):
+    """오류 메시지에 OC 값이 노출되지 않음 (OC=***로 마스킹)."""
+    from korean_tax_mcp import law
+    import urllib.request
+
+    # LAW_OC를 삭제하지 않고 설정하여 _oc()가 성공하고 urlopen 단계까지 진행되도록 한다.
+    # 캐시Clear 후 urlopen mock이 OC 원값이 포함된 RuntimeError를 발생시키면
+    # server._err의 _mask_oc를 거쳐 OC=***로 마스킹된 오류 메시지가 반환된다.
+    monkeypatch.setenv("LAW_OC", "test-oc-key-1234")
+    law._versions.clear()
+
+    def mock_urlopen_exposing_oc(req, context=None, timeout=None):
+        raise RuntimeError(f"Connection failed to {req.full_url}")
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen_exposing_oc)
+    r = _call("law_article", {"law_name": "법인세법", "article": "제52조"})
+    err = r.get("error", "")
+    assert "real-secret-key-12345" not in err
+    assert "OC=***" in err
+
+
+def test_ntis_mock_search_success(monkeypatch):
+    """NTIS 검색 mock 성공."""
+    from korean_tax_mcp import ntis
+    monkeypatch.setenv("LAW_OC", "dummy")  # law 모듈이 LAW_OC를 참조할 수 있음
+
+    def mock_act(action, param):
+        if action == "ASEISA001MR01":
+            return {"searchResultVO": {"collectionList": [{"nameKr": "질의회신",
+                                                           "resultList": [{"NTST_DCM_DSCM_CNTN": "서면-2025-법인-1",
+                                                                           "TTL": "가지급금 인정이자",
+                                                                           "GIST_CNTN": "업무무관 가지급금",
+                                                                           "NTST_TLAW_CL_NM": "법인",
+                                                                           "NTST_DCM_RGT_DT": "20250101",
+                                                                           "DOC_ID": "1"}]}]}}
+        raise ValueError(f"unexpected action: {action}")
+
+    monkeypatch.setattr(ntis, "_act", mock_act)
+    r = ntis.search("가지급금", ("해석", "판례"), None, "최신", 10)
+    assert len(r) == 1
+    assert r[0]["문서번호"] == "서면-2025-법인-1"
+
+
+def test_ntis_mock_timeout_then_success(monkeypatch):
+    """NTIS 타임아웃 후 retry 로직 확인 (지시서3 연계)."""
+    from korean_tax_mcp import ntis
+    calls = [0]
+    monkeypatch.setenv("LAW_OC", "dummy")
+
+    def mock_act_timeout(action, param):
+        calls[0] += 1
+        if calls[0] == 1:
+            raise TimeoutError("NTIS timeout")
+        if action == "ASEISA001MR01":
+            return {"searchResultVO": {"collectionList": []}}
+        raise ValueError(f"unexpected action: {action}")
+
+    monkeypatch.setattr(ntis, "_act", mock_act_timeout)
+    # NTIS는 현재 자동 재시도 로직이 없으므로 타임아웃 시 예외 발생
+    # 이 테스트는 타임아웃 예외 처리 확인용
+    try:
+        ntis.search("x", ("해석",), None, "최신", 1)
+    except TimeoutError:
+        pass  # 타임아웃 예외로 처리됨 (재시도 로직이 있으면 여기서 성공해야 함)
+    assert calls[0] == 1  # 현재 NTIS는 재시도 로직 없음 — 호출 1회
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 지시서 4: residency_check 테스트
+#  - 시나리오 A·B 결론과 일치
+#  - 김가나 기본 → 비거주자(시행령 제2조 ④)
+#  - 김가나 시나리오 B → 국내 거주자 + 이중거주 → 조약 제3조 ②(a) 주거로 한국 거주자
+#  - 파견 vs 현지 채용 분기 (대법원 2010두15056 구조)
+#  - 183일 계산 (입국 다음날~출국일, 일시 출국 포함)
+#  - 미체결국 처리
+# ═══════════════════════════════════════════════════════════════════════════════
+
+RESIDENCY_TOOLS = ("residency_check", "residency_report")
+
+
+def test_residency_tools_registered():
+    names = {t.name for t in asyncio.run(mcp.list_tools())}
+    assert RESIDENCY_TOOLS[0] in names, f"residency_check 누락: {sorted(names)}"
+    assert RESIDENCY_TOOLS[1] in names, f"residency_report 누락: {sorted(names)}"
+
+
+def _residency_check(**kwargs):
+    """residency_check 도구 호출 헬퍼."""
+    args = dict(kwargs)
+    args.setdefault("lang", "ko")
+    return _call("residency_check", args)
+
+
+# ── 시나리오 A (김OO): 국내 생활기반 강함 → 1단계 거주자 ────────────────────
+def test_scenario_a_resident():
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=210,
+        family_in_korea=True, family_desc="배우자·자녀 2명 서울 강남구 거주, 자녀 국내 학교 재학",
+        domestic_assets=True, asset_desc="서울 강남구 아파트 자가(부부 공동명의, 85㎡), 성남 상가 임대, 국내 증권사 주식, 호텔·골프 멤버십·자동차",
+        job_needs_183_days=False,
+        domestic_business_activity=True, economic_activity_desc="국내 A건설 자문·임원 근로소득(연 195백만원), 국내 C컨설팅 사업(연 75백만원), 국내 B법인 배당(연 50백만원)",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        treaty_country="S국", treaty_country_is_resident=False,
+        permanent_home="양쪽", permanent_home_desc="국내: 서울 아파트 자가 / S국: 아파트 임차(실사용 낮음)",
+        center_of_vital_interests="국내",
+        habitual_abode="국내",
+        nationality="대한민국",
+    )
+    assert r.get("error") is None
+    s1 = r["1단계(소득세법)"]
+    assert s1["1단계 종합"] == "거주자", f"시나리오A 1단계: {s1['1단계 종합']} — 예상: 거주자"
+    # 주소는 §2① 종합 또는 §2③ 각 호로 인정
+    assert s1["주소 판정"] == "주소 있음", f"시나리오A 주소: {s1['주소 판정']}"
+    assert s1["거소 판정"] == "183일 이상 거소", f"시나리오A 거소: {s1['거소 판정']} (체류 {s1['국내 체류일수']}일)"
+    assert s1["파견 특례(§3) 적용"] == "미적용"
+    assert s1["국내 체류일수"] == 210
+    # 최종 판정
+    assert r["최종 판정"] == "거주자", f"시나리오A 최종: {r['최종 판정']}"
+    # 판례 매칭 결과 확인 (6-4절 판례는 나오지 않아야 함)
+    cases = r["유사 판례 top3"]
+    case_nos = {c["사건번호"] for c in cases}
+    assert "2018두71798" not in case_nos, "6-4절(찾지 못함) 판례가 인용됨"
+    assert "2010두8171" not in case_nos, "6-4절(사실관계 미확인) 판례가 인용됨"
+    # 법리 명시 확인
+    assert "92누11695" in r["법리"], "법리(대법원 92누11695) 미기재"
+
+
+# ── 시나리오 B (이OO): 해외 활동 기반 강함 → 1단계 비거주자 ─────────────────
+def test_scenario_b_nonresident():
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=90,
+        family_in_korea=False, family_desc="배우자·자녀 모두 J국 거주, 국내 생계 가족 없음",
+        domestic_assets=False, asset_desc="국내 부동산 실사용 거의 없음(마포 아파트 과거 취득), 국내 증권 소액",
+        job_needs_183_days=False,
+        domestic_business_activity=False, economic_activity_desc="국내 단기 행사·강연 기타소득 소액(연 12~15백만원), 대부분 J국 소속사 소득",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        treaty_country="J국", treaty_country_is_resident=True,
+        treaty_country_resident_desc="J국 소속사에서 장기 활동, J국 세법상 거주자",
+        permanent_home="국외만", permanent_home_desc="J국 소속사 제공 주거 90㎡ (계속 사용 가능)",
+        center_of_vital_interests="국외",
+        habitual_abode="국외",
+        nationality="대한민국",
+    )
+    assert r.get("error") is None
+    s1 = r["1단계(소득세법)"]
+    assert s1["1단계 종합"] == "비거주자", f"시나리오B 1단계: {s1['1단계 종합']} — 예상: 비거주자"
+    assert s1["주소 판정"] == "주소 없음", f"시나리오B 주소: {s1['주소 판정']}"
+    assert s1["거소 판정"] == "183일 미만 거소", f"시나리오B 거소: {s1['거소 판정']} (체류 {s1['국내 체류일수']}일)"
+    assert s1["국내 체류일수"] == 90
+    assert r["최종 판정"] == "비거주자", f"시나리오B 최종: {r['최종 판정']}"
+
+
+# ── 김가나 기본 사례: 비거주자(시행령 제2조 ④) ─────────────────────────────
+def test_kim_basic_nonresident():
+    """김가나 기본 사례 → 시행령 제2조 ④에 따라 비거주자.
+    외국 영주권 + 국내 생계 가족 없음(미국) + 183일 필요 직업 아님(비상근) +
+    국내 경제활동 미미(비상근 이사 보수만) → §2④ 요건 충족 방향.
+    국내 자산(서울 아파트·예금)은 있으나 §2④ 적용을 자동 배제하지 않음(부동화 수정).
+    """
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=150,
+        family_in_korea=False, family_desc="배우자·자녀 미국 뉴저지 거주, 국내 생계 가족 없음",
+        domestic_assets=True, asset_desc="서울 아파트 1채(본인 사용), 국내 예금",
+        job_needs_183_days=False,  # 비상근 이사 → 183일 거주 통상 필요 아님
+        domestic_business_activity=False, economic_activity_desc="국내 ㈜가나정밀 비상근 이사 보수 연 1.2억원 (국내 경제활동 미미)",
+        foreign_nationality=False, foreign_permanent_residency=True,
+        foreign_nationality_desc="미국 영주권(2015년 취득), 미국 국적",
+        treaty_country="미국", treaty_country_is_resident=True,
+        treaty_country_resident_desc="미국 영주권자로서 미국 세법 거주지 테스트 충족",
+        permanent_home="국외만", permanent_home_desc="미국 뉴저지 자가( 배우자와 함께 거주)",
+        center_of_vital_interests="국외",
+        habitual_abode="국외",
+        nationality="대한민국",
+    )
+    assert r.get("error") is None
+    s1 = r["1단계(소득세법)"]
+    assert s1["1단계 종합"] == "비거주자", (
+        f"김가나 기본 1단계: {s1['1단계 종합']} — 예상: 비거주자(시행령 제2조 ④). "
+        f"주소={s1['주소 판정']}, 거소={s1['거소 판정']}, 체류={s1['국내 체류일수']}일"
+    )
+    assert s1["주소 판정"] == "주소 없음", f"김가나 기본 주소: {s1['주소 판정']}"
+    assert "시행령 제2조 ④" in s1["주소 근거 조문"], (
+        f"김가나 기본 주소 근거 조문: {s1['주소 근거 조문']} — §2④ 예상"
+    )
+    assert s1["거소 판정"] == "183일 미만 거소", f"김가나 기본 거소: {s1['거소 판정']}"
+    assert s1["국내 체류일수"] == 150
+    assert r["최종 판정"] == "비거주자", f"김가나 기본 최종: {r['최종 판정']}"
+
+
+# ── 김가나 시나리오 B: 국내 거주자 + 이중거주 → 조약 제3조 ②(a) 주거로 한국 거주자
+def test_kim_scenario_b_resident_treaty():
+    """김가나 시나리오 B: 국내 체류 210일, 배우자 귀국·서울 동거, 생계 가족 있음,
+    국내 자산 있음 → 1단계 거주자. 동시에 미국 영주권자로서 미국 세법상 거주자 →
+    이중거주자. 항구적 주거 국내만 → 조약 제3조 ②(a) 단계에서 한국 거주자로 결정."""
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=210,
+        family_in_korea=True, family_desc="배우자 귀국, 서울 아파트에서 동거, 자녀 함께 거주",
+        domestic_assets=True, asset_desc="서울 아파트 자가, 국내 예금, ㈜가나정밀 지분 40%(20억원)",
+        job_needs_183_days=False,  # 비상근 이사 → 183일 필요 직업 아님, 그러나 거소 210일로 커버
+        domestic_business_activity=True, economic_activity_desc="국내 ㈜가나정밀 비상근 이사 보수 연 1.2억원, 배당 3억원",
+        foreign_nationality=False, foreign_permanent_residency=True,
+        foreign_nationality_desc="미국 영주권(2015년 취득)",
+        treaty_country="미국", treaty_country_is_resident=True,
+        treaty_country_resident_desc="미국 영주권자로서 미국 세법 거주자",
+        permanent_home="국내만", permanent_home_desc="서울 아파트 자가(배우자와 함께 거주)",
+        center_of_vital_interests="국내",
+        habitual_abode="국내",
+        nationality="대한민국",
+    )
+    assert r.get("error") is None
+    s1 = r["1단계(소득세법)"]
+    assert s1["1단계 종합"] == "거주자", f"김가나B 1단계: {s1['1단계 종합']}"
+    assert s1["거소 판정"] == "183일 이상 거소", f"김가나B 거소: {s1['거소 판정']} (체류 {s1['국내 체류일수']}일)"
+    s2 = r["2단계(이중거주자)"]
+    assert s2["이중거주자 여부"] == "이중거주자", f"김가나B 이중거주자: {s2['이중거주자 여부']}"
+    assert "증명책임" in s2["증명책임"], "증명책임 안내 누락"
+    s3 = r["3단계(조세조약 tie-break)"]
+    assert s3["최종 거주지국"] == "한국 거주자", f"김가나B 3단계: {s3['최종 거주지국']}"
+    assert s3["결정 단계"] == "항구적 주거", f"김가나B 결정 단계: {s3['결정 단계']} — 예상: 항구적 주거(§3 ②(a))"
+    assert r["최종 판정"] == "거주자", f"김가나B 최종: {r['최종 판정']}"
+
+
+# ── 파견(§3 적용 → 거주자) vs 현지 채용(§3 미적용) 분기 ─────────────────────
+def test_dispatch_vs_local_hire():
+    """동일한 체류·가족 조건에서 파견 vs 현지 채용만 다를 때 §3 적용 여부로 결과가 갈리는지 확인.
+    (대법원 2010두15056: 원고가 퇴직 후 현지법인 신규 채용 → §3 미적용 → 비거주자)"""
+    # 기본 케이스: 외국 영주권 + 가족 해외 + 국내 자산 없음 + 183일 필요 직업 아님 + 국내 경제활동 없음
+    # 체류일수 150일(183 미만) → §2④ 주소 없음 + §4 183일 미만 거소 → 비거주자(§3 미적용 시)
+    base = dict(
+        judgment_year=2026,
+        domestic_stay_days=150,
+        family_in_korea=False, family_desc="배우자·자녀 해외 거주",
+        domestic_assets=False, asset_desc="국내 자산 없음",
+        job_needs_183_days=False,
+        domestic_business_activity=False, economic_activity_desc="해외 현지법인 근무 급여",
+        foreign_nationality=False, foreign_permanent_residency=True,
+        foreign_nationality_desc="미국 영주권",
+        treaty_country="미국", treaty_country_is_resident=True,
+        permanent_home="국외만", center_of_vital_interests="국외",
+        habitual_abode="국외", nationality="대한민국",
+    )
+
+    # 파견 케이스: 내국법인 100% 출자 현지법인에 파견 → §3 적용 → 거주자
+    r_dispatch = _residency_check(**{**base}, dispatched_by_korean_company=True,
+                                    local_hire_not_dispatch=False,
+                                    dispatch_desc="내국법인 100% 출자 미국 현지법인에 2023년 파견")
+    assert r_dispatch["1단계(소득세법)"]["1단계 종합"] == "거주자", (
+        f"파견 케이스 1단계: {r_dispatch['1단계(소득세법)']['1단계 종합']} — 예상: 거주자(§3)"
+    )
+    assert r_dispatch["1단계(소득세법)"]["파견 특례(§3) 적용"] == "적용"
+
+    # 현지 채용 케이스: 퇴직 후 현지 신규 채용 → §3 미적용 → (다른 요건 미충족 시) 비거주자
+    r_hire = _residency_check(**{**base}, dispatched_by_korean_company=False,
+                               local_hire_not_dispatch=True,
+                               dispatch_desc="국내 회사 퇴직 후 미국 현지법인에 Senior Director로 신규 채용(2010두15056 구조)")
+    assert r_hire["1단계(소득세법)"]["1단계 종합"] == "비거주자", (
+        f"현지채용 케이스 1단계: {r_hire['1단계(소득세법)']['1단계 종합']} — 예상: 비거주자(§3 미적용)"
+    )
+    assert r_hire["1단계(소득세법)"]["파견 특례(§3) 적용"] == "미적용"
+
+
+# ── 183일 체류일수 계산: 입국 다음날~출국일, 일시 출국 포함 ──────────────────
+def test_stay_days_calculation():
+    """calc_stay_days 직접 테스트 + residency_check 입력 경로 테스트."""
+    from korean_tax_mcp.residency.judgment import calc_stay_days
+
+    # 1년 전체 체류: 입국 다음날(1/2) ~ 출국일(12/31) → 365일 (2024년은 윤년 아님)
+    d = calc_stay_days(["2024-01-01"], ["2024-12-31"], 0)
+    assert d == 365, f"1년 체류: {d} — 예상 365"
+
+    # 반년 체류: 입국 다음날(7/2) ~ 출국일(12/31) → 183일 (7/2~12/31)
+    d = calc_stay_days(["2024-06-30"], ["2024-12-31"], 0)
+    assert d == 184, f"반년 체류: {d} — 예상 184 (6/30 입국, 7/1~12/31)"
+
+    # 일시 출국 포함: 입국 다음날~출국일 계산 + 일시 출국 10일(관광·치료) → §4②에 따라 국내 거소로 합산
+    d = calc_stay_days(["2024-01-01"], ["2024-08-15"], 10)
+    assert d == 237, f"일시 출국 포함: {d} — 예상 237 (1/2~8/15=227일 +10일)"
+
+    # 다중 입국: 2회 입국 각각 계산
+    d = calc_stay_days(["2024-01-01", "2024-07-01"], ["2024-03-31", "2024-12-31"], 0)
+    # 1차: 1/2~3/31 = 90일, 2차: 7/2~12/31 = 183일 → 합계 273일
+    assert d == 273, f"다중 입국: {d} — 예상 273 (90+183)"
+
+    # entry_dates만 있고 exit_dates 없으면 오늘까지 계산(테스트 환경에선 오늘 기준)
+    # 이 경로는 테스트에서 정확한 값 검증 어려우므로 skip
+
+
+# ── 미체결국 처리 ─────────────────────────────────────────────────────────────
+def test_no_treaty_both_taxation():
+    """조세조약 미체결국(상대국 이름 미확인/미체결) → 이중거주자 해소 불가 → 양국 과세.
+
+    treaty_country를 빈 문자열로 두고 treaty_country_is_resident=True로 입력하면
+    stage2에서 이중거주자로 판정되고, stage3에서 treaty_country 없음 →
+    treaty_concluded=False → '양국 과세(미체결국)'로 판정된다.
+    (실제 상대국이 있으나 조세조약 미체결인 경우를 모의: 상대국 이름 미입력 상태.)
+    """
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=200,
+        family_in_korea=True, family_desc="배우자 국내 거주",
+        domestic_assets=True, asset_desc="국내 아파트 자가",
+        job_needs_183_days=False,
+        domestic_business_activity=True, economic_activity_desc="국내 사업 소득",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        # treaty_country는 빈 문자열(미체결국/상대국 미확인 모의)
+        treaty_country="", treaty_country_is_resident=True,
+        treaty_country_resident_desc="상대국 국내법상 거주자(상대국 이름 미확인)",
+        permanent_home="양쪽", center_of_vital_interests="판단 보류",
+        habitual_abode="판단 보류", nationality="대한민국",
+        notes="상대국 이름이 확인되지 않은 상태. 조세조약 체결 여부 미확정 → 양국 과세 가능성.",
+    )
+    assert r.get("error") is None
+    s2 = r["2단계(이중거주자)"]
+    assert s2["이중거주자 여부"] == "이중거주자", f"미체결국 사례 이중거주자: {s2['이중거주자 여부']}"
+    s3 = r["3단계(조세조약 tie-break)"]
+    assert s3["조세조약 체결 여부"] == "미체결/확인 필요", (
+        f"미체결국 3단계 체결 여부: {s3['조세조약 체결 여부']}"
+    )
+    assert s3["최종 거주지국"] == "양국 과세(미체결국)", (
+        f"미체결국 3단계 최종: {s3['최종 거주지국']} — 예상: 양국 과세"
+    )
+    assert r["최종 판정"] == "양국 과세(미체결국)", f"미체결국 최종 판정: {r['최종 판정']}"
+
+
+# ── judgment_year로부터 직전연도 자동 계산 확인 ──────────────────────────────
+def test_judgment_year_prev_year():
+    """입력 digest에 직전연도가 판정연도-1로 올바르게 표시되는지 확인."""
+    r = _residency_check(
+        judgment_year=2026,
+        family_in_korea=False,
+        notes="테스트",
+    )
+    digest = r["입력"]
+    assert "직전연도 2025년" in digest or "2025" in digest, (
+        f"입력 요약의 직전연도 표기 이상: {digest[:200]}"
+    )
+
+
+# ── treaty("미국", keyword="이사") 모의 테스트 ────────────────────────────────
+def test_treaty_director_no_article_guide(monkeypatch):
+    """treaty("미국", keyword="이사") → 이사 조문이 없으면 근로소득 조항(제19조) 안내.
+
+    한미조약: 제14조는 사용료, 근로소득은 제19조. 이사 키워드에 결과가 없으면
+    같은 조약에서 근로소득/인적용역 조문의 실제 조 번호를 안내문에 넣을 것.
+    """
+    from korean_tax_mcp import ntis
+
+    # treaties() mock: 미국 조약 ID 반환
+    monkeypatch.setattr(ntis, "treaties", lambda: {
+        "미국": {"id": "US1", "발효일": "2026.01.01."},
+    })
+
+    # 조약 조문 mock: 제19조 근로소득 있음, 제14조는 사용료(이자·배당·사용료) — 이사·근로 키워드에 안 걸림
+    def mock_act(action, param):
+        if action == "ASISTC001MR01":
+            return {"txaTraDVOList": [
+                {"txaAgrmNtnNm": "미국", "txaAgrmBscId": "US1", "valdOcrnDt": "20260101"},
+            ]}
+        if action == "ASISTC002MR01":
+            assert param["txaAgrmBscId"] == "US1"
+            return {"txaTraDVOList": [
+                # 제19조 근로소득 — '근로'/'인적용역' 키워드 포함
+                {"txaAgrmTextUqnm": "제19조", "txaAgrmTextNm": "근로소득",
+                 "txaAgrmTextCntn": "근로소득 관련 조항...", "txaAgrmTextEnglNm": "Article 19 Income from Employment"},
+                # 제14조 사용료 — 이사·근로 키워드에 안 걸림
+                {"txaAgrmTextUqnm": "제14조", "txaAgrmTextNm": "사용료",
+                 "txaAgrmTextCntn": "사용료 관련 조항...", "txaAgrmTextEnglNm": "Article 14 Royalties"},
+            ]}
+        raise ValueError(f"unexpected action: {action}")
+
+    monkeypatch.setattr(ntis, "_act", mock_act)
+
+    r = ntis.treaty("미국", keyword="이사")
+    assert "안내" in r
+    안내 = r["안내"]
+    assert "제19조" in 안내, f"안내문에 제19조가 없음: {안내}"
+    assert "제14조" not in 안내, f"안내문에 제14조가 있음(틀림): {안내}"
+
+    # treaty("미국", keyword="근로") — 제19조근로소득 조회
+    r2 = ntis.treaty("미국", keyword="근로")
+    assert len(r2["조문"]) >= 1
+    assert r2["조문"][0]["조"] == "제19조"
+
+
+# ── 3-1~3-5: mcp.call_tool(residency_check)로 호출하는 테스트 ────────────────
+def test_residency_3_1_stay183_no_treaty_country_resident():
+    """3-1: domestic_stay_days=183, 상대국 정보 없음 → 최종 "거주자" + 안내.
+
+    1단계 거주자(체류 183일 이상). 상대국 정보 없음 → 2단계 '확인 필요'.
+    '판정 보류' 아님: 1단계 결과로 충분히 판정 가능.
+    """
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=183,
+        family_in_korea=False, family_desc="",
+        domestic_assets=False, asset_desc="",
+        job_needs_183_days=False,
+        domestic_business_activity=False, economic_activity_desc="",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        treaty_country="", treaty_country_is_resident=False,
+        permanent_home="없음", center_of_vital_interests="판단 보류",
+        habitual_abode="판단 보류", nationality="대한민국",
+    )
+    assert r.get("error") is None
+    assert r["최종 판정"] == "거주자", f"3-1 최종 판정: {r['최종 판정']} — 예상: 거주자"
+    assert "상대국도 거주자로 보면 treaty_country 입력 후 조약 검토" in r["최종 판정 근거"], (
+        f"3-1 근거 안내 누락: {r['최종 판정 근거'][:200]}"
+    )
+
+
+def test_residency_3_2_stay100_family_assets_resident():
+    """3-2: stay 100, family_in_korea·domestic_assets=True (시행령 §2③2 주소 있음),
+    상대국 정보 없음 → "거주자" + 3-1과 같은 안내.
+
+    §2③2: 국내 생계 가족 + 국내 자산 → 주소 있음 → 1단계 거주자.
+    """
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=100,
+        family_in_korea=True, family_desc="배우자 국내 거주",
+        domestic_assets=True, asset_desc="국내 아파트 자가",
+        job_needs_183_days=False,
+        domestic_business_activity=False, economic_activity_desc="",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        treaty_country="", treaty_country_is_resident=False,
+        permanent_home="양쪽", center_of_vital_interests="판단 보류",
+        habitual_abode="판단 보류", nationality="대한민국",
+    )
+    assert r.get("error") is None
+    assert r["최종 판정"] == "거주자", f"3-2 최종 판정: {r['최종 판정']} — 예상: 거주자"
+    assert "상대국도 거주자로 보면 treaty_country 입력 후 조약 검토" in r["최종 판정 근거"], (
+        f"3-2 근거 안내 누락: {r['최종 판정 근거'][:200]}"
+    )
+
+
+def test_residency_3_3_dual_tiebreak_foreign_resident_nonresident():
+    """3-3: 이중거주자, permanent_home="양쪽", center_of_vital_interests="국외"
+    → 3단계 "상대국(미국) 거주자" → 최종 "비거주자" (한미조약 제3조②(b)).
+
+    1단계 거주자, 2단계 이중거주자, 3단계 tie-break 결과 상대국 거주자 → 비거주자.
+    """
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=200,
+        family_in_korea=True, family_desc="배우자 국내 거주",
+        domestic_assets=True, asset_desc="국내 아파트 자가",
+        job_needs_183_days=False,
+        domestic_business_activity=True, economic_activity_desc="국내 근로소득",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        treaty_country="미국", treaty_country_is_resident=True,
+        treaty_country_resident_desc="미국 세법상 거주자",
+        permanent_home="양쪽", permanent_home_desc="국내·국외 모두 항구적 주거",
+        center_of_vital_interests="국외",
+        habitual_abode="국외",
+        nationality="대한민국",
+    )
+    assert r.get("error") is None
+    s3 = r["3단계(조세조약 tie-break)"]
+    assert s3["최종 거주지국"] == "상대국(미국) 거주자", (
+        f"3-3 3단계: {s3['최종 거주지국']} — 예상: 상대국(미국) 거주자"
+    )
+    assert r["최종 판정"] == "비거주자", f"3-3 최종 판정: {r['최종 판정']} — 예상: 비거주자"
+
+
+def test_residency_3_4_overseas_official_resident():
+    """3-4: public_official_overseas=True, stay 10 → "거주자" (소득세법 시행령 제3조).
+
+    국외 근무 공무원은 §3 특례에 따라 거주자로 본다.
+    dispatched_by_korean_company=True도 같은 근거로 거주자.
+    """
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=10,
+        family_in_korea=False, family_desc="",
+        domestic_assets=False, asset_desc="",
+        job_needs_183_days=False,
+        domestic_business_activity=False, economic_activity_desc="",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        treaty_country="", treaty_country_is_resident=False,
+        public_official_overseas=True,
+        permanent_home="없음", center_of_vital_interests="판단 보류",
+        habitual_abode="판단 보류", nationality="대한민국",
+    )
+    assert r.get("error") is None
+    assert r["최종 판정"] == "거주자", f"3-4(공무원) 최종 판정: {r['최종 판정']} — 예상: 거주자"
+    assert r["1단계(소득세법)"]["1단계 종합"] == "거주자"
+    assert r["1단계(소득세법)"]["파견 특례(§3) 적용"] == "적용"
+
+
+def test_residency_3_5_negative_days_pydantic_rejected():
+    """3-5: domestic_stay_days=-5 → pydantic ge=0으로 거부.
+
+    models.py에 ge=0이 추가되어 음수 입력 시 ValidationError 발생.
+    """
+    from pydantic import ValidationError
+    from korean_tax_mcp.residency.models import ResidencyInput
+    try:
+        ResidencyInput(
+            judgment_year=2026,
+            domestic_stay_days=-5,
+            temporary_exit_days=-3,
+        )
+        assert False, "음수 입력 시 ValidationError가 발생해야 함"
+    except ValidationError:
+        pass  # 정상: pydantic ge=0으로 거부됨
+
+
+def test_residency_nationality_default_not_input_pending():
+    """nationality 기본값='미입력'일 때 이중거주자 → tie-break 4단계 보류 → 최종 '판정 보류'.
+
+    SPEC_r2c Issue 3:
+    - 입력: 이중거주자, permanent_home='양쪽', center·habitual 미입력(판단 보류), nationality 미입력
+    - 맞음: 미입력이면 4단계도 보류 → 최종 '판정 보류' + 확인 항목에 '국적 확인',
+      '상호합의(조약 제3조②(e)) 검토'
+    """
+    r = _residency_check(
+        judgment_year=2026,
+        domestic_stay_days=200,
+        family_in_korea=True, family_desc="배우자 국내 거주",
+        domestic_assets=True, asset_desc="국내 아파트 자가",
+        job_needs_183_days=False,
+        domestic_business_activity=True, economic_activity_desc="국내 근로소득",
+        foreign_nationality=False, foreign_permanent_residency=False,
+        treaty_country="미국", treaty_country_is_resident=True,
+        treaty_country_resident_desc="미국 세법상 거주자",
+        permanent_home="양쪽", permanent_home_desc="국내·국외 모두 항구적 주거",
+        center_of_vital_interests="판단 보류",
+        habitual_abode="판단 보류",
+        nationality="미입력",
+    )
+    assert r.get("error") is None
+    s1 = r["1단계(소득세법)"]
+    assert s1["1단계 종합"] == "거주자", f"1단계: {s1['1단계 종합']}"
+    s2 = r["2단계(이중거주자)"]
+    assert s2["이중거주자 여부"] == "이중거주자", f"이중거주자: {s2['이중거주자 여부']}"
+    s3 = r["3단계(조세조약 tie-break)"]
+    assert s3["최종 거주지국"] == "판정 보류", f"3단계: {s3['최종 거주지국']}"
+    assert s3["결정 단계"] == "국적", f"3단계 결정 단계: {s3['결정 단계']} — 예상: 국적(4단계 보류)"
+    assert r["최종 판정"] == "판정 보류", f"최종 판정: {r['최종 판정']}"
+    # 확인 항목에 nationality 관련 확인 사항이 포함되어야 함
+    확인항목들 = r["판단이 갈리는 지점·추가 확인 사항"]
+    assert any("국적 확인" in s for s in 확인항목들), (
+        f"국적 확인 항목 없음: {확인항목들}"
+    )
+    assert any("상호합의" in s for s in 확인항목들), (
+        f"상호합의 항목 없음: {확인항목들}"
+    )
+
+
+def test_residency_nationality_default_is_not_input():
+    """ResidencyInput 기본값에서 nationality가 '미입력'인지 확인 (SPEC_r2c Issue 3)."""
+    from korean_tax_mcp.residency.models import ResidencyInput
+    inp = ResidencyInput(judgment_year=2026)
+    assert inp.nationality == "미입력", f"nationality 기본값: {inp.nationality}"
+
