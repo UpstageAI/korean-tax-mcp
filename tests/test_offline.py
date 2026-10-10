@@ -154,10 +154,13 @@ def test_compare_with_case_host_ai(monkeypatch):
     monkeypatch.setattr(solar, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Solar 호출 금지")))
     r = _call("compare_with_case", {"facts": "대표에게 무이자 대여", "our_view": "업무무관 가지급금 아님"})
     assert r["mode"] == "host_ai" and "판단 안내" in r and "지지" in r["판단 안내"]
+    assert "AI 생성 표시" not in r, "host_ai 모드에 AI 생성 표시 필드가 있으면 안 됨"
+    assert "AI 생성임을 표시" in r["판단 안내"], "host_ai 판단 안내에 AI 생성 표시 안내가 있어야 함"
     c = r["후보"][0]
     assert c["문서번호"] == "서면-2025-법인-1" and c["링크"] == "https://x/1" and c["요지"]
     en = _call("compare_with_case", {"facts": "x", "our_view": "y", "lang": "en"})
     assert en["mode"] == "host_ai" and "host_ai_instructions" in en and en["translation_mode"] == "host_ai" and "host_ai_translate" in en
+    assert "AI 생성 표시" not in en, "host_ai 영문 결과에 AI 생성 표시 필드가 있으면 안 됨"
 
 
 def test_compare_with_case_solar(monkeypatch):
@@ -167,8 +170,12 @@ def test_compare_with_case_solar(monkeypatch):
     monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"해석": [{"키": "K1", "관계": "반대", "이유": "r", "사실관계 차이": "없음"}], "요약": "s"})
     r = _call("compare_with_case", {"facts": "x", "our_view": "y"})
     assert r["mode"] == "solar_cloud" and r["해석"][0]["관계"] == "반대" and r["요약"] == "s"
+    assert "AI 생성 표시" in r, "solar_cloud 모드 compare_with_case에 AI 생성 표시 필드가 있어야 함"
+    assert r["AI 생성 표시"] == "이 결과의 판단·요약·번역 문장은 생성형 AI(Upstage Solar Pro 4)가 작성했습니다. 근거 원문과 대조해 확인하세요."
     monkeypatch.setenv("KOREAN_TAX_MCP_SOLAR_BASE_URL", "http://10.0.0.5/v1")
-    assert _call("compare_with_case", {"facts": "x", "our_view": "y"})["mode"] == "solar_onprem"
+    r2 = _call("compare_with_case", {"facts": "x", "our_view": "y"})
+    assert r2["mode"] == "solar_onprem"
+    assert "AI 생성 표시" in r2, "solar_onprem 모드 compare_with_case에 AI 생성 표시 필드가 있어야 함"
 
 
 def _fake_compare(issue, tax, n):
@@ -185,10 +192,14 @@ def test_compare_outcomes_explain_modes(monkeypatch):
     monkeypatch.setattr(solar, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Solar 호출 금지")))
     r = _call("compare_outcomes", {"issue": "퇴직금 손금", "explain": True})
     assert r["mode"] == "host_ai" and r["갈린 지점"]["mode"] == "host_ai" and "문서번호" in r["갈린 지점"]["판단 안내"]
+    assert "AI 생성 표시" not in r, "host_ai 모드에 AI 생성 표시 필드가 있으면 안 됨"
+    assert "AI 생성임을 표시" in r["갈린 지점"]["판단 안내"], "host_ai 판단 안내에 AI 생성 표시 안내가 있어야 함"
     monkeypatch.setenv("UPSTAGE_API_KEY", "test")
     monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"갈린 지점": ["증빙 (조심2025서1)"]})
     r = _call("compare_outcomes", {"issue": "퇴직금 손금", "explain": True})
     assert r["mode"] == "solar_cloud" and r["갈린 지점"]["갈린 지점"] == ["증빙 (조심2025서1)"]
+    assert "AI 생성 표시" in r, "solar_cloud 모드 compare_outcomes explain=True에 AI 생성 표시 필드가 있어야 함"
+    assert r["AI 생성 표시"] == "이 결과의 판단·요약·번역 문장은 생성형 AI(Upstage Solar Pro 4)가 작성했습니다. 근거 원문과 대조해 확인하세요."
 
 
 def test_english_translation_modes(monkeypatch):
@@ -196,10 +207,13 @@ def test_english_translation_modes(monkeypatch):
     _no_solar(monkeypatch)
     r = i18n.english({"결과": [{"제목": "가지급금"}]})
     assert r["translation_mode"] == "host_ai" and r["results"][0]["title"] == "가지급금" and "host_ai_translate" in r
+    assert "AI 생성 표시" not in r, "host_ai 영문 번역 결과에 AI 생성 표시 필드가 있으면 안 됨"
     monkeypatch.setenv("UPSTAGE_API_KEY", "test")
     monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"0": "Provisional payment"})
     r = i18n.english({"결과": [{"제목": "가지급금"}]})
     assert r["results"][0]["title"] == "Provisional payment" and r["results"][0]["title_ko"] == "가지급금" and r["translation_mode"] == "solar_cloud"
+    assert "AI 생성 표시" in r, "solar_cloud 영문 번역 결과에 AI 생성 표시 필드가 있어야 함"
+    assert r["AI 생성 표시"] == "Judgments, summaries and translations in this result were written by generative AI (Upstage Solar Pro 4). Check them against the cited sources."
 
 
 # ── 지시서4: 법제처·NTIS mock 테스트 ──
@@ -861,4 +875,56 @@ def test_residency_nationality_default_is_not_input():
     from korean_tax_mcp.residency.models import ResidencyInput
     inp = ResidencyInput(judgment_year=2026)
     assert inp.nationality == "미입력", f"nationality 기본값: {inp.nationality}"
+
+
+# ── AI 생성 표시 테스트 (SPEC_t3) ──────────────────────────────────────────────
+
+def test_residency_check_no_ai_marker():
+    """residency_check 결과에 'AI 생성 표시' 필드가 없어야 함 (규칙 기반 코드 판정)."""
+    r = _residency_check(judgment_year=2026, domestic_stay_days=100, family_in_korea=False)
+    assert "AI 생성 표시" not in r, "residency_check(규칙 판정) 결과에 AI 생성 표시 필드가 있으면 안 됨"
+
+
+def test_residency_report_solar_has_ai_marker(monkeypatch):
+    """residency_report solar 모드 결과에 'AI 생성 표시' 필드가 있어야 함."""
+    from korean_tax_mcp import solar
+    monkeypatch.setenv("UPSTAGE_API_KEY", "test")
+    monkeypatch.setattr(solar, "chat_json", lambda *a, **k: {"0": "# 판정 검토 보고서\n\n보고서 내용입니다."})
+    r = _call("residency_report", {"judgment_year": 2026, "domestic_stay_days": 200,
+                                    "family_in_korea": True, "domestic_assets": True,
+                                    "treaty_country": "미국", "treaty_country_is_resident": True,
+                                    "permanent_home": "국내만", "center_of_vital_interests": "국내",
+                                    "habitual_abode": "국내", "nationality": "대한민국"})
+    assert r["mode"] == "solar_cloud"
+    assert "AI 생성 표시" in r, "solar_cloud 모드 residency_report에 AI 생성 표시 필드가 있어야 함"
+    assert r["AI 생성 표시"] == "이 결과의 판단·요약·번역 문장은 생성형 AI(Upstage Solar Pro 4)가 작성했습니다. 근거 원문과 대조해 확인하세요."
+    assert "보고서" in r and r["보고서"].startswith("# 판정 검토 보고서")
+
+
+def test_residency_report_host_ai_no_ai_marker(monkeypatch):
+    """residency_report host_ai 모드 결과에 'AI 생성 표시' 필드가 없어야 함."""
+    from korean_tax_mcp import solar
+    _no_solar(monkeypatch)
+    r = _call("residency_report", {"judgment_year": 2026, "domestic_stay_days": 100,
+                                    "family_in_korea": False})
+    assert r["mode"] == "host_ai"
+    assert "AI 생성 표시" not in r, "host_ai 모드 residency_report에 AI 생성 표시 필드가 있으면 안 됨"
+    assert "AI 생성 표시 안내" in r or "AI 생성임을 표시" in r.get("안내", ""), \
+        "host_ai 모드 안내 문구에 AI 생성 표시 안내가 있어야 함"
+
+
+def test_law_article_no_ai_marker(monkeypatch):
+    """law_article 결과에 'AI 생성 표시' 필드가 없어야 함 (조회 도구)."""
+    from korean_tax_mcp import ntis
+    monkeypatch.setenv("LAW_OC", "dummy")
+    def mock_act(action, param):
+        if action == "ASISEQ501MR01":
+            return {"lawSearch": {"law": [{"법령일련번호": "1", "시행일자": "20240101",
+                                            "법령명한글": "법인세법"}]}}
+        if action == "ASISEQ502MR01":
+            return {"law": {"Law": [{"본문내용": "제52조 (부당행위계산의 부인)\n①..."}]}}
+        raise ValueError(f"unexpected: {action}")
+    monkeypatch.setattr(ntis, "_act", mock_act)
+    r = _call("law_article", {"law_name": "법인세법", "article": "제52조"})
+    assert "AI 생성 표시" not in r, "law_article(조회 도구) 결과에 AI 생성 표시 필드가 있으면 안 됨"
 
