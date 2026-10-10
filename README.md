@@ -8,7 +8,7 @@
 
 > **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 Solar Pro 4 이전 개발분) 거주자 판정(`residency_check`·`residency_report`), 조세조약 키워드 동의어, 조회 안정화(재시도·캐시·인증키 가림)는 Solar Pro 4(Solar Code CLI)가 코드를 작성하고, Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다.
 
-**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 15 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
+**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 20 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
 ---
 
@@ -89,7 +89,8 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `basic_rules` | 국세 기본통칙 전문 (조문별) |
 | `execution_standards` | 세법집행기준 항목·쪽·링크 |
 | `casebook_search` | 2025 세법해석 사례집 검색 |
-| `law_article` | 시점별 조문 원문, 3단 위임, 통칙·집행기준 함께 |
+| `find_article` | **조문 위치 찾기** — 조문 번호를 모를 때 키워드로 상위 n개 조회(제목·본문 키워드 점수). 결과: [{법령, 조, 제목, 적용 시행일, 일치 문장}], 다음 단계: law_article로 해당 항만 조회. LAW_OC 필요. |
+| `law_article` | 시점별 조문 원문, 3단 위임, 통칙·집행기준 함께. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록·안내 반환. |
 | `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) — 기본은 후보 원문 발췌+판단 안내를 반환해 사용자 AI가 판정, Solar 설정 시 Solar 판정 |
 | `research_issue` | **그 해 기준 묶음** — 사업연도·과세기간 종료일 기준 조문 3단·통칙·집행기준·해석, 현행 대비 조문 변경, 해석마다 당시 조문과 같은지 표시 |
 | `treaty_withholding_rates` | **조약별 원천징수 제한세율** — 배당·이자·사용료 세율과 지분 요건, 근거 조항 원문 |
