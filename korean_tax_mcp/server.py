@@ -71,7 +71,7 @@ def search_tax_rulings(
     query: Annotated[str, Field(description="쟁점 키워드. 예: '업무무관 가지급금 인정이자', '폐업자 세금계산서 매입세액'")],
     tax: Annotated[Tax | None, Field(description="세목 필터. 생략하면 전체")] = None,
     kinds: Annotated[list[Kind] | None, Field(description="해석=질의회신·과세기준자문·사전답변, 판례=법원·조세심판·이의·심사. 생략하면 둘 다")] = None,
-    sort: Annotated[Literal["최신", "정확도"], Field(description="최신=등록일 내림차순, 정확도=검색 점수순")] = "최신",
+    sort: Annotated[Literal["최신", "정확도"], Field(description="정확도=검색 점수순(기본), 최신=등록일 내림차순")] = "정확도",
     since: Annotated[str, Field(description="등록일 시작 YYYYMMDD (선택)")] = "",
     until: Annotated[str, Field(description="등록일 끝 YYYYMMDD (선택)")] = "",
     n: Annotated[int, Field(description="종류별 최대 건수 1~30", ge=1, le=30)] = 10,
@@ -112,7 +112,7 @@ def rulings_by_article(
     kinds: Annotated[list[Kind] | None, Field(description="해석·판례 중 선택. 생략하면 둘 다")] = None,
     tax: Annotated[Tax | None, Field(description="세목 필터 (선택)")] = None,
     keyword: Annotated[str, Field(description="결과를 좁힐 추가 키워드 (선택)")] = "",
-    sort: Annotated[Literal["최신", "정확도"], Field(description="정렬")] = "최신",
+    sort: Annotated[Literal["최신", "정확도"], Field(description="정확도=검색 점수순(기본), 최신=등록일 내림차순")] = "정확도",
     n: Annotated[int, Field(description="종류별 최대 건수 1~30", ge=1, le=30)] = 10,
 ) -> dict:
     """List rulings and decisions that cite a specific statute article. 특정 조문을 관련 법령으로 인용한 해석·판례 모음.
@@ -220,7 +220,8 @@ def law_article(
 
     언제: 세액·요건 판단처럼 사실 발생 시점의 법령이 필요할 때. 해석·판례는 회신 당시 법 기준이므로 이 도구로 적용 연도 조문과 대조.
     조문 번호를 모르면 find_article로 먼저 찾는다. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록과 안내 반환.
-    반환: {법령, 조, 적용 시행일, 본문, 링크, 반환 범위} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
+    결과의 '연결'에 상위·하위 조문 위치가 있으니 그 조를 law_article로 이어서 조회.
+    반환: {법령, 조, 적용 시행일, 본문, 링크, 반환 범위, 연결} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
     읽기 전용. 법제처 공식 API — 환경변수 LAW_OC(무료) 필요, 없으면 발급 안내 오류.
     """
     ef = re.sub(r"\D", "", as_of or "")
@@ -260,6 +261,18 @@ def law_article(
                     r["항목"] = [{"항목": it["항목"], "쪽": it["쪽"]} for it in r["항목"]]
                 out[k] = r
             except Exception as e: out[k] = _err(e)
+    # 연결 필드: links 결과(포인터만, 본문 없음). 실패해도 본문 조회는 그대로 반환.
+    try:
+        con = law.links(law_name, norm, ef)
+        keep = ("법령", "조", "항", "구절", "확인")
+        slim = lambda x: {k: x[k] for k in keep if x.get(k)}
+        # 원문인용(하위 조문이 직접 인용) 먼저. 공식표만은 포괄·간접 위임일 수 있어 '참고'로 분리
+        out["연결"] = {d: [slim(x) for x in con.get(d, []) if x.get("확인") == "원문인용"] for d in ("상위", "하위")}
+        ref = {d: [slim(x) for x in con.get(d, []) if x.get("확인") != "원문인용"] for d in ("상위", "하위")}
+        if ref["상위"] or ref["하위"]:
+            out["연결"]["참고(공식표만)"] = ref
+    except Exception as e:
+        out["연결"] = {"error": str(e)}
     return out
 
 
