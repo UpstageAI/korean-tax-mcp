@@ -16,7 +16,7 @@ Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-m
 
 | Tool | What it does | Key |
 |---|---|---|
-| `search_tax_rulings` | Search NTS rulings (Q&A replies, advance rulings) and decisions (courts, Tax Tribunal, objections) — newest first, filter by tax type and date | none |
+| `search_tax_rulings` | Search NTS rulings (Q&A replies, advance rulings) and decisions (courts, Tax Tribunal, objections) — most relevant first (sort="최신순" for newest first), filter by tax type and date | none |
 | `get_tax_ruling` | Full text — facts, question, reply / holding and reasons, cited statutes | none |
 | `rulings_by_article` | All rulings and decisions citing a given article (e.g. Corporate Tax Act Art. 52) | none |
 | `basic_rules` | Full text of NTS Basic Rules (기본통칙) by article | none |
