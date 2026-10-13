@@ -273,6 +273,7 @@ def law_article(
             out["연결"]["참고(공식표만)"] = ref
     except Exception as e:
         out["연결"] = {"error": str(e)}
+    out["다음 단계"] = "보기·진술 문장이 이 조문과 맞는지 글자 수준으로 대조하려면 verify_statement(statement, law_name, article, as_of) — 숫자·의무/재량·반대말·시점 차이와 빠뜨린 단서를 표로 돌려줌"   # Claude 10-14: 25회차에서 verify_statement 호출 0/320
     return out
 
 
