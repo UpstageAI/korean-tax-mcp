@@ -635,12 +635,14 @@ def judge_options(
     ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
 
-    # 보기를 {'id','text'} 형태로 정리
-    if statements and isinstance(statements[0], str):
-        ids = [f"{_CIRC[i]}" if i <= 5 else str(i) for i in range(1, len(statements) + 1)]
-        stmts = [{"id": i, "text": t} for i, t in zip(ids, statements)]
-    else:
-        stmts = [{"id": s["id"], "text": s["text"]} for s in statements]
+    # 보기를 {'id','text'} 형태로 정리 — 문자열 또는 {'text', 'id'?} dict만 허용, 그 외는 계산하지 않고 안내 (CodeSolar PR #11)
+    bad = [i for i, s in enumerate(statements)
+           if not (isinstance(s, str) and s.strip()) and not (isinstance(s, dict) and isinstance(s.get("text"), str) and s["text"].strip())]
+    if bad: return {"error": f"statements 항목 {bad}: 문자열 또는 {{'id': 보기번호, 'text': 문장}} 형식이어야 함"}
+    ids = [f"{_CIRC[i]}" if i <= 5 else str(i) for i in range(1, len(statements) + 1)]
+    stmts = [{"id": (s.get("id") or ids[i]) if isinstance(s, dict) else ids[i], "text": s["text"] if isinstance(s, dict) else s}
+             for i, s in enumerate(statements)]
+    stmts = [{"id": str(s["id"]), "text": s["text"]} for s in stmts]
 
     norm_articles = []
     for a in articles:
