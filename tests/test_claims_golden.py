@@ -1,6 +1,7 @@
 """주장 대조(verify_statement) 정답 테스트 (Claude 작성 2026-10-13) — 수정 금지.
 fixtures/claims_golden.json: 진술은 공개 검증 사례(세무사 1차 2024, 출처 Q-Net) 보기, 조문 단위는 법제처 시행본 원문 그대로.
 기대 판정은 Claude가 조문 원문과 대조해 확정한 것. 오프라인(네트워크 없이) 실행.
+(10-13 Claude 수정: 두 문장 진술은 신호마다 위치를 가지므로 조문 문구는 그 위치 단위 원문에서 확인, 2024-44-5 근거는 ④)
 실행: .venv/bin/python -m pytest tests/test_claims_golden.py -q
 """
 import json, os, sys
@@ -10,6 +11,10 @@ from korean_tax_mcp import claims       # noqa: E402
 
 FX = json.load(open(os.path.join(os.path.dirname(__file__), "fixtures", "claims_golden.json"), encoding="utf-8"))
 CASES = {c["id"]: c for c in FX["사례"]}
+
+
+def _loc(u):
+    return " ".join([u[0]] + ([u[1]] if u[1] else []) + ([u[2].rstrip(".") + "호"] if u[2] else []))
 
 
 def run(cid):
@@ -29,8 +34,9 @@ def test_contradiction_detected(cid):
     assert r["근거"]["위치"].startswith(exp["근거위치"]), (cid, r["근거"]["위치"])
     # 근거 원문은 단위 원문 그대로(지어내지 않음)
     assert any(r["근거"]["원문"] == u[3] for u in c["단위"]), cid
-    for d in r["대조"]:                                   # 대조 표의 조문 쪽 문구는 근거 원문 안에 있어야 함
-        assert d["조문"] in r["근거"]["원문"], (cid, d)
+    for d in r["대조"]:                                   # 대조 표의 조문 쪽 문구는 그 신호의 위치 단위 원문 안에 있어야 함(지어내지 않음)
+        src = next(u for u in c["단위"] if _loc(u) == d["위치"])
+        assert d["조문"] in src[3], (cid, d)
 
 
 @pytest.mark.parametrize("cid", [k for k, c in CASES.items() if c["기대"]["판정"] == "차이 없음"])
@@ -77,5 +83,5 @@ def test_live_tool_wraps_compare():
     from korean_tax_mcp import server
     fn = getattr(server.verify_statement, "fn", server.verify_statement)
     c = CASES["2024-48-4"]
-    r = fn(statement=c["진술"], law="국세징수법", article="제112조", as_of="2024-01-01")
+    r = fn(statement=c["진술"], law_name="국세징수법", article="제112조", as_of="2024-01-01")
     assert r["판정"] == "모순" and r["시행본"] == c["시행본"] and r["법령"] == "국세징수법" and r["조"] == "제112조"
