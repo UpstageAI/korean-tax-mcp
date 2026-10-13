@@ -75,3 +75,14 @@ def test_live_tool():
     assert r["법령"] == "국세징수법" and r["시행본"] == "20240101"
     assert [b["id"] for b in r["보기별"]] == ["①", "②", "③", "④", "⑤"]      # 문자열만 주면 ①~⑤ 부여
     assert set(r["요약"]["모순"]) >= {"②", "④"}
+
+
+@pytest.mark.skipif(not os.environ.get("LAW_OC"), reason="법제처 키 없음")
+def test_live_tool_accepts_joined_string_and_five_articles():   # Claude 10-14 (26회차 관찰): 보기 5개를 문장 하나로, 조문 5개로 넘겨도 계산
+    from korean_tax_mcp import server
+    fn = getattr(server.judge_options, "fn", server.judge_options)
+    c = Q["2024-48"]
+    joined = " ".join(f"{o['id']} {o['text']}" for o in c["보기"])
+    r = fn(statements=joined, law_name="국세징수법", articles=["제112조", "제115조", "제109조", "제113조", "제85조의5"], as_of="20240101")
+    assert "error" not in r and [b["id"] for b in r["보기별"]] == ["①", "②", "③", "④", "⑤"]
+    assert set(r["요약"]["모순"]) >= {"②", "④"}

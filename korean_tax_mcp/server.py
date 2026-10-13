@@ -609,20 +609,33 @@ def verify_statement(
 _CIRC = {1: "①", 2: "②", 3: "③", 4: "④", 5: "⑤"}
 
 
+def _split_options(text):
+    """보기 번호(①~⑤, ㄱ.~ㅁ., 1.~5.)가 든 문장 하나를 [{"id","text"}]로 분리. 번호가 없으면 문장 하나로."""
+    parts = re.split(r"(?=[①②③④⑤])|(?=(?:^|\s)[ㄱㄴㄷㄹㅁ]\.\s)|(?=(?:^|\s)[1-5]\.\s)", text.strip())
+    out = []
+    for p in parts:
+        p = p.strip()
+        if not p: continue
+        m = re.match(r"^([①②③④⑤]|[ㄱㄴㄷㄹㅁ]\.|[1-5]\.)\s*(.*)$", p, re.S)
+        if m: out.append({"id": m.group(1).rstrip("."), "text": m.group(2).strip()})
+        else: out.append({"id": _CIRC.get(len(out) + 1, str(len(out) + 1)), "text": p})
+    return out
+
+
 @mcp.tool(annotations=RO)
 @bilingual
 def judge_options(
-    statements: Annotated[list[str] | list[dict], Field(description="보기·진술 문장들. 문자열 리스트면 id는 ①②③④⑤ 순서(5개 초과 시 1,2,3…), {'id','text'} 리스트면 id 그대로 사용")],
+    statements: Annotated[list[str] | list[dict] | str, Field(description="보기·진술 문장들. 문자열 리스트(id는 ①②③④⑤ 순서), {'id','text'} 리스트(id 그대로), 또는 ①~⑤·ㄱ~ㄹ 번호가 든 문장 하나(자동 분리)")],
     law_name: Annotated[str, Field(description=LAW)],
-    articles: Annotated[list[str], Field(description="대조할 조문 1~3개. '제112조'·'제28조의2' 형식")],
+    articles: Annotated[list[str], Field(description="대조할 조문 1~5개. '제112조'·'제28조의2' 형식")],
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
     also_decree: Annotated[bool, Field(description="True면 각 조의 law.links 하위 위임 조문 중 원문인용이 확인된 것(최대 3개)도 후보 조에 추가")] = False,
 ) -> dict:
-    """보기·주장 여러 개를 조문 1~3개와 한 번에 글자 대조해 보기마다 가장 맞는 조와 판정을 표로 돌려준다.
+    """보기·주장 여러 개를 조문 1~5개와 한 번에 글자 대조해 보기마다 가장 맞는 조와 판정을 표로 돌려준다.
 
-    언제: 여러 보기(세무사 시험 보기·고객 진술·주장 문장)를 특정 조문(1~3개)과 한 번에 대조할 때. 25회차에서 verify_statement를 모델이 스스로 고르지 못한 문제(0/320)를 한 번 호출로 처리.
+    언제: 여러 보기(세무사 시험 보기·고객 진술·주장 문장)를 특정 조문(1~5개)과 한 번에 대조할 때. 25회차에서 verify_statement를 모델이 스스로 고르지 못한 문제(0/320)를 한 번 호출로 처리.
     입력: statements(문자열 리스트 → id ①②③④⑤ 순서, 5개 초과 시 1,2,3… / {'id','text'} 리스트 → id 그대로),
-           law_name(정식 법령명), articles('제112조' 등 1~3개), as_of(기준일, 생략 시 오늘), also_decree(기본 False — True면 각 조의 하위 위임 조문 중 law.links에서 원문인용이 확인된 것 최대 3개도 후보 조에 추가).
+           law_name(정식 법령명), articles('제112조' 등 1~5개), as_of(기준일, 생략 시 오늘), also_decree(기본 False — True면 각 조의 하위 위임 조문 중 law.links에서 원문인용이 확인된 것 최대 3개도 후보 조에 추가).
     처리: law.version → law._full_units로 각 조 단위 수집 → claims.judge(보기마다 모든 후보 조에 compare 실행, 겹침 최대 조 채택, 동률이면 신호 있는 쪽).
     반환: {법령, 시행본, 후보조(실제 대조한 조 목록), 보기별:[{id, 조, 판정, 근거:{위치,원문}, 대조, 단서, 겹침, 사유?}],
            요약:{모순,차이 없음,판단 필요 — 각 id 목록}, 주의}.
@@ -631,7 +644,9 @@ def judge_options(
     읽기 전용. 법제처 API 필요(LAW_OC). 조문 문구는 시행본 원문 그대로 — 지어내지 않는다. '판단 필요'는 글자 대韓 결과일 뿐 법적 판단이 아님 — 원문으로 확인.
     """
     if not statements: return {"error": "statements 필요"}
-    if not articles or len(articles) > 3: return {"error": "articles는 1~3개"}
+    if isinstance(statements, str):                       # ①②③④⑤ / ㄱ.ㄴ.ㄷ.ㄹ. / 1. 2. 로 이어 붙인 문장 하나 → 분리 (26회차: 모델이 통째로 넘김)
+        statements = _split_options(statements)
+    if not articles or len(articles) > 5: return {"error": "articles는 1~5개"}
     ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
 
