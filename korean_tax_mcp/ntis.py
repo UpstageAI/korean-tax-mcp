@@ -112,7 +112,7 @@ def _keywords(q, k):
     return " ".join(out[:k])
 
 
-def search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, start="", end="", article=None, law=None):
+def search(query, kinds=("해석", "판례"), tax=None, sort="정확도", n=10, start="", end="", article=None, law=None):
     if sort == "정확도" and not article and len(_keywords(query, 9).split()) >= 3:
         return _pooled(query, kinds, tax, n, start, end)
     out = _search(query, kinds, tax, sort, n, start, end, article, law)
