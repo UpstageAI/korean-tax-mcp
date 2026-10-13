@@ -668,11 +668,12 @@ def judge_options(
     try:
         units_map: dict[str, list[claims.Unit]] = {}
         link_extra: dict[str, list[dict]] = {}
+        missing: list[str] = []
         for n in norm_articles:
             all_units = law._full_units(law_name, ef)
             filtered = [u for u in all_units if u[0] == n]
-            if not filtered:
-                return {"error": f"{n} 조문 단위를 {ef} 시행본에서 찾지 못함"}
+            if not filtered:                 # 없는 조는 건너뛰고 기록 — 하나 때문에 전체를 거부하지 않음 (Claude 10-14)
+                missing.append(n); continue
             units_map[f"{law_name} {n}"] = filtered
             if also_decree:
                 try:
@@ -698,7 +699,7 @@ def judge_options(
                     continue
 
         if not units_map:
-            return {"error": "대조할 조 단위가 없음"}
+            return {"error": f"대조할 조 단위가 없음 — {ef} 시행본에서 찾지 못한 조: {missing}"}
 
         from . import claims
         r = claims.judge(stmts, units_map)
@@ -706,6 +707,7 @@ def judge_options(
         r["법령"] = law_name
         r["시행본"] = ef
         r["후보조"] = list(units_map.keys())
+        if missing: r["없는조"] = missing
         return r
     except ValueError as e:
         return {"error": str(e)}
