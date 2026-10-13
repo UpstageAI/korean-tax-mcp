@@ -562,6 +562,49 @@ def article_history(
     except Exception as e: return _err(e)
 
 
+@mcp.tool(annotations=RO)
+@bilingual
+def verify_statement(
+    statement: Annotated[str, Field(description="대조할 진술·한 문장·주장. 예: '관할 세무서장은 체납자가 2회 체납하고 체납액이 2천만원인 경우 사업의 정지 또는 허가등의 취소를 요구할 수 있다.'")],
+    law_name: Annotated[str, Field(description="정식 법령명. 예: '국세징수법', '소득세법', '법인세법', '국세기본법'")],
+    article: Annotated[str, Field(description="조문 번호. '제112조' 또는 '제21조' 형식")],
+    as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
+    paragraph: Annotated[str, Field(description="특정 항만 대조. '②'·'제2항'·'2' 등. 주면 그 항·하위 단위만 대조")] = "",
+) -> dict:
+    """진술·주장을 조문 원문과 글자 수준에서 대조해 모순 신호(숫자·양태·반대말·시점)와 단서 누락을 돌려준다.
+
+    언제: 보기 문장·주장·고객 진술이 특정 조문과 맞는지 확인할 때. 조문을 읽고도 놓치는 차이를 표로 보여 준다 — 법적 판단을 대신하지 않는다.
+    반환: {법령, 조, 시행본, 판정('모순'|'차이 없음'|'판단 필요'), 근거:{위치, 원문}, 대조:[{종류,진술,조문}], 단서:[...], 겹침, 주의}.
+    - 판정: 숫자·양태·반대말·시점 신호 하나라도 있으면 '모순', 없고 겹침 0.5 이상 '차이 없음', 없고 겹침 0.5 미만 '판단 필요'.
+    읽기 전용. 법제처 API 필요(LAW_OC). 조문 문구는 시행본 원문 그대로 — 지어내지 않는다.
+    """
+    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
+    if ef and len(ef) != 8:
+        return {"error": "as_of는 YYYYMMDD"}
+    try:
+        norm, hang = law.normalize_article(article)
+        units = law._full_units(law_name, ef)
+        filtered = [u for u in units if u[0] == norm]
+        if paragraph:
+            pn = law._normalize_paragraph_spec(paragraph)
+            if pn:
+                filtered = [u for u in filtered if u[1] == pn]
+        if not filtered:
+            return {"error": f"{norm} 조문 단위를 {ef} 시행본에서 찾지 못함"}
+        from . import claims
+        r = claims.compare(statement, filtered)
+        r["법령"] = law_name
+        r["조"] = norm
+        r["시행본"] = ef
+        r["주의"] = "글자 대조 결과 — 법적 판단은 원문으로 확인"
+        return r
+    except ValueError as e:
+        return {"error": str(e)}
+    except law.NoKey as e:
+        return {"error": str(e)}
+    except Exception as e: return _err(e)
+
+
 # ── residency_check / residency_report (지시서 1~2) ─────────────────────────
 from .residency.models import ResidencyInput
 from .residency.judgment import run_check
