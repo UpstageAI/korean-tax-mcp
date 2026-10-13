@@ -40,7 +40,7 @@ def test_tools():
                 "casebook_search", "law_article", "compare_with_case", "research_issue", "verify_citations",
                 "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms",
                 "article_history", "compare_outcomes",
-                "residency_check", "residency_report", "find_article"}
+                "residency_check", "residency_report", "find_article", "verify_statement"}
     assert names == expected, f"도구 목록 불일치: Extra={names-expected}, Missing={expected-names}"
 
 
