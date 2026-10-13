@@ -273,7 +273,7 @@ def law_article(
             out["연결"]["참고(공식표만)"] = ref
     except Exception as e:
         out["연결"] = {"error": str(e)}
-    out["다음 단계"] = "보기·진술 문장이 이 조문과 맞는지 글자 수준으로 대조하려면 verify_statement(statement, law_name, article, as_of) — 숫자·의무/재량·반대말·시점 차이와 빠뜨린 단서를 표로 돌려줌"   # Claude 10-14: 25회차에서 verify_statement 호출 0/320
+    out["다음 단계"] = "보기 여러 개를 한 번에 대조: judge_options(statements, law_name, articles) / 한 문장: verify_statement(statement, law_name, article, as_of)"
     return out
 
 
@@ -604,6 +604,98 @@ def verify_statement(
     except law.NoKey as e:
         return {"error": str(e)}
     except Exception as e: return _err(e)
+
+
+_CIRC = {1: "①", 2: "②", 3: "③", 4: "④", 5: "⑤"}
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def judge_options(
+    statements: Annotated[list[str] | list[dict], Field(description="보기·진술 문장들. 문자열 리스트면 id는 ①②③④⑤ 순서(5개 초과 시 1,2,3…), {'id','text'} 리스트면 id 그대로 사용")],
+    law_name: Annotated[str, Field(description=LAW)],
+    articles: Annotated[list[str], Field(description="대조할 조문 1~3개. '제112조'·'제28조의2' 형식")],
+    as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
+    also_decree: Annotated[bool, Field(description="True면 각 조의 law.links 하위 위임 조문 중 원문인용이 확인된 것(최대 3개)도 후보 조에 추가")] = False,
+) -> dict:
+    """보기·주장 여러 개를 조문 1~3개와 한 번에 글자 대조해 보기마다 가장 맞는 조와 판정을 표로 돌려준다.
+
+    언제: 여러 보기(세무사 시험 보기·고객 진술·주장 문장)를 특정 조문(1~3개)과 한 번에 대조할 때. 25회차에서 verify_statement를 모델이 스스로 고르지 못한 문제(0/320)를 한 번 호출로 처리.
+    입력: statements(문자열 리스트 → id ①②③④⑤ 순서, 5개 초과 시 1,2,3… / {'id','text'} 리스트 → id 그대로),
+           law_name(정식 법령명), articles('제112조' 등 1~3개), as_of(기준일, 생략 시 오늘), also_decree(기본 False — True면 각 조의 하위 위임 조문 중 law.links에서 원문인용이 확인된 것 최대 3개도 후보 조에 추가).
+    처리: law.version → law._full_units로 각 조 단위 수집 → claims.judge(보기마다 모든 후보 조에 compare 실행, 겹침 최대 조 채택, 동률이면 신호 있는 쪽).
+    반환: {법령, 시행본, 후보조(실제 대조한 조 목록), 보기별:[{id, 조, 판정, 근거:{위치,원문}, 대조, 단서, 겹침, 사유?}],
+           요약:{모순,차이 없음,판단 필요 — 각 id 목록}, 주의}.
+    판정: 숫자·양태·반대말·시점 신호 있으면 '모순', 없고 겹침 0.5 이상 '차이 없음', 없으면 '판단 필요'.
+          단, 준 조문과 겹침이 0.3 미만이면 신호가 있어도 '모순' 대신 '판단 필요'(사유: '겹침 낮음 — 다른 조문일 수 있음') — 준 조문과 무관한 보기에서 우연한 숫자·반대말 신호가 모순으로 나가는 것을 막음.
+    읽기 전용. 법제처 API 필요(LAW_OC). 조문 문구는 시행본 원문 그대로 — 지어내지 않는다. '판단 필요'는 글자 대韓 결과일 뿐 법적 판단이 아님 — 원문으로 확인.
+    """
+    if not statements: return {"error": "statements 필요"}
+    if not articles or len(articles) > 3: return {"error": "articles는 1~3개"}
+    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
+    if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
+
+    # 보기를 {'id','text'} 형태로 정리
+    if statements and isinstance(statements[0], str):
+        ids = [f"{_CIRC[i]}" if i <= 5 else str(i) for i in range(1, len(statements) + 1)]
+        stmts = [{"id": i, "text": t} for i, t in zip(ids, statements)]
+    else:
+        stmts = [{"id": s["id"], "text": s["text"]} for s in statements]
+
+    norm_articles = []
+    for a in articles:
+        n, _ = law.normalize_article(a)
+        if not n: return {"error": f"'{a}'는 조문 형식을 인식하지 못함"}
+        norm_articles.append(n)
+
+    try:
+        units_map: dict[str, list[claims.Unit]] = {}
+        link_extra: dict[str, list[dict]] = {}
+        for n in norm_articles:
+            all_units = law._full_units(law_name, ef)
+            filtered = [u for u in all_units if u[0] == n]
+            if not filtered:
+                return {"error": f"{n} 조문 단위를 {ef} 시행본에서 찾지 못함"}
+            units_map[f"{law_name} {n}"] = filtered
+            if also_decree:
+                try:
+                    links_r = law.links(law_name, n, ef)
+                    extras = [x for x in links_r.get("하위", []) if x.get("확인") == "원문인용"][:3]
+                    link_extra[n] = extras
+                except Exception:
+                    link_extra[n] = []
+
+        for n in norm_articles:
+            extras = link_extra.get(n, [])
+            for x in extras:
+                loi = x["법령"]
+                jo = x["조"]
+                try:
+                    ext_units = law._full_units(loi, ef)
+                    filtered = [u for u in ext_units if u[0] == jo]
+                    if filtered:
+                        key = f"{loi} {jo}"
+                        if key not in units_map:
+                            units_map[key] = filtered
+                except Exception:
+                    continue
+
+        if not units_map:
+            return {"error": "대조할 조 단위가 없음"}
+
+        from . import claims
+        r = claims.judge(stmts, units_map)
+        if "error" in r: return r
+        r["법령"] = law_name
+        r["시행본"] = ef
+        r["후보조"] = list(units_map.keys())
+        return r
+    except ValueError as e:
+        return {"error": str(e)}
+    except law.NoKey as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return _err(e)
 
 
 # ── residency_check / residency_report (지시서 1~2) ─────────────────────────

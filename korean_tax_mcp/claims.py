@@ -236,3 +236,59 @@ def compare(statement: str, units: list[Unit]) -> dict:
     if verdict == "판단 필요":
         out["안내"] = "이 조에서 진술과 겹치는 단위가 적음 — find_article·search로 다른 조문 확인"
     return out
+
+
+def judge(statements: list[dict], article_units: dict[str, list[Unit]]) -> dict:
+    """보기(진술) 여러 개를 조문 1~3개의 단위 목록과 한 번에 대조.
+
+    statements: [{"id": "①", "text": "..."}]  — id는 ①~⑤·ㄱ~ㄹ·1~5 등 그대로
+    article_units: {"법령 조": [(조, 항, 호, 원문)...]} — 조마다 law._full_units 형식 단위 목록
+
+    반환 {"보기별": [{id, 조, 판정, 근거:{위치,원문}, 대조, 단서, 겹침, 사유?}],
+           "요약": {"모순":[], "차이 없음":[], "판단 필요":[]},
+           "주의": "..."}
+    """
+    if not statements:
+        return {"error": "보기가 비어 있음"}
+    if not article_units:
+        return {"error": "조 단위가 비어 있음"}
+
+    jo_candidates: list[tuple[str, list[Unit]]] = []
+    for jo_key, units in article_units.items():
+        if units:
+            jo_candidates.append((jo_key, units))
+    if not jo_candidates:
+        return {"error": "조 단위가 비어 있음"}
+
+    results: list[dict] = []
+    for stmt in statements:
+        best_jo = jo_candidates[0][0]
+        best_overlap = -1.0
+        best_result: dict = {}
+        best_has_signals = False
+        for jo_key, units in jo_candidates:
+            r = compare(stmt["text"], units)
+            ov = r.get("겹침", 0.0)
+            has_sig = bool(r.get("대조"))
+            if ov > best_overlap or (ov == best_overlap and has_sig and not best_has_signals):
+                best_overlap = ov
+                best_jo = jo_key
+                best_result = r
+                best_has_signals = has_sig
+
+        res: dict = {"id": stmt["id"], "조": best_jo,
+                     "판정": best_result["판정"],
+                     "근거": best_result["근거"],
+                     "대조": best_result.get("대조", []),
+                     "단서": best_result.get("단서", []),
+                     "겹침": best_overlap}
+        if best_overlap < 0.3 and best_result["판정"] == "모순":
+            res["판정"] = "판단 필요"
+            res["사유"] = "겹침 낮음 — 다른 조문일 수 있음"
+        results.append(res)
+
+    summary = {"모순": [], "차이 없음": [], "판단 필요": []}
+    for res in results:
+        summary[res["판정"]].append(res["id"])
+    return {"보기별": results, "요약": summary,
+            "주의": "글자 대조 결과 — 법적 판단은 원문으로 확인. '판단 필요'는 준 조문과 겹침이 낮은 보기(다른 조문일 수 있음)"}
