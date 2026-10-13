@@ -243,24 +243,219 @@ def _three_tier(law):
 def _jo_str(no, br): return f"제{int(no)}조" + (f"의{int(br)}" if br and br != "00" else "")
 
 
+@lru_cache(maxsize=32)
+def _full_units(law, ef):
+    """법령 전체(1회 요청) → [(조, 항, 호, 단위 원문)] 문서 순서. 50조 제한 없음 (Claude 10-12)"""
+    mst, vef = version(law, ef)
+    if not mst: return []
+    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={vef}")
+    out = []
+    for u in _list(d.get("법령", d).get("조문", {}).get("조문단위")):
+        if u.get("조문여부") != "조문": continue
+        jo = _jo_str(u.get("조문번호", "0"), u.get("조문가지번호") or "00")
+        for t in _texts({"조문내용": u.get("조문내용")}): out.append((jo, "", "", t))
+        for h in _list(u.get("항")):
+            if not isinstance(h, dict): continue
+            hn = (h.get("항번호") or "").strip()
+            for t in _texts({"항내용": h.get("항내용")}): out.append((jo, hn, "", t))
+            for ho in _list(h.get("호")):
+                if not isinstance(ho, dict): continue
+                hon = (ho.get("호번호") or "").strip()
+                for t in _texts({"호내용": ho.get("호내용")}): out.append((jo, hn, hon, t))
+                for mk in _list(ho.get("목")):
+                    if isinstance(mk, dict):
+                        for t in _texts({"목내용": mk.get("목내용")}): out.append((jo, hn, hon, t))
+    return out
+
+
+_DEF_RE = re.compile(r"(?:법|영)\s*(제\d+조(?:의\d+)?)((?:제\d+항)?)(?:제\d+호(?:의\d+)?)?(?:[가-하]목)?[^\"\u201c]{0,40}?에서\s*[\"\u201c]([^\"\u201d]{2,40})[\"\u201d]\s*(?:이)?란")
+
+
+@lru_cache(maxsize=32)
+def _phrase_defs(lower_law, ef):
+    """하위 법령(시행령→'법', 시행규칙→'영' 인용)에서 상위 조의 위임 구절을 정의한 곳 목록"""
+    cite = "법" if lower_law.endswith("시행령") else "영"
+    out = []
+    for jo, hn, hon, t in _full_units(lower_law, ef):
+        for m in _DEF_RE.finditer(t):
+            if not t[m.start():].startswith(cite): continue
+            out.append({"상위조": m.group(1), "상위항": m.group(2), "구절": m.group(3), "하위조": jo, "하위항": hn, "하위호": hon})
+    return out
+
+
+def links(law_name, article_no, as_of=""):
+    """법령·조의 상위·하위 위임 연결.
+
+    반환: {"상위": [{"법령","조","항"?,"구절"?,"출처"?}...], "하위": [...]}
+    출처①: 법제처 3단비교 공식표(_three_tier). 법률·시행령·시행규칙 어느 쪽 입력이든 양방향 조회.
+    출처②: 하위 법령 원문에서 '법 제N조…에서 "…으로 정하는 X"란'(시행규칙은 '영 제N조…') 위임 구절 정의로 상위 조문 특정.
+    ①∪② 합집합, (법령, 조) 중복 제거(구절 정보 보존). 법령명 비교는 공백만 무시, 급(시행령·시행규칙) 유지.
+    """
+    norm, _ = normalize_article(article_no)
+    j = jo6(norm); no, br = int(j[:4]), int(j[4:]) if j[4:] else 0
+    N = lambda s: re.sub(r"\s+", "", s or "")
+
+    # 입력이 법률/시행령/시행규칙인지에 따라 계열 법률과 유형 결정
+    tier_type = "법률"
+    base_law = law_name
+    if law_name.endswith(" 시행령"):
+        base_law = law_name[:-4]
+        tier_type = "시행령"
+    elif law_name.endswith(" 시행규칙"):
+        base_law = law_name[:-5]
+        tier_type = "시행규칙"
+
+    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
+    if len(ef) != 8: ef = time.strftime("%Y%m%d")
+
+    up, down = [], []
+
+    # ── 출처①: 3단비교 공식표 ──
+    tier_rows = _three_tier(base_law)
+    for r in tier_rows:
+        if tier_type == "법률":
+            if not r.get("조번호") or int(r.get("조번호")) != no or int(r.get("조가지번호", "00")) != br: continue
+        elif tier_type == "시행령":
+            d = r.get("시행령조문") or {}
+            if not d.get("조번호") or int(d.get("조번호")) != no or int(d.get("조가지번호", "00")) != br: continue
+        elif tier_type == "시행규칙":
+            s = r.get("시행규칙조문") or {}
+            if not s.get("조번호") or int(s.get("조번호")) != no or int(s.get("조가지번호", "00")) != br: continue
+        d = r.get("시행령조문") or {}
+        s = r.get("시행규칙조문") or {}
+
+        if tier_type == "법률":
+            if d.get("조번호"):
+                down.append({"법령": base_law + " 시행령", "조": _jo_str(d["조번호"], d.get("조가지번호")), "출처": "공식표"})
+            if s.get("조번호"):
+                down.append({"법령": base_law + " 시행규칙", "조": _jo_str(s["조번호"], s.get("조가지번호")), "출처": "공식표"})
+        elif tier_type == "시행령":
+            if r.get("조번호"):
+                up.append({"법령": base_law, "조": _jo_str(r["조번호"], r.get("조가지번호")), "출처": "공식표"})
+            if s.get("조번호"):
+                down.append({"법령": base_law + " 시행규칙", "조": _jo_str(s["조번호"], s.get("조가지번호")), "출처": "공식표"})
+        elif tier_type == "시행규칙":
+            if r.get("조번호"):
+                up.append({"법령": base_law, "조": _jo_str(r["조번호"], r.get("조가지번호")), "출처": "공식표"})
+            if d.get("조번호"):
+                up.append({"법령": base_law + " 시행령", "조": _jo_str(d["조번호"], d.get("조가지번호")), "출처": "공식표"})
+
+    # ── 출처②: 하위 법령 원문의 구절 정의 '법(영) 제N조…에서 "…으로 정하는 X"란' (Claude 10-12, 정밀 일치만) ──
+    lower_of = {"법률": base_law + " 시행령", "시행령": base_law + " 시행규칙"}
+    if tier_type in lower_of:   # 이 조를 인용해 구절을 정의한 하위 조문 → 하위
+        for dfn in _phrase_defs(lower_of[tier_type], ef):
+            if dfn["상위조"] == norm:
+                down.append({"법령": lower_of[tier_type], "조": dfn["하위조"], "항": dfn["하위항"],
+                             "구절": dfn["구절"], "상위항": dfn["상위항"], "출처": "원문정의"})
+    if tier_type in ("시행령", "시행규칙"):   # 이 조 원문이 인용한 상위 조 → 상위
+        upper = base_law if tier_type == "시행령" else base_law + " 시행령"
+        for dfn in _phrase_defs(law_name, ef):
+            if dfn["하위조"] == norm:
+                up.append({"법령": upper, "조": dfn["상위조"], "항": dfn["상위항"], "구절": dfn["구절"], "출처": "원문정의"})
+
+    # ── ①∪② 합집합, (법령, 조) 중복 제거(구절 정보 보존) ──
+    def dedup(items):
+        # (법령, 조, 구절) 단위로 보존 — 한 조에 여러 위임 구절이 있으면 모두 남김. 구절 있는 항목이 있으면 같은 조의 구절 없는 중복은 제거
+        out, seen = [], set()
+        with_phrase = {(N(x["법령"]), x["조"]) for x in items if x.get("구절")}
+        for x in items:
+            k = (N(x["법령"]), x["조"], x.get("구절") or "")
+            if k in seen: continue
+            if not x.get("구절") and (k[0], k[1]) in with_phrase: continue
+            seen.add(k); out.append(x)
+        return out
+
+    # 확인 수준 표시 (Claude 10-12): 하위 조문 원문이 상위 조를 직접 인용하면 "원문인용", 공식표에만 있으면 "공식표만"(포괄 위임·간접 연결 가능)
+    def _cited(lower, lower_jo, upper_jo):
+        w = "법" if lower.endswith("시행령") else "영"
+        txt = "\n".join(t for jo, _, _, t in _full_units(lower, ef) if jo == lower_jo)
+        return bool(re.search(w + r"\s*" + re.escape(upper_jo) + r"(?![0-9]|의\d)", txt))
+    def mark(items, direction):
+        for x in items:
+            if x.get("출처") == "원문정의":
+                x["확인"] = "원문인용"; continue
+            try:
+                if direction == "하위":
+                    ok = _cited(x["법령"], x["조"], norm) if (tier_type == "법률" and x["법령"].endswith("시행령")) or (tier_type == "시행령" and x["법령"].endswith("시행규칙")) else False
+                else:
+                    ok = _cited(law_name, norm, x["조"]) if (tier_type == "시행령" and not x["법령"].endswith("시행령")) or (tier_type == "시행규칙" and x["법령"].endswith("시행령")) else False
+            except Exception:
+                ok = False
+            x["확인"] = "원문인용" if ok else "공식표만"
+        return sorted(items, key=lambda x: x["확인"] != "원문인용")
+    return {"상위": mark(dedup(up), "상위"), "하위": mark(dedup(down), "하위")}
+
+
 def tiers(law, article_no, as_of=""):
-    """법률 조문 → [법률, 위임 시행령 조문들, 위임 시행규칙 조문들] 원문(기준일 시행본)."""
+    """법령 조문 → [상위·해당·하위 단계] 원문(기준일 시행본). 법률·시행령·시행규칙 모두 지원."""
     norm, _ = normalize_article(article_no)
     j = jo6(norm); no, br = j[:4], j[4:]
-    with ThreadPoolExecutor(4) as ex:   # 위임 목록과 법·령·규칙 연혁 목록을 동시에
-        tier = ex.submit(_three_tier, law)
-        for name in (law, law + " 시행령", law + " 시행규칙"): ex.submit(_versions, name)
+
+    # 입력이 시행령·시행규칙이면 계열 법률 찾기
+    base_law = law
+    if law.endswith(" 시행령"):
+        base_law = law[:-4]
+    elif law.endswith(" 시행규칙"):
+        base_law = law[:-5]
+
+    with ThreadPoolExecutor(4) as ex:
+        tier = ex.submit(_three_tier, base_law)
+        for name in (base_law, base_law + " 시행령", base_law + " 시행규칙"): ex.submit(_versions, name)
         tier = tier.result()
-    dec, rul = [], []
+
+    # 입력이 법률이면: 법률 조문 번호(no, br)로 행 찾기
+    # 입력이 시행령이면: 시행령 조문 번호(no, br)로 행 찾기
+    # 입력이 시행규칙이면: 시행규칙 조문 번호(no, br)로 행 찾기
+    matched_rows = []
     for r in tier:
-        if r.get("조번호") != no or r.get("조가지번호", "00") != br: continue
+        if law == base_law:
+            if r.get("조번호") != no or r.get("조가지번호", "00") != br: continue
+        elif law.endswith(" 시행령"):
+            d = r.get("시행령조문") or {}
+            if d.get("조번호") != no or d.get("조가지번호", "00") != br: continue
+        elif law.endswith(" 시행규칙"):
+            s = r.get("시행규칙조문") or {}
+            if s.get("조번호") != no or s.get("조가지번호", "00") != br: continue
+        matched_rows.append(r)
+
+    dec, rul = [], []
+    law_no, law_br = None, None
+    for r in matched_rows:
         d = r.get("시행령조문") or {}; s = r.get("시행규칙조문") or {}
         if d.get("조번호"): dec.append(_jo_str(d["조번호"], d.get("조가지번호")))
         if s.get("조번호") and "서식" not in (s.get("조제목") or ""): rul.append(_jo_str(s["조번호"], s.get("조가지번호")))
-    jobs = [("법률", law, norm)] + [("시행령", law + " 시행령", a) for a in dict.fromkeys(dec)] + \
-           [("시행규칙", law + " 시행규칙", a) for a in dict.fromkeys(rul)]
+        if law_no is None:
+            law_no = r.get("조번호"); law_br = r.get("조가지번호", "00")
+
+    # 단계 구성
+    steps = []
+    tier_type = "법률"
+    if law.endswith(" 시행령"): tier_type = "시행령"
+    elif law.endswith(" 시행규칙"): tier_type = "시행규칙"
+
+    if tier_type == "법률":
+        steps = [("법률", law, norm)]
+        steps += [("시행령", base_law + " 시행령", a) for a in dict.fromkeys(dec)]
+        steps += [("시행규칙", base_law + " 시행규칙", a) for a in dict.fromkeys(rul)]
+    elif tier_type == "시행령":
+        # 상위: 법률 (3단비교 행의 법률 조문)
+        if law_no:
+            steps = [("법률", base_law, _jo_str(law_no, law_br))]
+        else:
+            steps = [("법률", base_law, norm)]  # fallback: 동일한 조 번호
+        steps += [("시행령", law, norm)]
+        steps += [("시행규칙", base_law + " 시행규칙", a) for a in dict.fromkeys(rul)]
+    elif tier_type == "시행규칙":
+        # 상위: 법률, 시행령
+        if law_no:
+            steps = [("법률", base_law, _jo_str(law_no, law_br))]
+        else:
+            steps = [("법률", base_law, norm)]
+        steps += [("시행령", base_law + " 시행령", norm)]  # 동일한 조 번호 (fallback)
+        steps += [("시행규칙", law, norm)]
+
     with ThreadPoolExecutor(6) as ex:
-        rows = list(ex.map(lambda x: {"단계": x[0], **article(x[1], x[2], as_of)}, jobs))
+        rows = list(ex.map(lambda x: {"단계": x[0], **article(x[1], x[2], as_of)}, steps))
     return rows
 
 
@@ -327,7 +522,7 @@ def _find_cache_key(law, ef):
 
 
 def _fetch_law_articles(law, ef):
-    """한 법령의 조문 전부(제목+본문)를 조회해 캐시. 조문 번호 1~50을 병렬 조회."""
+    """한 법령의 조문 전부(제목+본문)를 조회해 캐시. 전체 법령 조회 후 조문별로 파싱."""
     key = _find_cache_key(law, ef)
     if (cached := _FIND_CACHE.get(key)) and time.time() < cached[1]:
         return cached[0]
@@ -335,19 +530,34 @@ def _fetch_law_articles(law, ef):
     if not mst:
         _FIND_CACHE[key] = ([], time.time() + _FIND_CACHE_TTL)
         return []
-    articles = {}
-    with ThreadPoolExecutor(8) as ex:
-        futures = [ex.submit(_article_once, mst, actual_ef, i) for i in range(1, 51)]
-        for fut in as_completed(futures, timeout=30):
-            try:
-                res = fut.result(timeout=15)
-                if res:
-                    articles[res["조"]] = res
-            except Exception:
-                pass
-    result = list(articles.values())
-    _FIND_CACHE[key] = (result, time.time() + _FIND_CACHE_TTL)
-    return result
+    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={actual_ef}")
+    body = "\n".join(t.strip() for t in _texts(d.get("법령", d)) if t.strip())
+    if not body:
+        _FIND_CACHE[key] = ([], time.time() + _FIND_CACHE_TTL)
+        return []
+    # 전체 본문에서 각 조문 시작 라인 식별 → 조문별 본문 추출
+    HEAD_RE = re.compile(r'^제\d+조(?:의\d+)?\s*\(')
+    GUAN_RE = re.compile(r'^제\d+(관|장|절|관)\b')
+    lines = body.split("\n")
+    jo_starts = []
+    for i, ln in enumerate(lines):
+        if GUAN_RE.match(ln):
+            continue
+        if HEAD_RE.match(ln):
+            jo_starts.append(i)
+    articles = []
+    for idx, start in enumerate(jo_starts):
+        end = jo_starts[idx + 1] if idx + 1 < len(jo_starts) else len(lines)
+        jo_line = lines[start]
+        body_lines = lines[start + 1:end]
+        jo_m = re.match(r"^(제\d+조(?:의\d+)?)\s*\((.+?)\)\s*$", jo_line)
+        norm = jo_m.group(1) if jo_m else jo_line
+        title = jo_m.group(2) if jo_m else ""
+        norm = re.sub(r'<개정[^>]*>|<개정\b|<신설[^>]*>|<신설\b', '', norm).strip()
+        full_body = jo_line + "\n" + "\n".join(body_lines)
+        articles.append({"조": norm, "제목": title, "본문": full_body, "적용 시행일": actual_ef})
+    _FIND_CACHE[key] = (articles, time.time() + _FIND_CACHE_TTL)
+    return articles
 
 
 def _article_once(mst, ef, no):
