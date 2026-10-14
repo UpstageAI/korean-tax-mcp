@@ -6,7 +6,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
-> **업스테이지 Solar Pro 4로 개발합니다.** 버전별 변경 내용은 [CHANGELOG](CHANGELOG.md)를 보세요.
+> **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 그 이전 개발분) 거주자 판정·조세조약 동의어·조회 안정화(0.7.0), 조문 번호 정규화·find_article(0.8.x), 법→시행령→시행규칙 위임 연결·verify_statement·judge_options(0.9.0)는 Solar Pro 4가 코드를 쓰고 Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다. 21개 도구, 상세는 [CHANGELOG](CHANGELOG.md).
 
 **Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 21 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
