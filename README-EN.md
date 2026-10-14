@@ -2,7 +2,7 @@
 
 <!-- mcp-name: io.github.UpstageAI/korean-tax-mcp -->
 
-![Demo](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
+![Demo: tax-audit response — low-price share transfer, FY2024 statute chain, NTS rules, rulings and win/loss comparison](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 

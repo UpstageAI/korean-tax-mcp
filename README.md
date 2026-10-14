@@ -2,7 +2,7 @@
 
 <!-- mcp-name: io.github.UpstageAI/korean-tax-mcp -->
 
-![데모: 법인세법 제52조 인용 해석 조회](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
+![데모: 세무조사 대응 — 비상장주식 저가양도 부당행위계산, 2024년 기준 조문 3단·통칙·집행기준·해석·판례·승패 비교](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
