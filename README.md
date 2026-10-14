@@ -6,7 +6,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
-> **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 Solar Pro 4 이전 개발분) 거주자 판정(`residency_check`·`residency_report`), 조세조약 키워드 동의어, 조회 안정화(재시도·캐시·인증키 가림)는 Solar Pro 4(Solar Code CLI)가 코드를 작성하고, Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다.
+> **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 Solar Pro 4 이전 개발분) 거주자 판정(`residency_check`·`residency_report`), 조세조약 키워드 동의어, 조회 안정화(재시도·캐시·인증키 가림)는 Solar Pro 4(Solar Code CLI)가 코드를 작성하고, Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다. **0.8.x: 조문 번호 정규화·`find_article`·호 단위 조회. 0.9.0: 조문 결과에 법→시행령→시행규칙 위임 연결, 해석·판례 검색 관련도순, 주장 대조 `verify_statement`, 보기 여러 개를 한 번에 대조하는 `judge_options` — 21개 도구.**
 
 **Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 21 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
@@ -83,7 +83,7 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 
 | 도구 | 하는 일 |
 |---|---|
-| `search_tax_rulings` | 해석·판례 검색 (세목·종류·기간·최신순/정확도순) |
+| `search_tax_rulings` | 해석·판례 검색 (세목·종류·기간, 기본 관련도순·최신순 선택) |
 | `get_tax_ruling` | 본문 전문 — 사실관계·질의·회신 / 주문·이유, 관련 조문 |
 | `rulings_by_article` | 특정 조문을 인용한 해석·판례 |
 | `basic_rules` | 국세 기본통칙 전문 (조문별) |
@@ -91,7 +91,8 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `casebook_search` | 2025 세법해석 사례집 검색 |
 | `find_article` | **조문 위치 찾기** — 조문 번호를 모를 때 키워드로 상위 n개 조회(제목·본문 키워드 점수). 결과: [{법령, 조, 제목, 적용 시행일, 일치 문장}], 다음 단계: law_article로 해당 항만 조회. LAW_OC 필요. |
 | `verify_statement` | **주장 대조** — 진술·보기 문장을 해당 조의 시행본 원문과 글자 수준으로 대조해 숫자·양태(재량/의무/부정)·반대말·시점 차이와 진술이 빠뜨린 단서를 표로 반환(모순 / 차이 없음 / 판단 필요). 인용 문구는 전부 원문의 부분 문자열, 외부 LLM 없이 규칙만. LAW_OC 필요. |
-| `law_article` | 시점별 조문 원문, 3단 위임, 통칙·집행기준 함께. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록·안내 반환. |
+| `judge_options` | **보기 판정 묶음** — 진술·보기 여러 개(문자열 하나에 ①~⑤가 섞여 있어도 분리)와 조문 번호 최대 5개를 받아 보기마다 겹침이 가장 큰 조를 골라 대조, 모순 / 차이 없음 / 판단 필요로 나눠 요약. 없는 조는 건너뜀. LAW_OC 필요. |
+| `law_article` | 시점별 조문 원문, 3단 위임(상위·하위 위임 조문 위치: 원문 인용으로 확인된 연결과 공식표 연결을 나눠 표시), 통칙·집행기준 함께. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록·안내 반환. |
 | `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) — 기본은 후보 원문 발췌+판단 안내를 반환해 사용자 AI가 판정, Solar 설정 시 Solar 판정 |
 | `research_issue` | **그 해 기준 묶음** — 사업연도·과세기간 종료일 기준 조문 3단·통칙·집행기준·해석, 현행 대비 조문 변경, 해석마다 당시 조문과 같은지 표시 |
 | `treaty_withholding_rates` | **조약별 원천징수 제한세율** — 배당·이자·사용료 세율과 지분 요건, 근거 조항 원문 |
