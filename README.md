@@ -6,7 +6,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
-> **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 그 이전 개발분) 거주자 판정·조세조약 동의어·조회 안정화(0.7.0), 조문 번호 정규화·find_article(0.8.x), 법→시행령→시행규칙 위임 연결·verify_statement·judge_options(0.9.0)는 Solar Pro 4가 코드를 쓰고 Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다. 21개 도구, 상세는 [CHANGELOG](CHANGELOG.md).
+> **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 그 이전 개발분) 거주자 판정·조세조약 동의어·조회 안정화(0.7.0), 조문 번호 정규화·find_article(0.8.x), 법→시행령→시행규칙 위임 연결·verify_statement·judge_options(0.9.0)는 Solar Pro 4가 코드를 쓰고 Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다. 22개 도구, 상세는 [CHANGELOG](CHANGELOG.md).
 
 **Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 21 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
@@ -27,6 +27,11 @@
 - "법인세법 제55조 최근에 언제 바뀌었어? 시행 예정 개정 있어?"
 - "국제거래명세서 서식 찾아줘"
 - "국세청 책자에서 정상가격 산출방법 설명 찾아줘"
+- "경조금 적격증빙 기준금액이 어느 조문에 있어? 조문 번호 몰라" (find_article)
+- "'경조금은 건당 10만원까지 증빙 없이 손금'이라는 말, 2026 시행령 제41조 원문과 맞아?" (verify_statement)
+- "이 보기 ①~⑤ 중 법인세법 제25조 원문과 모순되는 건 어느 거야?" (judge_options)
+- "특수관계인 저가양도 부당행위계산, 납세자가 이긴 결정례와 진 결정례 갈라서 보여줘" (compare_outcomes)
+- "미국 시민권자 대표이사, 작년 국내 체류 200일, 가족은 미국 — 거주자야? 한미조약 tie-break까지"
 
 **설치 한 줄** — `claude mcp add korean-tax -- uvx korean-tax-mcp`
 
@@ -37,7 +42,12 @@
 - **국세 기본통칙** 전문, **세법집행기준** 항목
 - **시점별 조문** — 그날 시행 중이던 조문, 법률 → 시행령 → 시행규칙 위임 체계
 - 국세청 「2025 세법해석 사례집」 96건 색인
+- **그 해 기준 묶음** — 사업연도 종료일 기준 조문 3단·통칙·집행기준·해석을 한 번에, 현행과 바뀐 점 표시
+- **조문 찾기·주장 대조·보기 판정** — 키워드로 조문 위치 찾기(find_article), 진술을 시행본 원문과 글자 수준으로 대조(verify_statement), 보기 여러 개를 한 번에 판정(judge_options). 외부 LLM 없이 규칙만
+- **승패 비교** — 같은 쟁점의 심판·심사·판결을 납세자 승/일부 인용/패로 나눠 양쪽 주장과 결정 이유 나란히(compare_outcomes)
 - **사실관계 대조** — 우리 주장과 해석·판례가 지지·반대·구별 필요인지 (기본: 사용자 AI가 판단, 선택: Upstage Solar)
+- **거주자·비거주자 판정** — 소득세법 3단계 규칙 + 조세조약 tie-break, 유사 판례(residency_check)
+- **조세조약 96개국**·원천징수 제한세율, 조문 개정 이력, 별표·서식, 국세청 책자·내 PC PDF 검색, 인용 검증
 
 ## 설치
 
@@ -61,8 +71,8 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 
 | 키 | 필요한 도구 | 발급 |
 |---|---|---|
-| 없음 | 해석·판례 검색과 본문, 조문별 모음, 기본통칙, 집행기준, 사례집, 인용 검증(문서번호) | — |
-| `LAW_OC` | `law_article`, `research_issue`, `verify_citations`(조문) — 시점별 조문·3단 위임 | [open.law.go.kr](https://open.law.go.kr) 무료 신청 |
+| 없음 | 해석·판례 검색과 본문, 조문별 모음, 기본통칙, 집행기준, 사례집, 승패 비교, 조세조약·제한세율, 서식, 책자·PDF 검색, 거주자 판정, 인용 검증(문서번호) | — |
+| `LAW_OC` | `law_article`, `find_article`, `research_issue`, `article_history`, `verify_statement`, `judge_options`, `verify_citations`(조문) — 시점별 조문·3단 위임·원문 대조 | [open.law.go.kr](https://open.law.go.kr) 무료 신청 |
 | `UPSTAGE_API_KEY` (선택) | 없어도 `compare_with_case`(사실관계 대조)·`compare_outcomes` `explain=True`(승패 요약)·`lang="en"`(영문)은 동작 — 원문 발췌와 판단 안내를 돌려주고 사용자 AI가 판단·번역(`mode: "host_ai"`). 설정하면 Solar가 대조·요약·번역(`mode: "solar_cloud"`) | [console.upstage.ai](https://console.upstage.ai) |
 | `KOREAN_TAX_MCP_SOLAR_BASE_URL` (선택) | 망분리 환경에서 기관 내부 Solar로 위 기능 수행(`mode: "solar_onprem"`) | — |
 
@@ -96,6 +106,7 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 | `judge_options` | **보기 판정 묶음** — 진술·보기 여러 개(문자열 하나에 ①~⑤가 섞여 있어도 분리)와 조문 번호 최대 5개를 받아 보기마다 겹침이 가장 큰 조를 골라 대조, 모순 / 차이 없음 / 판단 필요로 나눠 요약. 없는 조는 건너뜀. LAW_OC 필요. |
 | `law_article` | 시점별 조문 원문, 3단 위임(상위·하위 위임 조문 위치: 원문 인용으로 확인된 연결과 공식표 연결을 나눠 표시), 통칙·집행기준 함께. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록·안내 반환. |
 | `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) — 기본은 후보 원문 발췌+판단 안내를 반환해 사용자 AI가 판정, Solar 설정 시 Solar 판정 |
+| `compare_outcomes` | **승패 비교** — 같은 쟁점의 심판·심사·이의·판결을 납세자 승(인용·취소)/일부 인용/패(기각)로 나누고, 건마다 납세자 주장·과세관청 의견·결정 이유를 나란히. 판정은 주문·결론 문장을 규칙으로 읽음. `explain=True`면 갈린 지점 정리(기본 사용자 AI, Solar 설정 시 Solar) |
 | `research_issue` | **그 해 기준 묶음** — 사업연도·과세기간 종료일 기준 조문 3단·통칙·집행기준·해석, 현행 대비 조문 변경, 해석마다 당시 조문과 같은지 표시 |
 | `treaty_withholding_rates` | **조약별 원천징수 제한세율** — 배당·이자·사용료 세율과 지분 요건, 근거 조항 원문 |
 | `search_forms` | **별표·서식** — 기준내용연수표·상각률표, 신고서·명세서·통지서 |
