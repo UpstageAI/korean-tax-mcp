@@ -58,21 +58,23 @@ def _location(u: Unit) -> str:
 # ── 숫자 ───────────────────────────────────────────────────────────────────────
 _WON = {"천만원": 10_000_000, "백만원": 1_000_000, "만원": 10_000, "억원": 100_000_000, "원": 1}
 _QUAL = r"(?:\s*(?:이상|이하|이내|미만|초과))?"
-_NUM_RE = re.compile(r"(\d[\d,]*)\s*(개월|회|년|월|일|배|퍼센트|%)" + _QUAL)
+_NUM_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(개월|회|년|월|일|배|퍼센트|%)" + _QUAL)
 _WON_RE = re.compile(r"(\d[\d,]*)\s*(천만원|백만원|만원|억원|원)" + _QUAL)
-_FRAC_RE = re.compile(r"100분의\s*(\d+)")
+_FRAC_RE = re.compile(r"(100|1만|1천|10)분의\s*(\d+)")
 
 
-def _numbers(text: str) -> list[tuple[int, str, str]]:
-    """(정규화 값, 단위, 원문 문구). 금액은 원으로, 100분의 N·N퍼센트는 %로."""
+def _numbers(text: str) -> list[tuple[float, str, str, str]]:
+    """(정규화 값, 단위, 원문 문구, 표기형). 금액은 원으로, 100분의 N·N퍼센트·1만분의 N은 %로.
+    표기형(frac/pct/won/…)이 같은 것끼리 먼저 짝지어 '100분의 20'을 '0.3퍼센트'와 비교하는 일을 막는다. 소수점 지원 (Claude 2026-10-15)."""
     out = []
     for m in _NUM_RE.finditer(text):
         unit = "%" if m.group(2) in ("퍼센트", "%") else m.group(2)
-        out.append((int(m.group(1).replace(",", "")), unit, m.group(0).strip()))
+        out.append((float(m.group(1).replace(",", "")), unit, m.group(0).strip(), "pct" if unit == "%" else unit))
     for m in _WON_RE.finditer(text):
-        out.append((int(m.group(1).replace(",", "")) * _WON[m.group(2)], "원", m.group(0).strip()))
+        out.append((float(m.group(1).replace(",", "")) * _WON[m.group(2)], "원", m.group(0).strip(), "won"))
     for m in _FRAC_RE.finditer(text):
-        out.append((int(m.group(1)), "%", m.group(0)))
+        base = {"100": 100.0, "1만": 10000.0, "1천": 1000.0, "10": 10.0}[m.group(1)]
+        out.append((float(m.group(2)) * 100.0 / base, "%", m.group(0), "frac"))
     return out
 
 
@@ -149,9 +151,9 @@ def _signals(stmt: str, context: str) -> list[dict]:
     out: list[dict] = []
     # 숫자: 문맥원문 전체
     law_nums = _numbers(context)
-    for val, unit, phrase in _numbers(stmt):
-        same = [n for n in law_nums if n[1] == unit]
-        if same and not any(n[0] == val for n in same):
+    for val, unit, phrase, fmt in _numbers(stmt):
+        same = [n for n in law_nums if n[1] == unit and n[3] == fmt] or [n for n in law_nums if n[1] == unit]   # 같은 표기형 우선
+        if same and not any(abs(n[0] - val) < 1e-9 for n in same):
             out.append({"종류": "숫자", "진술": phrase, "조문": same[0][2]})
     # 양태: 가장 겹치는 조문 문장과 비교, 같은 어간일 때만
     cs = _best_sentence(stmt, context)
@@ -180,6 +182,31 @@ def _provisos(ref: str, statement: str) -> list[str]:
 
 
 # ── 공개 API ───────────────────────────────────────────────────────────────────
+_PARTICLE = re.compile(r"(으로|에서|에게|까지|부터|이나|이든|은|는|이|가|을|를|의|에|도|만|와|과|로)$")
+
+
+def _content_tokens(text: str) -> set[str]:
+    """진술의 한글 내용어(조사 제거, 2자 이상). 주제 공유 판단용."""
+    out = set()
+    for tok in re.findall(r"[가-힣]{2,}", text):
+        tok = _PARTICLE.sub("", tok)
+        if len(tok) >= 2:
+            out.add(tok)
+    return out
+
+
+def _shares_rare_topic(statement: str, unit_text: str, all_texts: list[str]) -> bool:
+    """진술과 단위 원문이 '드문' 내용어(전체 단위의 40% 이하에만 나오는 말)를 하나 이상 공유하는지.
+    예: '경조금'은 공유하면 같은 얘기, '기업업무추진비'처럼 어디에나 있는 말은 근거가 못 됨 (Claude 2026-10-15)."""
+    n = max(1, len(all_texts))
+    for tok in _content_tokens(statement):
+        if tok in unit_text:
+            df = sum(1 for t in all_texts if tok in t)
+            if df / n <= 0.4:
+                return True
+    return False
+
+
 def compare(statement: str, units: list[Unit]) -> dict:
     """진술과 한 조의 단위 목록을 대조.
 
@@ -282,9 +309,25 @@ def judge(statements: list[dict], article_units: dict[str, list[Unit]]) -> dict:
                      "대조": best_result.get("대조", []),
                      "단서": best_result.get("단서", []),
                      "겹침": best_overlap}
+        units_here = dict(jo_candidates)[best_jo]
+        all_texts = [u[3] for u in units_here]
+        ref_text = (best_result.get("근거") or {}).get("원문", "")
+        same_topic = _shares_rare_topic(stmt["text"], ref_text, all_texts)
         if best_overlap < 0.3 and best_result["판정"] == "모순":
-            res["판정"] = "판단 필요"
-            res["사유"] = "겹침 낮음 — 다른 조문일 수 있음"
+            # 겹침은 낮아도 숫자·반대말·양태 신호가 있고 드문 내용어(예: 경조금)를 공유하면 같은 얘기 → 모순 유지 (Claude 2026-10-15)
+            if not same_topic:
+                res["판정"] = "판단 필요"
+                res["사유"] = "겹침 낮음 — 다른 조문일 수 있음"
+        elif best_result["판정"] == "판단 필요":
+            # 신호 없음 + 진술의 숫자를 전부 담은 단위가 이 조에 있고 그 단위와 드문 내용어를 공유 → 차이 없음, 근거를 그 단위로 (숫자 일치는 강한 증거)
+            phrases = [n[2] for n in _numbers(stmt["text"])]
+            if phrases:
+                for u in units_here:
+                    if all(ph in u[3] for ph in phrases) and _shares_rare_topic(stmt["text"], u[3], all_texts):
+                        res["판정"] = "차이 없음"
+                        res["사유"] = "진술의 숫자가 근거 원문과 일치"
+                        res["근거"] = {"위치": _location(u), "원문": u[3]}
+                        break
         results.append(res)
 
     summary = {"모순": [], "차이 없음": [], "판단 필요": []}

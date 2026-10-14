@@ -86,3 +86,22 @@ def test_live_tool_accepts_joined_string_and_five_articles():   # Claude 10-14 (
     r = fn(statements=joined, law_name="국세징수법", articles=["제112조", "제115조", "제109조", "제113조", "제85조의5"], as_of="20240101")
     assert "error" not in r and [b["id"] for b in r["보기별"]] == ["①", "②", "③", "④", "⑤"]
     assert set(r["요약"]["모순"]) >= {"②", "④"}
+
+
+# ── 2026-10-15 추가 (Claude): 시나리오 녹화 중 발견한 세 가지 — 겹침이 낮아도 드문 내용어를 공유하면 숫자 모순 유지,
+#    숫자가 전부 원문과 일치하면 차이 없음, 소수점·표기형(100분의 N vs N퍼센트) 구분. 조문 단위는 법제처 2026-01-01 시행본.
+def test_demo_decree_41_low_overlap_number_contradiction():   # ① 경조금 10만원 vs 20만원(영 제41조①1호) — 겹침 0.06이어도 '경조금' 공유 → 모순
+    c, r = run("2026-demo-접대비", ["제41조"])
+    by = {b["id"]: b for b in r["보기별"]}
+    assert by["①"]["판정"] == "모순" and any(d["종류"] == "숫자" and d["조문"] == "20만원" for d in by["①"]["대조"])
+    assert by["②"]["판정"] == "차이 없음" and "3만원" in by["②"]["근거"]["원문"]          # 숫자 일치 → 차이 없음, 근거는 그 단위
+    assert r["요약"]["모순"] == ["①"] and r["요약"]["차이 없음"] == ["②"]
+
+
+def test_demo_act_25_decimal_and_fraction_formats():   # ③ 0.5퍼센트 vs 0.3퍼센트(소수점), ④ 100분의 20 vs 100분의 10(같은 표기형끼리), ⑤ 0.3퍼센트 일치
+    c, r = run("2026-demo-한도", ["제25조"])
+    by = {b["id"]: b for b in r["보기별"]}
+    assert by["③"]["판정"] == "모순" and any(d["진술"] == "0.5퍼센트" and d["조문"] == "0.3퍼센트" for d in by["③"]["대조"])
+    assert by["④"]["판정"] == "모순" and any(d["진술"] == "100분의 20" and d["조문"] == "100분의 10" for d in by["④"]["대조"])
+    assert by["⑤"]["판정"] == "차이 없음"
+    assert r["요약"]["모순"] == ["③", "④"] and r["요약"]["차이 없음"] == ["⑤"]
