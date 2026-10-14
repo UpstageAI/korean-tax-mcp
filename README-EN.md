@@ -2,11 +2,11 @@
 
 <!-- mcp-name: io.github.UpstageAI/korean-tax-mcp -->
 
-![Demo: tax-audit response — low-price share transfer, FY2024 statute chain, NTS rules, rulings and win/loss comparison](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
+![Demo: audit issue research — low-price share transfer, FY2024 statute chain, NTS rules, rulings and win/loss comparison](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Developed with Upstage Solar Pro 4 since 0.7.0** (0.6.0 and earlier predate it). Residency determination (`residency_check`, `residency_report`), treaty keyword synonyms and lookup hardening (retries, cache, key masking) were written by Solar Pro 4 (Solar Code CLI), reviewed on each PR by CodeSolar (Solar Pro 4-based code review) and cross-checked with tests by Claude.
+> **Developed with Upstage Solar Pro 4.** See the [CHANGELOG](CHANGELOG.md) for what changed in each version.
 
 An MCP server for **Korean tax law sources**. Plug it into Claude, Cursor, or any MCP client to get National Tax Service (NTS) rulings, court and tax tribunal decisions, basic rules, and statutes — with document numbers.
 
@@ -82,6 +82,8 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 ## Disclaimer
 
 Results from this tool are **not tax advice**. They are reference material that finds and shows tax-law sources. For actual filing, tax audits, or appeals, consult a qualified professional (tax accountant, CPA, or attorney). Verify rulings, decisions, and statutes by following the original source links.
+
+This tool does not perform **tax agent services under Article 2 of the Certified Tax Accountant Act** (preparing tax adjustment statements, representing filings or appeals, tax consultation); only licensed professionals may do so (Article 20). It is software that finds and shows public statutes, rulings and decisions. The demo's "audit issue research" scene shows retrieval and organisation only — it does not judge facts or propose a response strategy. That judgment belongs to the tax accountant and the taxpayer.
 
 ## AI use notice
 
