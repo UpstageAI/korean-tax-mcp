@@ -2,11 +2,11 @@
 
 <!-- mcp-name: io.github.UpstageAI/korean-tax-mcp -->
 
-![데모: 법인세법 제52조 인용 해석 조회](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
+![데모: 조사 쟁점 근거 조회 — 비상장주식 저가양도 부당행위계산, 2024년 기준 조문 3단·통칙·집행기준·해석·판례·승패 비교](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
-> **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 Solar Pro 4 이전 개발분) 거주자 판정(`residency_check`·`residency_report`), 조세조약 키워드 동의어, 조회 안정화(재시도·캐시·인증키 가림)는 Solar Pro 4(Solar Code CLI)가 코드를 작성하고, Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다. **0.8.x: 조문 번호 정규화·`find_article`·호 단위 조회. 0.9.0: 조문 결과에 법→시행령→시행규칙 위임 연결, 해석·판례 검색 관련도순, 주장 대조 `verify_statement`, 보기 여러 개를 한 번에 대조하는 `judge_options` — 21개 도구.**
+> **업스테이지 Solar Pro 4로 개발합니다.** 버전별 변경 내용은 [CHANGELOG](CHANGELOG.md)를 보세요.
 
 **Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 21 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
@@ -71,6 +71,8 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 ## 면책
 
 이 도구의 결과는 **세무 자문이 아닙니다**. 세법 근거를 찾아 보여 주는 참고 자료이며, 실제 신고·세무조사·불복 판단은 세무사·회계사·변호사 등 전문가에게 확인하세요. 해석·판례·조문은 원문 링크로 확인하세요.
+
+이 도구는 **세무사법 제2조의 세무대리**(세무조정계산서 작성, 신고·불복 대리, 세무상담 등)를 수행하지 않으며, 그 업무는 세무사 등 자격자만 할 수 있습니다(세무사법 제20조). 공개된 법령·해석·결정례 원문을 찾아 보여 주는 소프트웨어이고, 데모 화면의 "조사 쟁점 근거 조회" 같은 사례도 자료 조회·정리 기능의 시연일 뿐 사실관계 판단이나 대응 전략 제시가 아닙니다. 그 판단은 세무사·납세자의 몫입니다.
 
 ## AI 사용 고지
 
