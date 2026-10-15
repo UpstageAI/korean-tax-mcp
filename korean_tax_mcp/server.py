@@ -244,6 +244,11 @@ def law_article(
                 out = a
         if hang and not paragraph:
             out["요청 항"] = hang
+        ho = law.requested_ho(article)                     # '제17조 제2항 제2호' → 그 호 문장을 따로 뽑아 맨 앞에서 보게
+        if ho and hang:
+            out["요청 위치"] = f"{hang} {ho}"
+            t = law.ho_text(out.get("본문", ""), hang, ho)
+            if t: out["요청 호"] = t
     except ValueError as e:
         return {"error": str(e)}
     except law.NoKey as e:

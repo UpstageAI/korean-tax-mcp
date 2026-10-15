@@ -364,6 +364,13 @@ def test_normalize_article_prefixes_and_hang(monkeypatch):
     # 접두사 + 항·호 조합
     assert normalize_article("§26의2 제1항") == ("제26조의2", "제1항")
 
+    # 항과 호가 함께 오면 호 숫자가 조 번호에 섞이지 않아야 함 (제17조 제2항 제2호 → 제172조로 읽히던 문제)
+    assert normalize_article("제17조 제2항 제2호") == ("제17조", "제2항")
+    assert normalize_article("제17조제2항제2호") == ("제17조", "제2항")
+    assert normalize_article("제17조 2항 2호") == ("제17조", "제2항")
+    assert normalize_article("제17조②2") == ("제17조", "제2항")
+    assert normalize_article("제45조의2 제1항 제3호") == ("제45조의2", "제1항")
+
 
 def test_law_get_timeout_then_retry(monkeypatch):
     """law._get 타임아웃 발생 후 재시도 — 지수 백오프 동작 확인."""
@@ -1658,3 +1665,29 @@ def test_law_article_keyword_본문_정리(t5c_mock_body, monkeypatch):
     assert "「민사집행법」 제246조의2" in body  # 일치한 호만
     # (다른 호는 모의 본문에 없으므로 이 검사로 충분)
 
+
+
+def test_requested_ho_and_ho_text():
+    """항·호를 함께 준 조회에서 호를 따로 뽑음 (호만 묻는 질문이 항 전체에 묻히지 않게)."""
+    from korean_tax_mcp.law import requested_ho, ho_text
+    assert requested_ho("제17조 제2항 제2호") == "제2호"
+    assert requested_ho("제17조②2") == "제2호"
+    assert requested_ho("제17조 제2항") is None
+    assert requested_ho("제45조의3 제2호") is None          # 항 없이 호만 → 기존처럼 '요청 항'으로 처리
+    body = "제1조(목적)\n① 첫 항\n1. 가호\n2. 나호\n가. 목1\n나. 목2\n3. 다호\n② 둘째 항\n1. 다른 호"
+    assert ho_text(body, "제1항", "제2호") == "2. 나호\n가. 목1\n나. 목2"
+    assert ho_text(body, "제2항", "제1호") == "1. 다른 호"
+    assert ho_text(body, "제3항", "제1호") == ""
+
+
+def test_versions_reads_all_pages(monkeypatch):
+    """법령 연혁이 100건을 넘으면 다음 쪽까지 읽음 (첫 쪽만 읽으면 옛 시행본이 빠짐)."""
+    from korean_tax_mcp import law
+    pages = {1: [{"법령명한글": "갑법 시행령", "시행일자": str(20260101 - i)} for i in range(100)],
+             2: [{"법령명한글": "갑법 시행령", "시행일자": "20050219"}, {"법령명한글": "다른법", "시행일자": "20000101"}]}
+    def fake_get(path, q):
+        p = int(q.split("page=")[1].split("&")[0])
+        return {"LawSearch": {"totalCnt": "102", "law": pages.get(p, [])}}
+    monkeypatch.setattr(law, "_get", fake_get)
+    vs = law._versions.__wrapped__("갑법 시행령") if hasattr(law._versions, "__wrapped__") else law._versions("갑법 시행령")
+    assert len(vs) == 101 and min(v["시행일자"] for v in vs) == "20050219"
