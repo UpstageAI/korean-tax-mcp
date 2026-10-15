@@ -261,6 +261,11 @@ def law_article(
                     r["항목"] = [{"항목": it["항목"], "쪽": it["쪽"]} for it in r["항목"]]
                 out[k] = r
             except Exception as e: out[k] = _err(e)
+    # 목차: law_article 결과에 법령 전체 목차 추가. 실패해도 본문은 그대로 반환.
+    try:
+        out["목차"] = law.toc(law_name, norm, ef)
+    except Exception as e:
+        out["목차"] = {"error": str(e)}
     # 연결 필드: links 결과(포인터만, 본문 없음). 실패해도 본문 조회는 그대로 반환.
     try:
         con = law.links(law_name, norm, ef)
@@ -273,7 +278,8 @@ def law_article(
             out["연결"]["참고(공식표만)"] = ref
     except Exception as e:
         out["연결"] = {"error": str(e)}
-    out["다음 단계"] = "보기 여러 개를 한 번에 대조: judge_options(statements, law_name, articles) / 한 문장: verify_statement(statement, law_name, article, as_of)"
+    out["다음 단계"] = "찾는 내용이 이 조에 없으면 목차에서 조를 골라 law_article로 바로 조회\n" \
+                       "보기 여러 개를 한 번에 대조: judge_options(statements, law_name, articles) / 한 문장: verify_statement(statement, law_name, article, as_of)"
     return out
 
 
