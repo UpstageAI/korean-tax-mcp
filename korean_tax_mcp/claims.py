@@ -207,6 +207,100 @@ def _shares_rare_topic(statement: str, unit_text: str, all_texts: list[str]) -> 
     return False
 
 
+# ── 구절 차이 ────────────────────────────────────────────────────────────────
+# 숫자·양태·반대말·시점 신호만으로는 낱말이 바뀌거나(확정일 ↔ 압류등기일) 두 구절 자리가 뒤바뀐 진술
+# (환입된 날 ↔ 처음 공급한 날)을 못 잡아 '차이 없음'이 나가던 문제 — 진술과 원문 문장을 어절 단위로 맞대어
+# 서로 다른 구절을 원문 그대로 보여 준다 (Claude 2026-10-15)
+_TOK = re.compile(r"[^\s,.;:·ㆍ「」『』｢｣\[\]]+")
+_BOILER = re.compile(r"^(?:다만|이 경우|이경우|불구하고|다음 각 호|다음 각 목|이하|해당|각 호 외의 부분|같은|그|이)$")
+_PAREN = re.compile(r"\([^)]*\)")
+_ENDING = re.compile(r"(한다|하다|된다|이다|한|된|하는|되는|하여|되어|하고|되고|할|될|함|됨|하며|이며)$")
+_REF_ONLY = re.compile(r"^(?:제\d+조(?:의\d+)?|제\d+항|제\d+호|[가-하]목|및|또는|같은|이|그|법|영|각|호|목)+$")
+
+
+def _norm_tok(t: str) -> str:
+    t = re.sub(r"^[①-⑳]+", "", t)
+    t = _PAREN.sub("", t)
+    t = re.sub(r"[()\[\]\"'“”‘’]", "", t)
+    t = re.sub(r"(에는|에서는|으로는|로는|에게는|에도|에만|이라|라는|이란|란)$", "", t) if len(t) > 3 else t
+    t = _PARTICLE.sub("", t) if len(t) > 2 else t
+    return t
+
+
+def _toks(text: str) -> list[tuple[str, int, int]]:
+    """(정규화 어절, 시작, 끝) — 시작·끝은 원문 위치라 원문 부분 문자열을 그대로 꺼낼 수 있음.
+    괄호 안(정의·인용 조문)의 어절과 '다만'·'불구하고' 같은 연결어는 대조에서 뺌."""
+    depth, inside = 0, [False] * (len(text) + 1)
+    for i, ch in enumerate(text):
+        if ch == "(": depth += 1
+        inside[i] = depth > 0
+        if ch == ")" and depth: depth -= 1
+    out = []
+    for m in _TOK.finditer(text):
+        if inside[m.start()] and inside[max(m.end() - 1, m.start())]:
+            continue
+        raw = "".join(ch for k, ch in enumerate(m.group(0), m.start()) if not inside[k] and ch not in "()")
+        n = _norm_tok(raw)
+        if _BOILER.match(n) or n in ("불구하고", "다만"):
+            continue
+        if n and not re.fullmatch(r"\d+\.?|[가-하]\.|[①-⑳]", n):
+            out.append((n, m.start(), m.end()))
+    return out
+
+
+def _trivial(a: list[str], b: list[str]) -> bool:
+    """어미·조사만 다른 차이, 조문 번호 표기만 다른 차이는 무시."""
+    sa = "".join(_ENDING.sub("", x) for x in a)
+    sb = "".join(_ENDING.sub("", x) for x in b)
+    if sa == sb or not sa or not sb or sa in sb or sb in sa:      # 띄어쓰기·'그' 따위만 다른 차이(그기간은 ↔ 기간은)
+        return True
+    if b and re.match(r"제\d+(?:조|항|호)", b[0]) and len(b) <= 5:
+        # 원문 '제1항에 따른 신청을 할' ↔ 진술이 그 신청 내용을 풀어 씀 — 지시어 뒤 낱말이 진술에 다 있으면 같은 말
+        rest = [_ENDING.sub("", x) for x in b[1:] if x not in ("따른", "따라", "규정", "규정에")]
+        rest = [x for x in rest if x]
+        ka2 = [_ENDING.sub("", x) for x in a]
+        if rest and all(any(k in y or y in k for y in ka2 if y) for k in rest):
+            return True
+    tiny = {"날", "경우", "때", "것", "가", "자", "등", "말", "말한"}
+    if set(a) <= tiny or set(b) <= tiny:                          # 한쪽이 '날'·'경우' 한 낱말뿐이면 정렬 잔여물
+        return True
+    if _REF_ONLY.match("".join(b)) or _REF_ONLY.match("".join(a)):
+        return True
+    ka = {_ENDING.sub("", x) for x in a} - {""}; kb = {_ENDING.sub("", x) for x in b} - {""}
+    if ka <= kb or kb <= ka:                  # 한쪽이 낱말을 더 붙였을 뿐(수정세금계산서를 발급 ↔ 발급)
+        return True
+    if all(re.fullmatch(r"(?:제\d+(?:조|항|호)(?:의\d+)?)+(?:에도|에|의|에서|에따른|따른|따라)?", x) or x in ("따른", "따라", "규정", "규정에") for x in b):
+        return True
+    generic = {"법령", "법", "관계법령", "관련법령", "규정", "같은법", "이법", "세법"}
+    ref_like = lambda xs: any(re.search(r"제\d+조", x) or x.endswith("법」") or x.endswith("법") for x in xs)
+    if (ka <= generic and ref_like(b)) or (kb <= generic and ref_like(a)):   # 법령 ↔ 국세징수법 제13조
+        return True
+    return False
+
+
+def _phrase_diffs(stmt: str, ref_sentence: str, limit: int = 4) -> list[dict]:
+    import difflib
+    stmt = re.sub(r"(?<=[가-힣])\s*\n\s*(?=[가-힣])", "", stmt)     # 시험지 줄바꿈으로 끊긴 낱말('대하\n여') 잇기
+    st, rt = _toks(stmt), _toks(ref_sentence)
+    if not st or not rt:
+        return []
+    sm = difflib.SequenceMatcher(a=[t[0] for t in st], b=[t[0] for t in rt], autojunk=False)
+    if sm.ratio() < 0.3:                      # 서로 다른 얘기면 구절 대조가 의미 없음
+        return []
+    out = []
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        if op != "replace" or (i2 - i1) > 8 or (j2 - j1) > 10:
+            continue
+        a = [t[0] for t in st[i1:i2]]; b = [t[0] for t in rt[j1:j2]]
+        if _trivial(a, b):
+            continue
+        out.append({"종류": "구절", "진술": stmt[st[i1][1]:st[i2 - 1][2]],
+                    "조문": ref_sentence[rt[j1][1]:rt[j2 - 1][2]]})
+        if len(out) >= limit:
+            break
+    return out
+
+
 def compare(statement: str, units: list[Unit]) -> dict:
     """진술과 한 조의 단위 목록을 대조.
 
@@ -257,9 +351,26 @@ def compare(statement: str, units: list[Unit]) -> dict:
     all_grams = set().union(*ctx_grams)                                   # 겹침 = 이 조 전체가 진술을 얼마나 덮는지(idf 가중)
     sg = set(_grams(sents[0]))
     overlap_val = round(sum(idf(g) for g in sg if g in all_grams) / (sum(idf(g) for g in sg) or 1.0), 3)
-    verdict = "모순" if signals else ("차이 없음" if overlap_val >= 0.5 else "판단 필요")
-    out = {"판정": verdict, "근거": {"위치": _location(ref), "원문": ref[3]}, "대조": signals,
+    diffs: list[dict] = []
+    if not signals:
+        for s_, bi in zip(sents, best):
+            cs = _best_sentence(s_, contexts[bi])
+            for d in _phrase_diffs(s_, cs):
+                loc_i = bi if d["조문"] in units[bi][3] else _parent(units, bi)
+                if loc_i is None or d["조문"] not in units[loc_i][3]:
+                    continue
+                d["위치"] = _location(units[loc_i])
+                diffs.append(d)
+    if signals:
+        verdict = "모순"
+    elif overlap_val >= 0.5:
+        verdict = "구절 다름" if diffs else "차이 없음"
+    else:
+        verdict = "판단 필요"
+    out = {"판정": verdict, "근거": {"위치": _location(ref), "원문": ref[3]}, "대조": signals + diffs,
            "단서": _provisos(ref[3], statement), "겹침": overlap_val}
+    if verdict == "구절 다름":
+        out["안내"] = "숫자·양태 신호는 없지만 진술과 원문 구절이 다름 — '대조'의 진술·조문 구절을 비교해 같은 뜻인지 판단"
     if verdict == "판단 필요":
         out["안내"] = "이 조에서 진술과 겹치는 단위가 적음 — find_article·search로 다른 조문 확인"
     return out
@@ -330,7 +441,7 @@ def judge(statements: list[dict], article_units: dict[str, list[Unit]]) -> dict:
                         break
         results.append(res)
 
-    summary = {"모순": [], "차이 없음": [], "판단 필요": []}
+    summary = {"모순": [], "구절 다름": [], "차이 없음": [], "판단 필요": []}
     for res in results:
         summary[res["판정"]].append(res["id"])
     return {"보기별": results, "요약": summary,
