@@ -633,7 +633,7 @@ def judge_options(
 ) -> dict:
     """보기·주장 여러 개를 조문 1~5개와 한 번에 글자 대조해 보기마다 가장 맞는 조와 판정을 표로 돌려준다.
 
-    언제: 여러 보기(세무사 시험 보기·고객 진술·주장 문장)를 특정 조문(1~5개)과 한 번에 대조할 때. 25회차에서 verify_statement를 모델이 스스로 고르지 못한 문제(0/320)를 한 번 호출로 처리.
+    언제: 여러 보기(객관식 보기·고객 진술·주장 문장)를 특정 조문(1~5개)과 한 번에 대조할 때. 보기마다 verify_statement를 따로 부르지 않고 한 번 호출로 처리.
     입력: statements(문자열 리스트 → id ①②③④⑤ 순서, 5개 초과 시 1,2,3… / {'id','text'} 리스트 → id 그대로),
            law_name(정식 법령명), articles('제112조' 등 1~5개), as_of(기준일, 생략 시 오늘), also_decree(기본 False — True면 각 조의 하위 위임 조문 중 law.links에서 원문인용이 확인된 것 최대 3개도 후보 조에 추가).
     처리: law.version → law._full_units로 각 조 단위 수집 → claims.judge(보기마다 모든 후보 조에 compare 실행, 겹침 최대 조 채택, 동률이면 신호 있는 쪽).
@@ -641,10 +641,10 @@ def judge_options(
            요약:{모순,차이 없음,판단 필요 — 각 id 목록}, 주의}.
     판정: 숫자·양태·반대말·시점 신호 있으면 '모순', 없고 겹침 0.5 이상 '차이 없음', 없으면 '판단 필요'.
           단, 준 조문과 겹침이 0.3 미만이면 신호가 있어도 '모순' 대신 '판단 필요'(사유: '겹침 낮음 — 다른 조문일 수 있음') — 준 조문과 무관한 보기에서 우연한 숫자·반대말 신호가 모순으로 나가는 것을 막음.
-    읽기 전용. 법제처 API 필요(LAW_OC). 조문 문구는 시행본 원문 그대로 — 지어내지 않는다. '판단 필요'는 글자 대韓 결과일 뿐 법적 판단이 아님 — 원문으로 확인.
+    읽기 전용. 법제처 API 필요(LAW_OC). 조문 문구는 시행본 원문 그대로 — 지어내지 않는다. '판단 필요'는 글자 대조 결과일 뿐 법적 판단이 아님 — 원문으로 확인.
     """
     if not statements: return {"error": "statements 필요"}
-    if isinstance(statements, str):                       # ①②③④⑤ / ㄱ.ㄴ.ㄷ.ㄹ. / 1. 2. 로 이어 붙인 문장 하나 → 분리 (26회차: 모델이 통째로 넘김)
+    if isinstance(statements, str):                       # ①②③④⑤ / ㄱ.ㄴ.ㄷ.ㄹ. / 1. 2. 로 이어 붙인 문장 하나 → 분리 (보기를 통째로 넘긴 경우)
         statements = _split_options(statements)
     if not articles or len(articles) > 5: return {"error": "articles는 1~5개"}
     ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")

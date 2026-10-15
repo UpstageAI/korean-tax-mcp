@@ -78,7 +78,7 @@ def test_live_tool():
 
 
 @pytest.mark.skipif(not os.environ.get("LAW_OC"), reason="법제처 키 없음")
-def test_live_tool_accepts_joined_string_and_five_articles():   # Claude 10-14 (26회차 관찰): 보기 5개를 문장 하나로, 조문 5개로 넘겨도 계산
+def test_live_tool_accepts_joined_string_and_five_articles():   # 보기 5개를 문장 하나로, 조문 5개로 넘겨도 계산
     from korean_tax_mcp import server
     fn = getattr(server.judge_options, "fn", server.judge_options)
     c = Q["2024-48"]
