@@ -244,6 +244,15 @@ def _jo_str(no, br): return f"제{int(no)}조" + (f"의{int(br)}" if br and br !
 
 
 @lru_cache(maxsize=32)
+def _raw_units(law, ef):
+    """법령 전체 조문단위 원본 목록(전문=장·절 머리 포함) — 목차용 (Claude 10-15)"""
+    mst, vef = version(law, ef)
+    if not mst: return []
+    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={vef}")
+    return [u for u in _list(d.get("법령", d).get("조문", {}).get("조문단위")) if isinstance(u, dict)]
+
+
+@lru_cache(maxsize=32)
 def _full_units(law, ef):
     """법령 전체(1회 요청) → [(조, 항, 호, 단위 원문)] 문서 순서. 50조 제한 없음 (Claude 10-12)"""
     mst, vef = version(law, ef)
@@ -1007,3 +1016,172 @@ def _호_목_맥락_분할(body):
             out.append({"항": 항_label, "항_머리말": head, "호": ho["호"],
                         "호_머리말": hfirst, "본문": hb})
     return out
+
+
+# ── law_article 목차 (SPEC t1) ────────────────────────────────────────────────────
+
+_HEAD_KIND_RE = re.compile(r"^제\d+(관|장|절|편)(?:의\d+)?(?=\s|$)")  # Claude 10-15: 제2장의2 같은 가지 머리 포함
+
+
+def _heading_kind(content):
+    """조문내용에서 머리 종류(관·장·절·편) 판별. 아니면 None."""
+    m = _HEAD_KIND_RE.match(content.strip())
+    return m.group(1) if m else None
+
+
+def _heading_level(kind):
+    return {"편": 0, "장": 1, "절": 2, "관": 3}.get(kind, 99)
+
+
+def _clean_heading_name(content):
+    """머리 원문에서 개정·신설 태그와 '삭제' 접미 제거 후 trim."""
+    s = content.strip()
+    s = re.sub(r"<개정[^>]*>|<개정\b|<신설[^>]*>|<신설\b", "", s).strip()
+    if s.endswith(" 삭제"):
+        s = s[:-3].rstrip()
+    return s
+
+
+def _is_deleted_article(content, norm):
+    """조문내용이 '제N조 삭제'로 시작하면 True."""
+    return content.strip().startswith(norm + " 삭제")
+
+
+def toc_outline(units, article_no, max_chars=1500):
+    """법령 조문단위 목록에서 목차 정보를 반환.
+
+    units: lawService.do '법령.조문.조문단위' 목록.
+    article_no: 정규화된 조 번호('제34조').
+    반환: {'전체': '…'} (small) 또는 {'개요': '…', '이 조가 속한 곳': '…', '같은 곳 조문': '…'} (large).
+    """
+    norm, _ = normalize_article(article_no)
+
+    # 1. 머리(편·장·절·관)와 조문을 분리
+    heads = []       # [{"i", "level", "name", "start", "end", "articles"}]
+    article_map = {} # norm → {"번호", "제목", "쪽"}
+    for i, u in enumerate(units):
+        if u.get("조문여부") == "전문":
+            content = u.get("조문내용") or ""
+            kind = _heading_kind(content)
+            if kind is None:
+                continue
+            name = _clean_heading_name(content)
+            level = _heading_level(kind)
+            jo_str = _jo_str(u.get("조문번호", "0"), u.get("조문가지번호") or "00")
+            try:
+                no = int(re.search(r"\d+", jo_str).group())
+            except Exception:
+                continue
+            heads.append({"i": i, "level": level, "name": name,
+                          "jo_no": no, "articles": []})
+        elif u.get("조문여부") == "조문":
+            jo_str = _jo_str(u.get("조문번호", "0"), u.get("조문가지번호") or "00")
+            try:
+                no = int(re.search(r"\d+", jo_str).group())
+            except Exception:
+                continue
+            content = u.get("조문내용") or ""
+            if _is_deleted_article(content, jo_str):
+                continue
+            title = u.get("조문제목") or ""
+            article_map[jo_str] = {"번호": no, "쪽": jo_str, "제목": title,
+                                   "content": content}
+
+    if not article_map:
+        return {}
+
+    # 2. 각 머리의 범위(구간) 결정: 다음 같은수준 이상 머리 직전까지의 조문(삭제 제외)
+    for idx, h in enumerate(heads):
+        end_idx = len(units)
+        for j in range(idx + 1, len(heads)):
+            if heads[j]["level"] <= h["level"]:
+                end_idx = heads[j]["i"]
+                break
+        lo = h["i"] + 1
+        articles = []
+        first_no = None
+        last_no = None
+        for k in range(lo, end_idx):
+            u = units[k]
+            if u.get("조문여부") != "조문":
+                continue
+            js = _jo_str(u.get("조문번호", "0"), u.get("조문가지번호") or "00")
+            if js not in article_map:
+                continue
+            a = article_map[js]
+            articles.append(a)
+            if first_no is None:
+                first_no = a["번호"]
+            last_no = a["번호"]
+        h["articles"] = articles
+        h["first_no"] = first_no
+        h["last_no"] = last_no
+
+    # 3. 전체 목차(모든 조)
+    items = []
+    for a in sorted(article_map.values(), key=lambda x: (x["번호"], x["쪽"])):
+        item = f"{a['쪽']} {a['제목']}" if a["제목"] else a["쪽"]
+        items.append(item)
+    전체 = " · ".join(items)
+
+    # 머리가 아예 없는 법령(조세범 처벌법 등): 전체 목차가 max_chars 이하면 그대로 반환
+    if not heads:
+        if len(전체) <= max_chars:
+            return {"전체": 전체}
+        return {"전체": 전체[:max_chars - 1] + "…"}
+
+    # 4. 조가 있는 머리만 유지
+    hits = [h for h in heads if h["articles"]]
+    if not hits:
+        if len(전체) <= max_chars:
+            return {"전체": 전체}
+        return {"전체": 전체[:max_chars - 1] + "…"}
+
+    if len(전체) <= max_chars:
+        return {"전체": 전체}
+
+    # 5. 개요: "이름(첫조~끝조)", 가지번호 포함. 길면 관→절 순으로 빼고, 그래도 넘으면 자름 (Claude 10-15: 범위에 가지번호 빠지던 것 수정)
+    def _join(maxlev):
+        return " · ".join(f"{h['name']}({h['articles'][0]['쪽']}~{h['articles'][-1]['쪽']})"
+                          for h in hits if h["level"] <= maxlev)
+    개요 = _join(99)
+    for lev in (2, 1):
+        if len(개요) <= max_chars:
+            break
+        개요 = _join(lev)
+    if len(개요) > max_chars:
+        개요 = 개요[:max_chars - 1] + "…"
+
+    # 6. 요청 조가 목록에 있으면 가장 낮은 수준 머리 + 그 범위
+    요청 = None
+    for h in hits:
+        for a in h["articles"]:
+            if a["쪽"] == norm:
+                if 요청 is None or h["level"] > 요청["level"]:
+                    요청 = {"level": h["level"], "name": h["name"], "articles": h["articles"]}
+                break
+
+    if 요청:
+        same_items = []
+        for a in sorted(요청["articles"], key=lambda x: (x["번호"], x["쪽"])):
+            item = f"{a['쪽']} {a['제목']}" if a["제목"] else a["쪽"]
+            same_items.append(item)
+        same_str = " · ".join(same_items)
+        if len(same_str) > max_chars:
+            same_str = same_str[:max_chars - 1] + "…"
+        return {"개요": 개요, "이 조가 속한 곳": 요청["name"], "같은 곳 조문": same_str}
+
+    return {"개요": 개요}
+
+
+def toc(law, article_no, as_of=""):
+    """version 조회(이미 캐시 활용) → 법 전체 조문단위 조회 → toc_outline."""
+    norm, _ = normalize_article(article_no)
+    mst, ef = version(law, as_of)
+    if not mst:
+        return {"error": f"'{law}'를 찾지 못했거나 {as_of or '오늘'} 이전 시행본이 없음"}
+    try:
+        units = _raw_units(law, ef)
+        return toc_outline(units, norm)
+    except Exception as e:
+        return {"error": str(e)}
