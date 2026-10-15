@@ -1,7 +1,7 @@
 """주장 대조(verify_statement) 정답 테스트 (Claude 작성 2026-10-13) — 수정 금지.
-fixtures/claims_golden.json: 진술은 공개 검증 사례(세무사 1차 2024, 출처 Q-Net) 보기, 조문 단위는 법제처 시행본 원문 그대로.
+fixtures/claims_golden.json: 진술은 공개 검증 사례 보기, 조문 단위는 법제처 시행본 원문 그대로.
 기대 판정은 Claude가 조문 원문과 대조해 확정한 것. 오프라인(네트워크 없이) 실행.
-(10-13 Claude 수정: 두 문장 진술은 신호마다 위치를 가지므로 조문 문구는 그 위치 단위 원문에서 확인, 2024-44-5 근거는 ④)
+(10-13 Claude 수정: 두 문장 진술은 신호마다 위치를 가지므로 조문 문구는 그 위치 단위 원문에서 확인, case-05 근거는 ④)
 실행: .venv/bin/python -m pytest tests/test_claims_golden.py -q
 """
 import json, os, sys
@@ -52,29 +52,29 @@ def test_low_overlap_needs_judgment():
     assert r["판정"] == "판단 필요" and r["겹침"] < 0.3, r
 
 
-def test_two_sentence_statement_reports_each():      # 2024-61-3: 2개월→3개월, 3개월 미만→1개월 미만 두 군데
-    c, r = run("2024-61-3")
+def test_two_sentence_statement_reports_each():      # case-17: 2개월→3개월, 3개월 미만→1개월 미만 두 군데
+    c, r = run("case-17")
     nums = [d for d in r["대조"] if d["종류"] == "숫자"]
     assert len(nums) >= 2, nums
     assert any("2개월" in d["진술"] and "3개월" in d["조문"] for d in nums), nums
     assert any("3개월" in d["진술"] and "1개월" in d["조문"] for d in nums), nums
 
 
-def test_number_signal_values():                      # 2024-48-4: 2회 vs 3회, 2천만원 vs 500만원
-    c, r = run("2024-48-4")
+def test_number_signal_values():                      # case-12: 2회 vs 3회, 2천만원 vs 500만원
+    c, r = run("case-12")
     nums = {(d["진술"], d["조문"]) for d in r["대조"] if d["종류"] == "숫자"}
     assert any("2회" in a and "3회" in b for a, b in nums), nums
     assert any("2천만원" in a and "500만원" in b for a, b in nums), nums
 
 
-def test_modality_signal_labels():                    # 2024-48-2: 진술 '할 수 있다'(재량) vs 조문 '아니한다'(부정)
-    c, r = run("2024-48-2")
+def test_modality_signal_labels():                    # case-10: 진술 '할 수 있다'(재량) vs 조문 '아니한다'(부정)
+    c, r = run("case-10")
     m = [d for d in r["대조"] if d["종류"] == "양태"]
     assert m and m[0]["진술"].endswith("있다") and "아니한다" in m[0]["조문"], m
 
 
-def test_proviso_listed_when_statement_ignores_it():  # 2024-48-4 근거 ②에 '다만' 단서 → 단서 목록에 원문 포함
-    c, r = run("2024-48-4")
+def test_proviso_listed_when_statement_ignores_it():  # case-12 근거 ②에 '다만' 단서 → 단서 목록에 원문 포함
+    c, r = run("case-12")
     assert r["단서"] and all(s in r["근거"]["원문"] for s in r["단서"]), r["단서"]
 
 
@@ -82,6 +82,6 @@ def test_proviso_listed_when_statement_ignores_it():  # 2024-48-4 근거 ②에 
 def test_live_tool_wraps_compare():
     from korean_tax_mcp import server
     fn = getattr(server.verify_statement, "fn", server.verify_statement)
-    c = CASES["2024-48-4"]
+    c = CASES["case-12"]
     r = fn(statement=c["진술"], law_name="국세징수법", article="제112조", as_of="2024-01-01")
     assert r["판정"] == "모순" and r["시행본"] == c["시행본"] and r["법령"] == "국세징수법" and r["조"] == "제112조"
