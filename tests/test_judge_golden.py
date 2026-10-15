@@ -1,7 +1,7 @@
 """보기별 판정 묶음(judge_options / claims.judge) 정답 테스트 (Claude 작성 2026-10-14) — 수정 금지.
-fixtures/judge_golden.json: 보기는 공개 검증 사례(세무사 1차 2024, 출처 Q-Net), 조문 단위는 claims_golden fixture의 법제처 원문.
-기대: 정답 세트에서 '틀림'으로 확정된 보기 가운데 claims 정답 테스트가 이미 잡는 것(2024-41 ①②③ / 2024-48 ②④ / 2024-47 ②)은 '모순',
-'옳음' 보기(2024-41 ④는 조문 단위 없음 → 제외, 2024-48 ③, 2024-47 ④)는 '모순' 아님. 조 선택은 겹침 최대.
+fixtures/judge_golden.json: 보기는 공개 검증 사례, 조문 단위는 claims_golden fixture의 법제처 원문.
+기대: 정답 세트에서 '틀림'으로 확정된 보기 가운데 claims 정답 테스트가 이미 잡는 것(case-01 ①②③ / case-09 ②④ / case-06 ②)은 '모순',
+'옳음' 보기(case-01 ④는 조문 단위 없음 → 제외, case-09 ③, case-06 ④)는 '모순' 아님. 조 선택은 겹침 최대.
 실행: .venv/bin/python -m pytest tests/test_judge_golden.py -q
 """
 import json, os, sys
@@ -11,7 +11,7 @@ from korean_tax_mcp import claims       # noqa: E402
 
 FX = json.load(open(os.path.join(os.path.dirname(__file__), "fixtures", "judge_golden.json"), encoding="utf-8"))
 UNITS = {k: [tuple(u) for u in v] for k, v in FX["조단위"].items()}
-Q = {c["문항"]: c for c in FX["문항"]}
+Q = {c["사례"]: c for c in FX["사례"]}
 
 
 def units_for(law, articles):
@@ -28,7 +28,7 @@ def run(qid, articles):
 
 
 def test_2024_41_contradictions_and_article_choice():   # 국세기본법 제21조·제22조의2 — ①(제21조 시점) ②(제22조의2 반대말) 모순, 조 선택이 각각 맞아야
-    c, r = run("2024-41", ["제21조", "제22조의2"])
+    c, r = run("case-01", ["제21조", "제22조의2"])
     by = {b["id"]: b for b in r["보기별"]}
     assert by["①"]["판정"] == "모순" and by["①"]["조"].endswith("제21조")
     assert by["②"]["판정"] == "모순" and by["②"]["조"].endswith("제22조의2")
@@ -38,7 +38,7 @@ def test_2024_41_contradictions_and_article_choice():   # 국세기본법 제21�
 
 
 def test_2024_48_true_option_not_flagged():              # 국세징수법 제112조·제115조·제109조 — ②④ 모순, ③(옳음, 제109조②) 모순 아님
-    c, r = run("2024-48", ["제112조", "제115조", "제109조"])
+    c, r = run("case-09", ["제112조", "제115조", "제109조"])
     by = {b["id"]: b for b in r["보기별"]}
     assert by["②"]["판정"] == "모순" and by["②"]["조"].endswith("제115조")
     assert by["④"]["판정"] == "모순" and by["④"]["조"].endswith("제112조")
@@ -47,7 +47,7 @@ def test_2024_48_true_option_not_flagged():              # 국세징수법 제11
 
 
 def test_2024_47_signals_carry_text():                   # 국세징수법 제80조·제84조 — ② 양태 모순(매수할 수 있다 vs 매수하지 못한다), ④ 옳음
-    c, r = run("2024-47", ["제80조", "제84조"])
+    c, r = run("case-06", ["제80조", "제84조"])
     by = {b["id"]: b for b in r["보기별"]}
     assert by["②"]["판정"] == "모순" and any(d["종류"] == "양태" for d in by["②"]["대조"])
     assert by["④"]["판정"] != "모순" and by["④"]["조"].endswith("제84조")
@@ -56,7 +56,7 @@ def test_2024_47_signals_carry_text():                   # 국세징수법 제80
 
 
 def test_low_overlap_statement_needs_judgment():         # 준 조문과 무관한 보기는 '판단 필요'로 (다른 조문일 수 있음)
-    c = Q["2024-47"]
+    c = Q["case-06"]
     r = claims.judge([{"id": "ㄱ", "text": "거주자의 소득세 납세지는 그 주소지로 한다."}], units_for("국세징수법", ["제80조"]))
     assert r["보기별"][0]["판정"] == "판단 필요" and "ㄱ" in r["요약"]["판단 필요"]
 
@@ -70,7 +70,7 @@ def test_empty_inputs_rejected():
 def test_live_tool():
     from korean_tax_mcp import server
     fn = getattr(server.judge_options, "fn", server.judge_options)
-    c = Q["2024-48"]
+    c = Q["case-09"]
     r = fn(statements=[o["text"] for o in c["보기"]], law_name="국세징수법", articles=["제112조", "제115조", "제109조"], as_of="20240101")
     assert r["법령"] == "국세징수법" and r["시행본"] == "20240101"
     assert [b["id"] for b in r["보기별"]] == ["①", "②", "③", "④", "⑤"]      # 문자열만 주면 ①~⑤ 부여
@@ -81,7 +81,7 @@ def test_live_tool():
 def test_live_tool_accepts_joined_string_and_five_articles():   # 보기 5개를 문장 하나로, 조문 5개로 넘겨도 계산
     from korean_tax_mcp import server
     fn = getattr(server.judge_options, "fn", server.judge_options)
-    c = Q["2024-48"]
+    c = Q["case-09"]
     joined = " ".join(f"{o['id']} {o['text']}" for o in c["보기"])
     r = fn(statements=joined, law_name="국세징수법", articles=["제112조", "제115조", "제109조", "제113조", "제85조의5"], as_of="20240101")
     assert "error" not in r and [b["id"] for b in r["보기별"]] == ["①", "②", "③", "④", "⑤"]

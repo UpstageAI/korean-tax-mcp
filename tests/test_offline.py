@@ -391,7 +391,7 @@ def test_law_get_timeout_then_retry(monkeypatch):
         if "lawSearch.do" in url:
             if calls[0] <= 2:   # 처음 2회: 타임아웃 → _get 재시도 (지수 백오프)
                 raise TimeoutError("timed out")
-            # 3회차: 성공 → _versions 캐시 저장 (lawSearch.do 응답 구조)
+            # 세 번째 시도: 성공 → _versions 캐시 저장 (lawSearch.do 응답 구조)
             return _MockResp(json.dumps({
                 "LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": "1", "시행일자": "20240101"}]}
             }).encode())
