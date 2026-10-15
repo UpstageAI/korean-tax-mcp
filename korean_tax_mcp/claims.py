@@ -280,7 +280,7 @@ def _trivial(a: list[str], b: list[str]) -> bool:
 
 def _phrase_diffs(stmt: str, ref_sentence: str, limit: int = 4) -> list[dict]:
     import difflib
-    stmt = re.sub(r"(?<=[가-힣])\s*\n\s*(?=[가-힣])", "", stmt)     # 시험지 줄바꿈으로 끊긴 낱말('대하\n여') 잇기
+    stmt = re.sub(r"(?<=[가-힣])\s*\n\s*(?=[가-힣])", "", stmt)     # 줄바꿈으로 끊긴 낱말('대하\n여') 잇기
     st, rt = _toks(stmt), _toks(ref_sentence)
     if not st or not rt:
         return []
