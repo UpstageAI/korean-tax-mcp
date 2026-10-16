@@ -122,50 +122,66 @@ def normalize_article(raw):
     def _circled_replace(m):
         return _CIRCLED.get(m.group(0), m.group(0))
 
-    # 항·호 정보 분리: '제26조의2 제1항', '26의2①', '제10조 ②'
+    # 조 번호는 맨 앞 '제N조(의M)'·'N의M'·'N-M'만 읽고, 뒤에 오는 항·호 숫자는 조 번호에 섞지 않는다
+    # ('제17조 제2항 제2호'가 제172조로 읽히던 문제)
+    m = re.match(r"\s*(?:제\s*)?(\d+)\s*(?:조)?\s*(?:(?:의|-|_)\s*(\d+))?", s2)
+    if not m:
+        raise ValueError("조문은 '제52조' 형식 — 예: '제52조', '26의2', '26-2'")
+    main_no = int(m.group(1))
+    branch_no = int(m.group(2)) if m.group(2) else 0
 
-    # ①~⑩ (circled number): 끝에 붙은 경우 항 정보로 추출, base에서는 제거
-    _hang_circled = re.search(r"([①-⑳])\s*$", s2)
-    hang_digit = None
-    if _hang_circled:
-        hang_digit = _CIRCLED.get(_hang_circled.group(1))
-        s2_clean = s2[:_hang_circled.start()].rstrip()
-    else:
-        s2_clean = s2
-
-    # 텍스트 항·호: '제26조의2 제1항', '제10조 ②' 등 (이미 치환된 s3와 원래 s2_clean 모두 사용)
-    s3 = re.sub(r"[①-⑳]", _circled_replace, s2_clean)
-    m_etc = re.match(r"^(.*?)(?:\s+(?:제)?(\d+)(?:항|호))?\s*$", s3)
-    if not m_etc:
-        m_etc = re.match(r"^(.*?)(?:\s+(?:제)?(\d+)(?:항|호))?\s*$", s2_clean)
-    base_part = m_etc.group(1).strip() if m_etc else s2_clean
+    # 나머지에서 항(①~⑳ 또는 'N항') 우선, 항이 없으면 호('N호')
+    rest = s2[m.end():]
     hang_info = None
-    if m_etc and m_etc.group(2):
-        grp0 = m_etc.group(0) or ""
-        hang_info = f"제{m_etc.group(2)}항" if "항" in grp0 else f"제{m_etc.group(2)}호"
-    elif hang_digit:
-        hang_info = f"제{hang_digit}항"   # circled number: 항으로 간주
-
-    # 한글·기호 제거 → 숫자/의/-(구분자)만 남김
-    cleaned = re.sub(r"[^\d\-_의]", "", base_part.replace(" ", ""))
-    cleaned = cleaned.replace("_", "-")
-
-    m2 = re.search(r"(\d+)\s*-\s*(\d+)", cleaned)
-    if m2:
-        main_no, branch_no = int(m2.group(1)), int(m2.group(2))
-    elif "-" not in cleaned and "의" not in cleaned:
-        main_no = int(cleaned)
-        branch_no = 0
+    c = re.search(r"[①-⑳]", rest)
+    h = re.search(r"(?:제\s*)?(\d+)\s*항", rest)
+    if c:
+        hang_info = f"제{_CIRCLED.get(c.group(0), ord(c.group(0)) - 0x2460 + 1)}항"
+    elif h:
+        hang_info = f"제{h.group(1)}항"
     else:
-        # '28의2'처럼 '의'가 구분자인 경우
-        parts = re.findall(r"\d+", cleaned)
-        if not parts:
-            raise ValueError("조문은 '제52조' 형식 — 예: '제52조', '26의2', '26-2'")
-        main_no = int(parts[0])
-        branch_no = int(parts[1]) if len(parts) > 1 else 0
+        ho = re.search(r"(?:제\s*)?(\d+)\s*호", rest)
+        if ho:
+            hang_info = f"제{ho.group(1)}호"
 
     norm = f"제{main_no}조" + (f"의{branch_no}" if branch_no else "")
     return norm, hang_info
+
+
+def requested_ho(raw):
+    """'제17조 제2항 제2호' → '제2호'. 항과 호가 함께 왔을 때 호만 돌려줌(없으면 None)."""
+    if not raw: return None
+    s = re.sub(r"^\s*(?:§|Art\.|Article)\s*", "", str(raw))
+    m = re.match(r"\s*(?:제\s*)?\d+\s*(?:조)?\s*(?:(?:의|-|_)\s*\d+)?", s)
+    rest = s[m.end():] if m else s
+    if not (re.search(r"[①-⑳]", rest) or re.search(r"\d+\s*항", rest)): return None
+    ho = re.search(r"(?:제\s*)?(\d+)\s*호", rest)
+    if ho: return f"제{ho.group(1)}호"
+    c = re.search(r"[①-⑳]\s*(\d+)\s*$", rest)    # '제17조②2'
+    return f"제{c.group(1)}호" if c else None
+
+
+def ho_text(body, hang, ho):
+    """본문에서 hang(예: '제2항') 안의 ho(예: '제2호') 줄과 그 아래 목(가.·나.)까지 잘라 돌려줌. 못 찾으면 ''."""
+    try:
+        hn = int(re.sub(r"\D", "", hang)); hon = int(re.sub(r"\D", "", ho))
+    except ValueError:
+        return ""
+    lines = body.split("\n")
+    mark = chr(0x2460 + hn - 1) if 1 <= hn <= 20 else None
+    start = next((i for i, ln in enumerate(lines) if mark and ln.lstrip().startswith(mark)), None)
+    if start is None: return ""
+    out = []
+    for ln in lines[start + 1:]:
+        t = ln.lstrip()
+        if re.match(r"^[①-⑳]", t): break                       # 다음 항
+        m = re.match(r"^(\d+)\.", t)
+        if m:
+            if out: break                                           # 다음 호
+            if int(m.group(1)) == hon: out.append(ln)
+            continue
+        if out: out.append(ln)                                      # 목·이어지는 줄
+    return "\n".join(out)
 
 
 def jo6(article):
@@ -178,8 +194,19 @@ def jo6(article):
 
 @_ttl_cache(maxsize=128)
 def _versions(law):
-    d = _get("lawSearch.do", "target=eflaw&display=100&query=" + urllib.parse.quote(law))
-    return [v for v in _list(d.get("LawSearch", {}).get("law")) if v.get("법령명한글") == law]
+    # 연혁은 한 페이지 100건까지라 끝까지 넘겨 읽는다 — 첫 페이지만 읽으면 개정이 잦은 시행령은
+    # 몇 년 전 시행본이 통째로 빠짐(소득세법 시행령은 2018-02 이전이 안 보였음)
+    out, page = [], 1
+    while True:
+        d = _get("lawSearch.do", f"target=eflaw&display=100&page={page}&query=" + urllib.parse.quote(law))
+        ls = d.get("LawSearch", {})
+        rows = _list(ls.get("law"))
+        out += [v for v in rows if v.get("법령명한글") == law]
+        try: total = int(ls.get("totalCnt") or 0)
+        except ValueError: total = 0
+        if len(rows) < 100 or page * 100 >= total or page >= 20: break
+        page += 1
+    return out
 
 
 def version(law, as_of=""):
