@@ -1309,7 +1309,7 @@ def test_law_article_paragraph_circled_number(monkeypatch):
 
 
 def test_law_article_long_body_no_args_returns_paragraph_list(monkeypatch):
-    """SPEC t5: 본문 5,000자 + keyword/paragraph 없음 → 항 목록·안내 반환, 본문은 앞 4,000자."""
+    """본문 5,000자 + keyword/paragraph 없음 → 항 목록·안내 반환, 본문은 앞 4,000자."""
     from korean_tax_mcp import law
     monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
 
