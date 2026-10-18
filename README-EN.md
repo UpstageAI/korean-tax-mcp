@@ -6,11 +6,33 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Developed with Upstage Solar Pro 4 since 0.7.0** (0.6.0 and earlier predate it). Residency determination, treaty synonyms and lookup hardening (0.7.0), article-number normalisation and `find_article` (0.8.x), statute→decree→rule delegation links, `verify_statement` and `judge_options` (0.9.0), article search improvement, paragraph/ho specification, and reading notes (0.11.0) were written by Solar Pro 4, reviewed by Solar Pro 4-based code review (CodeSolar), and cross-checked by Claude with tests. 22 tools; details in the [CHANGELOG](CHANGELOG.md).
+> **Since 0.7.0 code is written by Solar Pro 4, reviewed by CodeSolar and cross-checked with tests by Claude. 22 tools — see CHANGELOG.**
 
 An MCP server for **Korean tax law sources**. Plug it into Claude, Cursor, or any MCP client to get National Tax Service (NTS) rulings, court and tax tribunal decisions, basic rules, and statutes — with document numbers.
 
 Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp) for general Korean statutes.
+
+## How it works
+
+```mermaid
+flowchart LR
+    U[User question] --> A[AI app<br/>Claude·Cursor·Solar Work]
+    A -->|Tool selection| T[korean-tax-mcp<br/>Statute·rulings·cases·treaties·judgment]
+    T --> S[MOLEG Open API<br/>NTS rulings / cases]
+    S --> T
+    T -->|Source text·document no.| A
+    A --> R[Answer with citations]
+```
+
+The AI picks which tools to use; this MCP returns source text and calculation results. Judgment and explanation are done by the AI.
+
+## Ask it like this
+
+- *"Show recent NTS rulings and decisions citing Corporate Tax Act Art. 52"*
+- *"Show the Basic Rules and Execution Standards for deemed interest on loans to related parties together"*
+- *"Bundle everything that applied to Corporate Tax Act Art. 52 for FY2023 — statutes, rules, standards, rulings"*
+- *"What is the treaty withholding rate on dividends to a Chinese company? Show the clause"*
+- *"US citizen CEO, 200 days in Korea last year, family in the US — resident or not? Include the Korea–US treaty tie-break"*
 
 ## Features
 

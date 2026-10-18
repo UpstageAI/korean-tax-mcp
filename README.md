@@ -6,31 +6,34 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
-> **0.7.0부터 업스테이지 Solar Pro 4로 개발합니다.** (0.6.0까지는 그 이전 개발분) 거주자 판정·조세조약 동의어·조회 안정화(0.7.0), 조문 번호 정규화·find_article(0.8.x), 법→시행령→시행규칙 위임 연결·verify_statement·judge_options(0.9.0), 조문 찾기 개선·항 지정·읽기 주의(0.11.0)는 Solar Pro 4가 코드를 쓰고 Solar Pro 4 기반 코드 리뷰(CodeSolar)가 PR을 검토했으며, Claude가 테스트로 교차 검증했습니다. 22개 도구, 상세는 [CHANGELOG](CHANGELOG.md).
+> **0.7.0부터 Solar Pro 4가 코드를 쓰고** CodeSolar가 리뷰, Claude가 테스트로 교차 검증. 도구 22개, 상세는 [CHANGELOG](CHANGELOG.md).
 
 **Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 21 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
 
 ---
+
+## 작동 방식
+
+```mermaid
+flowchart LR
+    U[사용자 질문] --> A[AI 앱<br/>Claude·Cursor·Solar Work]
+    A -->|도구 선택| T[korean-tax-mcp<br/>조문·해석·판례·조약·판정]
+    T --> S[법제처 Open API<br/>국세청 해석·판례]
+    S --> T
+    T -->|원문·문서번호| A
+    A --> R[근거와 함께 답]
+```
+
+AI가 어떤 도구를 쓸지 고르고, 이 MCP는 원문·계산 결과를 돌려줍니다. 판단과 설명은 AI가 합니다.
 
 > 세법 쟁점을 AI에 물으면, 국세청 해석·판례·기본통칙·조문을 문서번호와 함께 가져옵니다.
 
 **이렇게 물어보세요**
 
 - "법인세법 제52조를 인용한 최근 질의회신·판례 보여줘"
-- "폐업자에게 받은 세금계산서 매입세액 공제 — 관련 판례 본문 요약해줘"
 - "가지급금 인정이자 기본통칙이랑 집행기준 같이 보여줘"
-- "2023년 12월 31일 기준 법인세법 시행규칙 제43조 원문"
-- "대표이사 무상 대여, 인정이자 익금산입 논리 — 지지·반대 판례 대조해줘"
-- "2019 사업연도 기준으로 법인세법 제52조 관련 조문·통칙·해석 정리해줘"
-- "이 의견서 초안에 인용된 문서번호랑 조문 실제로 있는지 검증해줘"
+- "2023 사업연도 기준으로 법인세법 제52조 관련 조문·통칙·해석 정리해줘"
 - "중국 법인에 배당하면 조약상 몇 %야? 근거 조항도"
-- "법인세법 제55조 최근에 언제 바뀌었어? 시행 예정 개정 있어?"
-- "국제거래명세서 서식 찾아줘"
-- "국세청 책자에서 정상가격 산출방법 설명 찾아줘"
-- "경조금 적격증빙 기준금액이 어느 조문에 있어? 조문 번호 몰라" (find_article)
-- "'경조금은 건당 10만원까지 증빙 없이 손금'이라는 말, 2026 시행령 제41조 원문과 맞아?" (verify_statement)
-- "이 보기 ①~⑤ 중 법인세법 제25조 원문과 모순되는 건 어느 거야?" (judge_options)
-- "특수관계인 저가양도 부당행위계산, 납세자가 이긴 결정례와 진 결정례 갈라서 보여줘" (compare_outcomes)
 - "미국 시민권자 대표이사, 작년 국내 체류 200일, 가족은 미국 — 거주자야? 한미조약 tie-break까지"
 
 **설치 한 줄** — `claude mcp add korean-tax -- uvx korean-tax-mcp`
