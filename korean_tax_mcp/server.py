@@ -214,14 +214,14 @@ def law_article(
     with_delegation: Annotated[bool, Field(description="True면 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단)")] = False,
     with_rules: Annotated[bool, Field(description="True면 그 조의 기본통칙 전문과 집행기준 항목도 함께")] = False,
     keyword: Annotated[str, Field(description="키워드가 들어간 항(①②…/제1항…)만 반환. 긴 조문(4,000자 초과)에서 항 번호 모를 때 사용")] = "",
-    paragraph: Annotated[str, Field(description="원하는 항만 지정. '①'·'1'·'제1항'·'②' 등. 그 항만 반환")] = "",
+    paragraph: Annotated[str, Field(description="원하는 항만 지정. '①'·'1'·'제1항'·'②' 등. 호 지정: '②2호'·'제2항 제2호', 여러 항: '2,3'·'②,③'·'제2항, 제3항'. 그 항만 반환")] = "",
 ) -> dict:
     """Get statute text as in force on a date, with optional Act → Decree → Rule chain. 조문 원문(기준일 시행본)과 3단 위임.
 
     언제: 세액·요건 판단처럼 사실 발생 시점의 법령이 필요할 때. 해석·판례는 회신 당시 법 기준이므로 이 도구로 적용 연도 조문과 대조.
     조문 번호를 모르면 find_article로 먼저 찾는다. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록과 안내 반환.
     결과의 '연결'에 상위·하위 조문 위치가 있으니 그 조를 law_article로 이어서 조회.
-    반환: {법령, 조, 적용 시행일, 본문, 링크, 반환 범위, 연결} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
+    반환: {법령, 조, 적용 시행일, 본문, 링크, 반환 범위, 연결, 읽기 주의(돌려준 본문의 단서·우선·제외 구절 원문, 최대 3개)} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
     읽기 전용. 법제처 공식 API — 환경변수 LAW_OC(무료) 필요, 없으면 발급 안내 오류.
     """
     ef = re.sub(r"\D", "", as_of or "")

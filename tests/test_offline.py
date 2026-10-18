@@ -246,10 +246,18 @@ def test_english_translation_modes(monkeypatch):
 
 _MOCK_LAW_RESPONSE = {
     "법령": {
-        "Law": [
-            {"법령일련번호": "1", "시행일자": "20240101"},
-            {"본문내용": "제52조 (부당행위계산의 부인)\n① 과세당국은..."}  # 단순 mock
-        ]
+        "조문": {
+            "조문단위": [
+                {
+                    "조문여부": "조문",
+                    "조문번호": "52",
+                    "조문가지번호": "00",
+                    "조문제목": "부당행위계산의 부인",
+                    "조문내용": "제52조 (부당행위계산의 부인)\n① 과세당국은...",
+                }
+            ]
+        },
+        "부칙": {"부칙단위": []},
     }
 }
 
@@ -1092,31 +1100,37 @@ def test_law_article_no_ai_marker(monkeypatch):
 
 # ── 지시서 5: find_article + law_article keyword/paragraph ────────────────────
 
-_FAKE_LAW_ARTICLES = [
-    {"조": "제30조", "제목": "압류금지 재산", "본문": "제30조 (압류금지 재산)\n① 다음 각 호의 재산은 압류할 수 없다.\n1. 생계비계좌의 예금", "적용 시행일": "20240101"},
-    {"조": "제31조", "제목": "압류 절차", "본문": "제31조 (압류 절차)\n① 세무서장은 체납자의 재산을 압류한다.", "적용 시행일": "20240101"},
-    {"조": "제33조", "제목": "압류 해제", "본문": "제33조 (압류 해제)\n① 세무서장은 체납액을 징수하면 압류를 해제한다.", "적용 시행일": "20240101"},
-    {"조": "제41조", "제목": "압류금지 생계비계좌", "본문": "제41조 (압류금지 생계비계좌)\n① 국세징수법 제41조에 따라 생계비계좌에 든 예금은 압류하지 못한다.\n② 생계비계좌의 범위·요건은 대통령령으로 정한다.", "적용 시행일": "20240101"},
-]
-
 
 def test_find_article_mock_ranking(monkeypatch):
     """SPEC t5: 가짜 법령 4개 조문 중 키워드 '생계비계좌'가 든 제41조가 1위."""
     from korean_tax_mcp import law
     monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
 
+    _FAKE_LAW_UNIT = {
+        "조문": {
+            "조문단위": [
+                {"조문번호": "30", "조문제목": "압류금지 재산",
+                 "조문내용": "① 다음 각 호의 재산은 압류할 수 없다.\n1. 생계비계좌의 예금",
+                 "조문여부": "조문"},
+                {"조문번호": "31", "조문제목": "압류 절차",
+                 "조문내용": "① 세무서장은 체납자의 재산을 압류한다.",
+                 "조문여부": "조문"},
+                {"조문번호": "33", "조문제목": "압류 해제",
+                 "조문내용": "① 세무서장은 체납액을 징수하면 압류를 해제한다.",
+                 "조문여부": "조문"},
+                {"조문번호": "41", "조문제목": "압류금지 생계비계좌",
+                 "조문내용": "① 국세징수법 제41조에 따라 생계비계좌에 든 예금은 압류하지 못한다.\n② 생계비계좌의 범위·요건은 대통령령으로 정한다.",
+                 "조문여부": "조문"},
+            ]
+        },
+        "부칙": {"부칙단위": []},
+    }
+
     def _mock_get(path, query):
         if "lawSearch.do" in path:
             return {"LawSearch": {"law": [{"법령명한글": "국세징수법", "법령일련번호": "1", "시행일자": "20240101"}]}}
         if "lawService.do" in path and "target=eflaw" in query:
-            import urllib.parse as _up
-            q = _up.parse_qs(query)
-            jo = q.get("JO", [""])[0]
-            no = int(jo[:4])
-            for art in _FAKE_LAW_ARTICLES:
-                if no == int(art['조'].replace('제','').replace('조','')):
-                    return {"법령": {"Law": [{"본문내용": art["본문"]}]}}
-            return {"법령": {"Law": []}}
+            return {"법령": _FAKE_LAW_UNIT}
         return {}
 
     monkeypatch.setattr(law, "_get", _mock_get)
@@ -1139,18 +1153,31 @@ def test_find_article_no_law_name_searches_all(monkeypatch):
     from korean_tax_mcp import law
     monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
 
+    _FAKE_LAW_UNIT = {
+        "조문": {
+            "조문단위": [
+                {"조문번호": "30", "조문제목": "압류금지 재산",
+                 "조문내용": "① 다음 각 호의 재산은 압류할 수 없다.\n1. 생계비계좌의 예금",
+                 "조문여부": "조문"},
+                {"조문번호": "31", "조문제목": "압류 절차",
+                 "조문내용": "① 세무서장은 체납자의 재산을 압류한다.",
+                 "조문여부": "조문"},
+                {"조문번호": "33", "조문제목": "압류 해제",
+                 "조문내용": "① 세무서장은 체납액을 징수하면 압류를 해제한다.",
+                 "조문여부": "조문"},
+                {"조문번호": "41", "조문제목": "압류금지 생계비계좌",
+                 "조문내용": "① 국세징수법 제41조에 따라 생계비계좌에 든 예금은 압류하지 못한다.\n② 생계비계좌의 범위·요건은 대통령령으로 정한다.",
+                 "조문여부": "조문"},
+            ]
+        },
+        "부칙": {"부칙단위": []},
+    }
+
     def _mock_get(path, query):
         if "lawSearch.do" in path:
             return {"LawSearch": {"law": [{"법령명한글": "국세징수법", "법령일련번호": "1", "시행일자": "20240101"}]}}
         if "lawService.do" in path and "target=eflaw" in query:
-            import urllib.parse as _up
-            q = _up.parse_qs(query)
-            jo = q.get("JO", [""])[0]
-            no = int(jo[:4])
-            for art in _FAKE_LAW_ARTICLES:
-                if no == int(art['조'].replace('제','').replace('조','')):
-                    return {"법령": {"Law": [{"본문내용": art["본문"]}]}}
-            return {"법령": {"Law": []}}
+            return {"법령": _FAKE_LAW_UNIT}
         return {}
 
     monkeypatch.setattr(law, "_get", _mock_get)
@@ -1282,7 +1309,7 @@ def test_law_article_paragraph_circled_number(monkeypatch):
 
 
 def test_law_article_long_body_no_args_returns_paragraph_list(monkeypatch):
-    """SPEC t5: 본문 5,000자 + keyword/paragraph 없음 → 항 목록·안내 반환, 본문은 앞 2,000자."""
+    """SPEC t5: 본문 5,000자 + keyword/paragraph 없음 → 항 목록·안내 반환, 본문은 앞 4,000자."""
     from korean_tax_mcp import law
     monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
 
@@ -1320,7 +1347,7 @@ def test_law_article_long_body_no_args_returns_paragraph_list(monkeypatch):
     assert "안내" in r, "안내 필드 누락"
     assert "keyword 또는 paragraph로 필요한 항만 조회하세요" in r.get("안내", ""), "안내 문구 불일치"
     body = r.get("본문", "")
-    assert len(body) <= 2000, f"본문이 2,000자 초과: {len(body)}"
+    assert len(body) <= 4000, f"본문이 4,000자 초과: {len(body)}"
 
 
 def test_law_article_keyword_not_found_in_long_body(monkeypatch):
