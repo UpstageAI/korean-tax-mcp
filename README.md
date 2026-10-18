@@ -88,6 +88,7 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 | | `execution_standards` | 세법집행기준 항목·쪽·링크 |
 | | `casebook_search` | 2025 세법해석 사례집(96건) |
 | 그 해 기준·검증 | `research_issue` | 세목별 기준일의 조문·통칙·해석 묶음, 현행 대비 변경 |
+| | `timing_rules` | 시기 규칙표 — 납세의무 성립·손익 귀속·소득별 수입시기·부가 공급시기 |
 | | `verify_citations` | 초안 속 문서번호·조문이 실제로 있는지 |
 | 대조·판정 | `verify_statement` | 한 문장을 원문과 글자 대조 |
 | | `judge_options` | 보기 여러 개를 조문과 한 번에 대조 |

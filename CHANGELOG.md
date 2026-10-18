@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.1 (2026-10-19)
+
+- 시기 규칙표(88건) 조회 도구 `timing_rules` 추가 — 세목·구분·키워드 필터, research_issue 결과에 시기 규칙 첨부
+- law_article: as_of 생략 시 적용 기준일·기준일 안내·다시 조회·최근 개정 안내 추가
+- verify_statement paragraph 지정 시 항·호 매칭 버그 수정 (원문자 변환)
+- verify_statement·judge_options: as_of 생략 시 오류 수정
+- Solar Pro 4 작성, CodeSolar·Claude 검수
+
 ## 0.11.0 (2026-10-18)
 
 - find_article: 조문단위 기반 조회로 재작성 — 조문 제목 우선 검색(제목 압축 일치 시 큰 가산점, 모든 키워드 단어가 제목에 있으면 제목 전부 일치로 최우선 정렬), 부칙 문장은 결과에서 제외, 1위 조문의 적용례만 `관련 부칙`(최대 2) 추가, 오류 3종 구분(키 없음: OC 키 안내 / 법령 없음: 법령명 확인 / 일치 없음: 키워드 조정 안내)
