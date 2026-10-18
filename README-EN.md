@@ -6,9 +6,35 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Developed with Upstage Solar Pro 4 since 0.7.0** (0.6.0 and earlier predate it). Residency determination, treaty synonyms and lookup hardening (0.7.0), article-number normalisation and `find_article` (0.8.x), statute→decree→rule delegation links, `verify_statement` and `judge_options` (0.9.0), article search improvement, paragraph/ho specification, and reading notes (0.11.0) were written by Solar Pro 4, reviewed by Solar Pro 4-based code review (CodeSolar), and cross-checked by Claude with tests. 22 tools; details in the [CHANGELOG](CHANGELOG.md).
+> **Code has been written by Solar Pro 4 since 0.7.0**, reviewed by CodeSolar and cross-checked with tests by Claude. 22 tools — see [CHANGELOG](CHANGELOG.md).
 
 An MCP server for **Korean tax law sources**. Plug it into Claude, Cursor, or any MCP client to get National Tax Service (NTS) rulings, court and tax tribunal decisions, basic rules, and statutes — with document numbers.
+
+## How it works
+
+```mermaid
+flowchart LR
+  Q["AI request<br/>law, article, date, keyword"] --> V["Pick the version<br/>in force on the date"]
+  V --> P["Shape the text<br/>paragraphs, provisos"]
+  P --> L["Delegation links<br/>Act→Decree→Rule"]
+  Q --> S["Rulings search<br/>doc no., summary"]
+  Q --> C["Compare and judge<br/>text vs. statute"]
+  V -.-> A1[("law.go.kr Open API")]
+  L -.-> A1
+  S -.-> A2[("taxlaw.nts.go.kr")]
+  P --> R["Result<br/>text, in-force date, doc no., link"]
+  L --> R
+  S --> R
+  C --> R
+```
+
+1. **Statutes** (`law_article`, `find_article`, `article_history`) — fetches the list of versions of the law from the law.go.kr Open API and picks the one in force on the base date (today if no date is given). It splits the article into paragraphs and items, returns only what was asked, and lists proviso sentences ("다만", "제외", "불구하고") separately. Act → Decree → Rule links come from the official three-tier comparison table and quoted phrases in the lower-level text.
+2. **Rulings and rules** (`search_tax_rulings` and 5 more) — searches the NTS tax law information system for rulings, court and tribunal decisions, basic rules and execution standards, and returns document numbers, summaries and links. Results are cached on your PC for one day.
+3. **Base-year bundle** (`research_issue`) — sets the base date by tax type (corporate/income: end of the fiscal year, VAT: end of the tax period, transfer: transfer date, inheritance: date of death, gift: gift date, withholding: payment date), then gathers that day's statute (three tiers), rules and rulings and flags changes against the current text.
+4. **Compare and judge** (`verify_statement`, `judge_options`, `compare_outcomes`, `compare_with_case`) — compares statements with the statute text of that version word by word and marks differing numbers, modality, opposite terms and provisos. Tribunal and court decisions are sorted into taxpayer wins and losses from the disposition text.
+5. **Treaties, residency, documents** — treaty articles and withholding rates for 96 countries, residency determination by the three-stage Income Tax Act rules, and search over forms, NTS publications and PDFs on your PC.
+
+Lookups, comparisons and determinations run on code rules. Upstage Solar is used only when configured, for outcome summaries, fact comparison, the residency report and English translation. Results are source material; interpretation and conclusions are left to your AI and a professional.
 
 Works well alongside [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp) for general Korean statutes.
 
