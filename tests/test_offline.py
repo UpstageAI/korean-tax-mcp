@@ -1718,3 +1718,24 @@ def test_versions_reads_all_pages(monkeypatch):
     monkeypatch.setattr(law, "_get", fake_get)
     vs = law._versions.__wrapped__("갑법 시행령") if hasattr(law._versions, "__wrapped__") else law._versions("갑법 시행령")
     assert len(vs) == 101 and min(v["시행일자"] for v in vs) == "20050219"
+
+
+@pytest.mark.parametrize("spec", ["②2호", "제2항 제2호", "2항2호"])
+def test_law_article_paragraph_with_ho_returns_that_ho(monkeypatch, spec):
+    """항+호 지정('②2호'·'제2항 제2호')이면 그 항의 그 호 문장을 돌려준다."""
+    _law_article_mock_body(monkeypatch, _BODY_PARAGRAPH_HO, law_name="법인세법")
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", spec, None)
+    assert "error" not in a
+    text = a.get("요청 호") or a.get("본문", "")
+    assert "재판매가격법" in text, f"제2항 제2호 문장 없음: {a}"
+    assert "시가보다 낮은 가액" not in text, "제1항 제2호가 섞임"
+
+
+def test_law_article_paragraph_with_missing_ho_lists_ho(monkeypatch):
+    """없는 호를 지정하면 오류 대신 그 항의 호 목록을 안내한다."""
+    _law_article_mock_body(monkeypatch, _BODY_PARAGRAPH_HO, law_name="법인세법")
+    from korean_tax_mcp import law
+    a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", "②9호", None)
+    dump = str(a)
+    assert "1" in dump and "3" in dump and ("호" in dump), f"호 목록 안내 없음: {a}"
