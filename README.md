@@ -8,9 +8,11 @@
 
 > **0.7.0부터 Solar Pro 4가 코드를 쓰고** CodeSolar가 리뷰, Claude가 테스트로 교차 검증합니다. 도구 22개, 상세는 [CHANGELOG](CHANGELOG.md).
 
-**Korea (South Korea) tax law for AI agents.** Search National Tax Service rulings, court and Tax Tribunal decisions, basic rules, execution standards and Korea's tax treaties (96 countries); read statutes as in force on any past date with the Act → Decree → Rule chain; bundle everything that applied in a given tax year; verify citations in a draft; and run a rule-based 3-stage residence/non-residence determination (`residency_check`) with an optional Solar review report (`residency_report`). 22 tools, read-only, no API key needed for lookups. Every tool supports `lang="en"` for English output (official English treaty and statute texts; your AI translates summaries by default; optional Upstage Solar machine translation). → [English README](README-EN.md)
+**Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules, treaties. [English](README-EN.md)
 
 ---
+
+> 세법 쟁점을 AI에 물으면, 그 시점의 조문과 국세청 해석·판례를 문서번호와 함께 가져옵니다.
 
 ## 작동 방식
 
@@ -30,43 +32,26 @@ flowchart LR
   C --> R
 ```
 
-1. **조문 조회** (`law_article`·`find_article`·`article_history`) — 법제처 Open API에서 그 법의 시행본 목록을 받아 기준일에 시행 중이던 판을 고릅니다(기준일을 주지 않으면 오늘). 조문을 항·호로 나눠 요청한 부분만 돌려주고, "다만·제외·불구하고" 같은 단서 문장은 `읽기 주의`로 따로 보여 줍니다. 법 → 시행령 → 시행규칙 위임 조문은 법제처 3단비교표와 하위 법령 원문의 인용 구절로 연결합니다.
-2. **해석·판례·통칙** (`search_tax_rulings` 등 6개) — 국세법령정보시스템에서 질의회신·판례·심판례·기본통칙·집행기준을 찾아 문서번호·요지·링크로 돌려줍니다. 특정 조문을 인용한 문서만 모을 수도 있습니다. 검색 결과는 하루 동안 내 PC에 저장해 다시 씁니다.
-3. **그 해 기준 묶음** (`research_issue`) — 세목별로 기준일을 정합니다(법인·소득: 사업연도 말일, 부가: 과세기간 말일, 양도: 양도일, 상속: 상속개시일, 증여: 증여일, 원천: 지급일). 그날의 조문(3단)·통칙·집행기준·해석을 한 번에 모으고, 현행 조문과 바뀌었는지 표시합니다.
-4. **대조·판정** (`verify_statement`·`judge_options`·`compare_outcomes`·`compare_with_case`) — 진술·보기를 그 시행본 원문과 글자 단위로 맞대어 숫자·의무/재량·반대말·단서가 다른 곳을 표시합니다. 심판·판결은 주문·결론 문구로 납세자 승/패를 나눕니다.
-5. **조약·거주자, 문서·서식** — 조세조약 96개국 조문과 제한세율, 소득세법 3단계 규칙에 따른 거주자 판정, 별표·서식·국세청 책자·내 PC PDF 검색.
+1. **조문** — 법제처에서 기준일에 시행 중이던 판을 골라 원문을 주고, 단서 구절과 위임 조문(법→시행령→시행규칙)을 함께 붙입니다. 기준일을 안 주면 오늘 기준입니다.
+2. **해석·판례** — 국세법령정보시스템에서 질의회신·판례·심판례·통칙·집행기준을 문서번호·링크로 찾습니다.
+3. **그 해 기준** — 세목별 기준일(사업연도 말일, 양도일 등)의 조문·해석을 모으고 현행과 바뀐 점을 표시합니다.
+4. **대조** — 진술·보기를 원문과 글자 단위로 비교해 다른 숫자·단서를 표시합니다.
 
-조회·대조·판정은 코드 규칙으로만 동작합니다. Upstage Solar는 설정했을 때만 승패 요약·사실관계 대조·거주자 보고서·영어 번역에 씁니다. 결과는 근거 자료이며, 해석과 결론은 사용자의 AI와 전문가가 판단합니다.
+판단과 결론은 사용자의 AI와 전문가 몫입니다. 이 서버는 근거를 가져옵니다.
 
-> 세법 쟁점을 AI에 물으면, 국세청 해석·판례·기본통칙·조문을 문서번호와 함께 가져옵니다.
-
-**이렇게 물어보세요**
+## 이렇게 물어보세요
 
 - "2023년 12월 31일 기준 법인세법 시행규칙 제43조 원문"
 - "법인세법 제52조를 인용한 최근 질의회신·판례 보여줘"
 - "2019 사업연도 기준으로 법인세법 제52조 관련 조문·통칙·해석 정리해줘"
 - "'경조금은 건당 10만원까지 증빙 없이 손금'이라는 말, 2026 시행령 제41조 원문과 맞아?"
-- "미국 시민권자 대표이사, 작년 국내 체류 200일, 가족은 미국 — 거주자야? 한미조약 tie-break까지"
-
-**설치 한 줄** — `claude mcp add korean-tax -- uvx korean-tax-mcp`
-
-한국 세법 근거를 찾는 MCP 서버입니다. Claude·Cursor 같은 AI 도구에 붙이면 세법 쟁점을 물을 때 국세청 해석·판례·통칙·조문을 문서번호와 함께 찾아 줍니다.
-
-- 국세청 **질의회신·과세기준자문·사전답변**, 법원 **판례**·**조세심판**·이의·심사 — 최신순 검색과 본문 전문
-- **조문별 모음** — "법인세법 제52조를 인용한 해석·판례"
-- **국세 기본통칙** 전문, **세법집행기준** 항목
-- **시점별 조문** — 그날 시행 중이던 조문, 법률 → 시행령 → 시행규칙 위임 체계
-- 국세청 「2025 세법해석 사례집」 96건 색인
-- **그 해 기준 묶음** — 사업연도 종료일 기준 조문 3단·통칙·집행기준·해석을 한 번에, 현행과 바뀐 점 표시
-- **조문 찾기·주장 대조·보기 판정** — 키워드로 조문 위치 찾기(find_article), 진술을 시행본 원문과 글자 수준으로 대조(verify_statement), 보기 여러 개를 한 번에 판정(judge_options). 외부 LLM 없이 규칙만
-- **승패 비교** — 같은 쟁점의 심판·심사·판결을 납세자 승/일부 인용/패로 나눠 양쪽 주장과 결정 이유 나란히(compare_outcomes)
-- **사실관계 대조** — 우리 주장과 해석·판례가 지지·반대·구별 필요인지 (기본: 사용자 AI가 판단, 선택: Upstage Solar)
-- **거주자·비거주자 판정** — 소득세법 3단계 규칙 + 조세조약 tie-break, 유사 판례(residency_check)
-- **조세조약 96개국**·원천징수 제한세율, 조문 개정 이력, 별표·서식, 국세청 책자·내 PC PDF 검색, 인용 검증
+- "미국 시민권자 대표이사, 작년 국내 체류 200일, 가족은 미국 — 거주자야?"
 
 ## 설치
 
-[uv](https://docs.astral.sh/uv/)가 있으면 설치 없이 바로 실행됩니다.
+```bash
+claude mcp add korean-tax -- uvx korean-tax-mcp
+```
 
 ```json
 {
@@ -80,18 +65,43 @@ flowchart LR
 }
 ```
 
-Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
-
-## 키
-
-| 키 | 필요한 도구 | 발급 |
-|---|---|---|
-| 없음 | 해석·판례 검색과 본문, 조문별 모음, 기본통칙, 집행기준, 사례집, 승패 비교, 조세조약·제한세율, 서식, 책자·PDF 검색, 거주자 판정, 인용 검증(문서번호) | — |
-| `LAW_OC` | `law_article`, `find_article`, `research_issue`, `article_history`, `verify_statement`, `judge_options`, `verify_citations`(조문) — 시점별 조문·3단 위임·원문 대조 | [open.law.go.kr](https://open.law.go.kr) 무료 신청 |
-| `UPSTAGE_API_KEY` (선택) | 없어도 `compare_with_case`(사실관계 대조)·`compare_outcomes` `explain=True`(승패 요약)·`lang="en"`(영문)은 동작 — 원문 발췌와 판단 안내를 돌려주고 사용자 AI가 판단·번역(`mode: "host_ai"`). 설정하면 Solar가 대조·요약·번역(`mode: "solar_cloud"`) | [console.upstage.ai](https://console.upstage.ai) |
-| `KOREAN_TAX_MCP_SOLAR_BASE_URL` (선택) | 망분리 환경에서 기관 내부 Solar로 위 기능 수행(`mode: "solar_onprem"`) | — |
+| 키 | 쓰는 곳 |
+|---|---|
+| 없음 | 해석·판례·통칙·집행기준·사례집·조약·서식·책자 검색, 승패 비교, 거주자 판정 |
+| `LAW_OC` ([open.law.go.kr](https://open.law.go.kr) 무료) | 조문 조회·찾기·개정 이력, 그 해 기준 묶음, 진술·보기 대조, 인용 검증(조문) |
+| `UPSTAGE_API_KEY` (선택) | 사실관계 대조·승패 요약·영문 번역을 Solar가 수행. 없으면 사용자 AI가 수행 |
+| `KOREAN_TAX_MCP_SOLAR_BASE_URL` (선택) | 망분리 환경에서 기관 내부 Solar 사용 |
 
 > **데이터 전송 안내** — 기본 동작은 법제처·국세청 공개 API만 호출하며, AI 판단·요약·번역(사실관계 대조, 승패 요약, 영문 번역)은 사용자 AI가 수행합니다. Upstage로 전송되는 내용은 없습니다. 선택: `UPSTAGE_API_KEY`를 설정하면 Solar가 대조·요약·번역을 수행하며, 이때 입력 내용이 Upstage API(api.upstage.ai)로 전송되니 **개인정보 등 민감정보는 넣지 마세요**. 망분리 환경에서는 `KOREAN_TAX_MCP_SOLAR_BASE_URL`로 기관 내부 Solar에 연결하면 외부 전송 없이 사용할 수 있습니다.
+
+## 도구 (22개)
+
+| 묶음 | 도구 | 하는 일 |
+|---|---|---|
+| 조문 | `law_article` | 기준일 시행본 원문, 목차, 위임 조문, 단서 구절 |
+| | `find_article` | 조문 번호를 모를 때 키워드로 찾기 |
+| | `article_history` | 언제 바뀌었는지, 시행 예정 개정 |
+| 해석·판례 | `search_tax_rulings` | 질의회신·판례·심판례 검색 |
+| | `get_tax_ruling` | 문서 본문 전문 |
+| | `rulings_by_article` | 특정 조문을 인용한 해석·판례 |
+| | `basic_rules` | 국세 기본통칙 전문 |
+| | `execution_standards` | 세법집행기준 항목·쪽·링크 |
+| | `casebook_search` | 2025 세법해석 사례집(96건) |
+| 그 해 기준·검증 | `research_issue` | 세목별 기준일의 조문·통칙·해석 묶음, 현행 대비 변경 |
+| | `verify_citations` | 초안 속 문서번호·조문이 실제로 있는지 |
+| 대조·판정 | `verify_statement` | 한 문장을 원문과 글자 대조 |
+| | `judge_options` | 보기 여러 개를 조문과 한 번에 대조 |
+| | `compare_outcomes` | 같은 쟁점의 납세자 승·패 결정 나란히 |
+| | `compare_with_case` | 우리 사실관계와 해석·판례 비교(지지·반대·구별) |
+| 조약·거주자 | `tax_treaty` | 조세조약 96개국 조문(국·영문) |
+| | `treaty_withholding_rates` | 배당·이자·사용료 제한세율 |
+| | `residency_check` | 거주자·비거주자 3단계 판정(규칙) |
+| | `residency_report` | 판정 검토 보고서(Solar) |
+| 문서·서식 | `search_forms` | 별표·서식 |
+| | `search_nts_publications` | 국세청 발간책자 본문 |
+| | `search_local_documents` | 내 PC PDF 검색(`KOREAN_TAX_MCP_DOCS`) |
+
+모든 도구는 `lang="en"`으로 영어 결과를 받을 수 있습니다.
 
 ## 면책
 
@@ -106,60 +116,14 @@ Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`
 - Solar가 작성한 결과(`mode: "solar_cloud"` 또는 `"solar_onprem"`)에는 결과에 `AI 생성 표시` 필드가 함께 반환됩니다. 이 표시의 문구는 AI 기본법 제31조에 따른 것입니다.
 - 사용자 AI(`mode: "host_ai"`)가 판단하는 경우는 결과에 AI 생성 표시가 붙지 않으며, 대신 안내 문구에 "판단 결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요"가 포함됩니다. 실제 표시는 사용자 측 AI 도구에서 수행하세요.
 
-## 도구
-
-| 도구 | 하는 일 |
-|---|---|
-| `search_tax_rulings` | 해석·판례 검색 (세목·종류·기간, 기본 관련도순·최신순 선택) |
-| `get_tax_ruling` | 본문 전문 — 사실관계·질의·회신 / 주문·이유, 관련 조문 |
-| `rulings_by_article` | 특정 조문을 인용한 해석·판례 |
-| `basic_rules` | 국세 기본통칙 전문 (조문별) |
-| `execution_standards` | 세법집행기준 항목·쪽·링크 |
-| `casebook_search` | 2025 세법해석 사례집 검색 |
-| `find_article` | **조문 위치 찾기** — 조문 번호를 모를 때 키워드로 상위 n개 조회(제목·본문 키워드 점수). 결과: [{법령, 조, 제목, 적용 시행일, 일치 문장}], 다음 단계: law_article로 해당 항만 조회. LAW_OC 필요. |
-| `verify_statement` | **주장 대조** — 진술·보기 문장을 해당 조의 시행본 원문과 글자 수준으로 대조해 숫자·양태(재량/의무/부정)·반대말·시점 차이, 바뀌거나 자리가 뒤바뀐 구절, 진술이 빠뜨린 단서를 표로 반환(모순 / 구절 다름 / 차이 없음 / 판단 필요). 인용 문구는 전부 원문의 부분 문자열, 외부 LLM 없이 규칙만. LAW_OC 필요. |
-| `judge_options` | **보기 판정 묶음** — 진술·보기 여러 개(문자열 하나에 ①~⑤가 섞여 있어도 분리)와 조문 번호 최대 5개를 받아 보기마다 겹침이 가장 큰 조를 골라 대조, 모순 / 구절 다름 / 차이 없음 / 판단 필요로 나눠 요약. 없는 조는 건너뜀. LAW_OC 필요. |
-| `law_article` | 시점별 조문 원문, 그 법의 목차(편·장·절과 조 범위), 3단 위임(상위·하위 위임 조문 위치: 원문 인용으로 확인된 연결과 공식표 연결을 나눠 표시), 통칙·집행기준 함께. 항·호를 함께 주면 해당 호 문장을 따로 표시. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록·안내 반환. |
-| `compare_with_case` | 사실관계·논리 대조 (지지·반대·구별 필요) — 기본은 후보 원문 발췌+판단 안내를 반환해 사용자 AI가 판정, Solar 설정 시 Solar 판정 |
-| `compare_outcomes` | **승패 비교** — 같은 쟁점의 심판·심사·이의·판결을 납세자 승(인용·취소)/일부 인용/패(기각)로 나누고, 건마다 납세자 주장·과세관청 의견·결정 이유를 나란히. 판정은 주문·결론 문장을 규칙으로 읽음. `explain=True`면 갈린 지점 정리(기본 사용자 AI, Solar 설정 시 Solar) |
-| `research_issue` | **그 해 기준 묶음** — 사업연도·과세기간 종료일 기준 조문 3단·통칙·집행기준·해석, 현행 대비 조문 변경, 해석마다 당시 조문과 같은지 표시 |
-| `treaty_withholding_rates` | **조약별 원천징수 제한세율** — 배당·이자·사용료 세율과 지분 요건, 근거 조항 원문 |
-| `search_forms` | **별표·서식** — 기준내용연수표·상각률표, 신고서·명세서·통지서 |
-| `article_history` | **조문 개정 이력·시행 예정 개정** — 언제 바뀌었고 곧 바뀌는지 |
-| `tax_treaty` | **조세조약** 96개국 조문 (국문·영문, 키워드로 배당·고정사업장 등) |
-| `search_nts_publications` | **국세청 발간책자 본문 검색** — 이전가격·APA 연차보고서·해외진출기업 세무 가이드 등 |
-| `search_local_documents` | **내 PC의 PDF 검색** — OECD 이전가격 지침처럼 각자 받은 자료를 쪽 단위로 |
-| `verify_citations` | **인용 검증** — 초안의 문서번호·조문이 실제로 있는지 (지어낸 번호·없는 조문 찾기) |
-| `residency_check` | **거주자·비거주자 3단계 판정** (규칙 기반, 외부 호출 없이 동작) — 소득세법 §1의2·시행령 §2·§3·§4로 주소/거소/파견 특례 판정, 이중거주자 여부(증명책임: 대법원 2006두3964), 조세조약 tie-break(항구적 주거 → 중대한 이해관계 중심지 → 일상적 거소 → 국적 → 상호합의)까지. 입력: 판정 연도, 국내 체류일수 또는 입국·출국 날짜 목록(입국 다음날~출국일 자동 계산, 일시 출국 포함), 국내 가족·자산·직업, 외국 국적·영주권, 파견 vs 현지채용 구분, 상대국·조세조약·항구적 주거·중대한 이해관계 중심지·일상적 거소·국적. rules.md 판례 top3(사실관계 키워드 매칭, 판결요지 요약) 첨부. 6-4절(찾지 못함/추정) 판례는 인용하지 않음. 법리(대법원 92누11695: 국내 생활관계만으로 판단) 명시. `lang` 지원. |
-| `residency_report` | **residency_check 결과 + rules.md를 Solar Pro 4에 넣어 판정 검토 보고서 작성** (report_template.md 형식). Solar 선택 구조 기존과 동일: 키 없으면 안내 + residency_check 결과만 반환, 키 있으면 Solar가 보고서 작성. 결론은 residency_check 결과를 바꾸지 못함(Solar는 서술만, 판정은 코드). |
-
-## 함께 쓰면 좋은 MCP
-
-일반 법령 검색·판례 전반·인용 실존 검증은 류승인 주무관님의 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp)를 함께 붙여 쓰세요.
-korean-law-mcp가 법령 전반을, 이 서버가 세법 해석·판례·기본통칙·집행기준을 맡는 구성입니다.
-
-```json
-{
-  "mcpServers": {
-    "korean-law": { "...": "korean-law-mcp 설정은 해당 저장소 README 참고" },
-    "korean-tax": { "command": "uvx", "args": ["korean-tax-mcp"] }
-  }
-}
-```
-
 ## 유의
 
-- 해석·판례는 **회신·선고 당시 법 기준**입니다. 적용 연도 조문(`law_article`의 `as_of`)과 대조하세요.
-- 국세법령정보시스템(taxlaw.nts.go.kr)의 공개 조회를 사용합니다. 서버 부담을 줄이려고 같은 요청은 1일 캐시, 호출 간격은 0.5초 이상입니다.
-- 집행기준 본문은 책자(PDF)로만 제공돼 항목·쪽·링크까지만 돌려줍니다.
-- 도구 결과는 검토 보조 자료이며 세무 자문이 아닙니다.
+- 해석·판례는 회신·선고 당시 법 기준입니다. 적용 연도 조문(`law_article`의 `as_of`)과 대조하세요.
+- 국세법령정보시스템 공개 조회를 1일 캐시, 0.5초 간격으로 사용합니다. 집행기준은 항목·쪽·링크까지만 제공합니다.
+- 일반 법령 전반은 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp)와 함께 쓰면 좋습니다.
 
-## 출처
+## 출처 · 라이선스
 
 국세청 국세법령정보시스템 · 법제처 국가법령정보 공동활용 · 국세청 「2025 세법해석 사례집」
 
-## 라이선스
-
-MIT © 2026 Upstage
-
-Created by Mia(윤승미)
+MIT © 2026 Upstage · Created by Mia(윤승미)
