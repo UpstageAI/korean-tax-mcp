@@ -78,6 +78,7 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 | | `execution_standards` | execution standards: item, page, link |
 | | `casebook_search` | NTS 2025 casebook (96 cases) |
 | Base year · check | `research_issue` | statute, rules and rulings for the base date; changes vs today |
+| | `timing_rules` | timing rules table — tax liability establishment, profit/loss attribution, income receipt timing, VAT supply timing |
 | | `verify_citations` | do cited document numbers and articles exist |
 | Compare · judge | `verify_statement` | one statement vs statute text |
 | | `judge_options` | several options vs articles at once |

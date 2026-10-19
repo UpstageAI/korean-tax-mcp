@@ -12,6 +12,7 @@ import json
 import os
 import re
 import ssl
+import time
 import urllib.request
 
 from typing import Annotated, Literal
@@ -21,12 +22,13 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from . import _mask_oc, casebook, cite, i18n, law, localdocs, ntis, outcome, residency, solar, timeline
+from . import timing_rules as _timing_rules_data
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
     instructions="한국 세법 쟁점의 근거(국세청 해석·판례·통칙·집행기준·조문)를 찾는다. search_tax_rulings로 넓게 찾고, get_tax_ruling으로 본문을 읽고, "
                  "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 조문 번호를 모르면 find_article로 먼저 찾고, 긴 조문은 law_article의 keyword/paragraph로 필요한 항만 보라. "
-                 "특정 사업연도 기준 정리는 research_issue, 쟁점의 납세자 승·패 사례 비교는 compare_outcomes, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
+                 "특정 사업연도 기준 정리는 research_issue, 사실 날짜의 귀속·공급시기는 timing_rules, 쟁점의 납세자 승·패 사례 비교는 compare_outcomes, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
                  "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다.")
 
 TAXES = tuple(ntis.TAX_CODES)
@@ -210,7 +212,7 @@ def _truncate_text(text, limit=RESP_MAX_CHARS):
 def law_article(
     law_name: Annotated[str, Field(description="법령 정식 명칭. 예: '법인세법', '법인세법 시행령', '법인세법 시행규칙'")],
     article: Annotated[str, Field(description=ART + ". '제52조 제1항'처럼 항을 함께 줄 수 있음")],
-    as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 그날 시행 중이던 연혁본. 생략하면 오늘")] = "",
+    as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 사실관계에 사업연도·귀속연도·과세기간이 있으면 그 기간 말일을 넣는다(생략하면 오늘 시행본). 거래처·거래일처럼 특정 날짜가 필요하면 그 날짜")] = "",
     with_delegation: Annotated[bool, Field(description="True면 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단)")] = False,
     with_rules: Annotated[bool, Field(description="True면 그 조의 기본통칙 전문과 집행기준 항목도 함께")] = False,
     keyword: Annotated[str, Field(description="키워드가 들어간 항(①②…/제1항…)만 반환. 긴 조문(4,000자 초과)에서 항 번호 모를 때 사용")] = "",
@@ -218,10 +220,11 @@ def law_article(
 ) -> dict:
     """Get statute text as in force on a date, with optional Act → Decree → Rule chain. 조문 원문(기준일 시행본)과 3단 위임.
 
+    사실관계에 사업연도·귀속연도·과세기간이 있으면 as_of에 그 기간 말일을 넣는다(생략하면 오늘 시행본).
     언제: 세액·요건 판단처럼 사실 발생 시점의 법령이 필요할 때. 해석·판례는 회신 당시 법 기준이므로 이 도구로 적용 연도 조문과 대조.
     조문 번호를 모르면 find_article로 먼저 찾는다. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록과 안내 반환.
     결과의 '연결'에 상위·하위 조문 위치가 있으니 그 조를 law_article로 이어서 조회.
-    반환: {법령, 조, 적용 시행일, 본문, 링크, 반환 범위, 연결, 읽기 주의(돌려준 본문의 단서·우선·제외 구절 원문, 최대 3개)} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
+    반환: {법령, 조, 적용 시행일, 적용 기준일, 본문, 링크, 반환 범위, 연결, 읽기 주의(돌려준 본문의 단서·우선·제외 구절 원문, 최대 3개), 기준일 안내?, 최근 개정?, 다시 조회?} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
     읽기 전용. 법제처 공식 API — 환경변수 LAW_OC(무료) 필요, 없으면 발급 안내 오류.
     """
     ef = re.sub(r"\D", "", as_of or "")
@@ -285,6 +288,43 @@ def law_article(
         out["연결"] = {"error": str(e)}
     out["다음 단계"] = "찾는 내용이 이 조에 없으면 목차에서 조를 골라 law_article로 바로 조회\n" \
                        "보기 여러 개를 한 번에 대조: judge_options(statements, law_name, articles) / 한 문장: verify_statement(statement, law_name, article, as_of)"
+
+    # 적용 기준일 — as_of가 있으면 그 날짜, 없으면 오늘을 사람이 읽는 형식으로
+    if ef:
+        y, m, d = ef[:4], ef[4:6], ef[6:8]
+        out["적용 기준일"] = f"{y}년 {int(m)}월 {int(d)}일"
+    else:
+        today = time.strptime(time.strftime("%Y%m%d"), "%Y%m%d")
+        out["적용 기준일"] = f"{today.tm_year}년 {today.tm_mon}월 {today.tm_mday}일"
+
+    if not ef:
+        out["기준일 안내"] = "오늘 기준 조문입니다. 지난 사업연도처럼 지난 기간의 사안이면 그 연도에 시행 중이던 조문으로 다시 확인해야 합니다."
+        prev_year = today.tm_year - 1
+        out["다시 조회"] = {"as_of": f"{prev_year}1231", "설명": "사업연도·귀속연도 말일을 넣어 다시 호출"}
+
+        # 본문에서 <개정 …>·<신설 …> 날짜 중 오늘부터 2년 이내가 있으면 최근 개정 안내
+        body = out.get("본문", "")
+        date_tags = re.findall(r"<(?:개정|신설)\s+([^>]+)>", body)
+        recent = None
+        now = time.mktime(today)
+        two_years = 2 * 365.25 * 24 * 3600
+        for tag_content in date_tags:
+            dates_in_tag = re.findall(r"([\d]{4}\.[\d]{1,2}\.[\d]{1,2})", tag_content)
+            for ds in dates_in_tag:
+                try:
+                    parts = ds.split(".")
+                    if len(parts) == 3:
+                        ts = time.mktime(time.strptime(f"{parts[0]}{parts[1]}{parts[2]}", "%Y%m%d"))
+                        if 0 < now - ts <= two_years:
+                            if recent is None or ts > recent[1]:
+                                recent = (ds, ts)
+                except Exception:
+                    continue
+        if recent:
+            ds = recent[0]
+            parts = ds.split(".")
+            out["최근 개정"] = f"이 조문은 {parts[0]}년 {int(parts[1])}월 {int(parts[2])}일에 개정되었습니다. 그 전 기간의 사안에는 개정 전 조문이 적용될 수 있습니다."
+
     return out
 
 
@@ -436,13 +476,21 @@ def research_issue(
     """Bundle everything that applied to an issue at a past date. 그 해 기준 묶음 조회 — 사실 발생 시점의 조문(3단)·기본통칙·집행기준·그 조문을 인용한 해석·판례를 한 번에.
     언제: 세무조사·불복처럼 특정 사업연도에 적용되는 근거를 정리할 때. 시점 판단을 코드로 고정한다 —
     기준일(법인·소득·부가는 사업연도·과세기간 종료일, 양도는 양도일, 상속은 상속개시일, 증여는 증여일, 원천은 지급일), 기준일 조문과 현행 조문의 변경 여부, 해석·판례마다 등록일 당시 조문이 기준일 조문과 같은지.
-    반환: {기준일, 기준일 근거, 그 해 조문(3단), 현행과 비교, 기본통칙[], 집행기준[], 해석·판례[{…, 기준일 조문과}], 주의}.
+    반환: {기준일, 기준일 근거, 그 해 조문(3단), 현행과 비교, 기본통칙[], 집행기준[], 해석·판례[{…, 기준일 조문과}], 시기 규칙[]?, 주의}.
     읽기 전용. 조문 부분은 LAW_OC 필요(없으면 해석·통칙만 반환). 10~30초.
     """
     try:
         norm, hang = law.normalize_article(article)
         r = timeline.research(law_name, norm, period, tax, n, event, registered or None)
         if hang: r["요청 항"] = hang
+        if tax:
+            lr = _timing_rules_data.lookup(tax)
+            if "error" not in lr:
+                r["시기 규칙"] = [
+                    f"{ru['구분']} — {ru['항목']}: {ru['시기']} ({ru['근거']})"
+                    + (f" / 예외: {ru['예외']}" if ru.get("예외") else "")
+                    for ru in lr["규칙"]
+                ]
         return r
     except ValueError as e: return {"error": str(e)}
     except Exception as e: return _err(e)
@@ -517,6 +565,23 @@ def search_local_documents(
     """
     try: return localdocs.search(query, k)
     except Exception as e: return {"error": str(e)}
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def timing_rules(
+    tax: Annotated[Tax | None, Field(description="세목 필터. '법인'·'소득'·'부가'·'양도'·'상증'·'국기'·'종부' 중 하나. 생략하면 공통 규칙과 세목별 건수")] = None,
+    kind: Annotated[str, Field(description="구분 필터. 예: '손익 귀속', '재화 공급시기', '용역 공급시기', '공급시기 특례', '근로소득 수입시기', '납세의무 성립'")] = "",
+    keyword: Annotated[str, Field(description="항목·시기·예외 중 어디에든 포함된 글자 필터 (선택)")] = "",
+) -> dict:
+    """Timing rules table — tax liability establishment, profit/loss attribution business year, income receipt timing, VAT supply timing, with statutory basis.
+
+    시기 규칙표 — 납세의무 성립·손익 귀속사업연도·소득별 수입시기·부가 공급시기를 조문 근거와 함께.
+    언제: 사실관계의 날짜가 어느 사업연도·과세기간·공급시기에 속하는지 정할 때(예: 12월 인도·1월 대금, 선발급 세금계산서, 인정상여 귀속).
+    반환: {규칙: [{세목, 구분, 항목, 시기, 예외?(있으면), 근거}], 확인 시행본, 주의}. tax를 주면 세목 키 포함, tax 없이 부르면 공통 규칙과 세목별 건수.
+    읽기 전용. data/timing_rules.json 기반, 외부 호출 없음.
+    """
+    return _timing_rules_data.lookup(tax, kind or None, keyword)
 
 
 @mcp.tool(annotations=RO)
@@ -600,7 +665,35 @@ def verify_statement(
         if paragraph:
             pn = law._normalize_paragraph_spec(paragraph)
             if pn:
-                filtered = [u for u in filtered if u[1] == pn]
+                _hang_to_circled = {str(i): chr(0x2460 + i - 1) for i in range(1, 21)}  # "1"→"①", …, "20"→"⑳"
+
+                def _circled(항):
+                    """'제2항' → '②'. 해석 불가면 None."""
+                    if not 항: return None
+                    m = re.match(r"제(\d+)항", 항)
+                    return _hang_to_circled.get(m.group(1)) if m else None
+
+                def _ho_num(호):
+                    """'제2호' → '2'. 없으면 None."""
+                    if not 호: return None
+                    m = re.match(r"제(\d+)호", 호)
+                    return m.group(1) if m else None
+
+                def _match(u, 항_c, 호_n):
+                    """u[1](항 circled/'')이 항_c와 맞고, u[2](호 '2.'/'')가 호_n과 맞으면 True."""
+                    if 항_c is not None and (not u[1] or u[1] != 항_c):
+                        return False
+                    if 호_n is not None and (not u[2] or u[2].rstrip(".") != 호_n):
+                        return False
+                    return True
+
+                if pn[2]:  # 여러 항 (None, None, ["제2항", "제3항"])
+                    circled_list = [_circled(h) for h in pn[2]]
+                    filtered = [u for u in filtered if any(_match(u, c, _ho_num(pn[1])) for c in circled_list)]
+                else:
+                    항_c = _circled(pn[0])
+                    호_n = _ho_num(pn[1])
+                    filtered = [u for u in filtered if _match(u, 항_c, 호_n)]
         if not filtered:
             return {"error": f"{norm} 조문 단위를 {ef} 시행본에서 찾지 못함"}
         from . import claims
