@@ -671,17 +671,17 @@ def run_question(
                                 result = {"text": result_text}
                         except Exception as e:
                             result = {"error": f"{type(e).__name__}: {str(e)[:200]}"}
+                    if clamp_note:
+                        existing_note = result.get("_harness_note")
+                        if existing_note:
+                            result["_harness_note"] = existing_note + "; " + clamp_note
+                        else:
+                            result["_harness_note"] = clamp_note
                     result["_remaining_calls"] = remaining - 1
                     call_cache[cache_key] = result
                     cache_call_counts[cache_key] = 1
                     result_json = json.dumps(result, ensure_ascii=False)
 
-                if clamp_note:
-                    existing_note = result.get("_harness_note")
-                    if existing_note:
-                        result["_harness_note"] = existing_note + "; " + clamp_note
-                    else:
-                        result["_harness_note"] = clamp_note
                 is_error = isinstance(result, dict) and "error" in result
                 if is_error:
                     tool_error_streak[fn_name] = tool_error_streak.get(fn_name, 0) + 1
