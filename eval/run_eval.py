@@ -278,6 +278,16 @@ def api_chat_complete(
             time.sleep(2 ** attempt)
             attempt += 1
             continue
+        except json.JSONDecodeError as e:
+            last_exc = e
+            time.sleep(2 ** attempt)
+            attempt += 1
+            continue
+        except UnicodeDecodeError as e:
+            last_exc = e
+            time.sleep(2 ** attempt)
+            attempt += 1
+            continue
     raise RuntimeError(f"API 호출 최종 실패: {last_exc}")
 
 
@@ -638,7 +648,7 @@ def run_question(
                 tool_calls.append({"tool": fn_name, "args": args})
 
                 args = _fill_as_of_from_schema(args, basis_date, schema_map.get(fn_name, {}))
-                if FIND_ARTICLE_ENABLED:
+                if HARNESS_V3:
                     args, clamp_note = _clamp_future_dates(args, basis_date)
                     if clamp_note:
                         clamped_count += 1
