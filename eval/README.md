@@ -68,7 +68,15 @@ Solar Pro 4가 **세법 MCP(korean-tax-mcp)**와 **계산 MCP(korean-tax-calc-mc
 
 - 값: 정답 번호 (1~5 정수)
 
-문항에 `기준일` 필드를 추가하면 해당 문항의 기준 시점을 지정할 수 있다. 없으면 기본 기준일을 사용한다.
+문항에 `기준일`(선택, YYYYMMDD) 필드를 추가하면 해당 문항의 기준 시점을 지정할 수 있다.
+
+**기준일 우선순위**:
+1. 문항에 `기준일` 필드가 있으면 그 값
+2. 명령줄 `--basis-date`
+3. 연도 키가 4자리 숫자면 그 연도 12월 31일 (예: "2024" → "20241231")
+4. 오늘 날짜
+
+예: 문항에 `"기준일": "20241231"`이 있으면 해당 날짜를 사용, 없으면 `--basis-date` 값을 사용, 둘 다 없으면 연도 말일을 사용한다.
 
 ## 실행 방법
 
@@ -78,6 +86,9 @@ python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/an
 
 # 실제 실행 (UPSTAGE_API_KEY 필수)
 python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
+
+# 기준일을 직접 지정 (문항에 기준일 필드가 없을 때 사용)
+python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --basis-date 20230226 --seed 42
 
 # 연도 필터, 문항 수 제한
 python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --year 2026 --limit 2
@@ -101,7 +112,7 @@ python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/an
 
 결과 폴더(`eval/results/`)에 생성되는 파일:
 
-- **`raw_native_direct.jsonl`**: 문항별 실행 결과. 한 줄에 한 문항. 모델 답, 정오, 근거, 도구 호출 목록, 토큰 수, 소요 시간, 도구 호출 상세 포함.
+- **`raw_native_direct.jsonl`**: 문항별 실행 결과. 한 줄에 한 문항. 모델 답, 정오, 근거, 도구 호출 목록, 토큰 수, 소요 시간, 도구 호출 상세, **사용한 기준일(basis_date)** 포함.
 - **`summary.json`**: 조건별 요약 통계. 전체 정답률, 연도별 정답률, 문항당 평균 도구 호출·토큰·시간 포함.
 
 ## 계산 MCP 연동

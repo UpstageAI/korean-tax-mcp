@@ -44,10 +44,6 @@ FIND_ARTICLE_ENABLED = os.environ.get("FIND_ARTICLE", "1") == "1"
 # ── 도구 호출 상한 (V3 기준) ───────────────────────────────────────────────────────
 TOOL_LIMIT = 15
 
-# ── 기준일 매핑 (문항별로 오버라이드 가능) ─────────────────────────────────────────
-DEFAULT_BASIS_DATE = "20250426"
-
-
 # ══════════════════════════════════════════════════════════════════════════════════════
 # 스키마 정리
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -333,6 +329,7 @@ class QuestionResult:
     연도: str
     번호: int
     과목: str
+    basis_date: str
     모델답: dict | None
     정답: int | str
     정오: str
@@ -411,6 +408,25 @@ def _truncate_result(result: dict, max_chars: int = 6000) -> dict:
         return parsed
     except json.JSONDecodeError:
         return {"_raw_truncated": truncated, "_trunc_warning": f"(잘림: {max_chars}자 초과)"}
+
+
+def resolve_basis_date(question: dict, year: str, cmdline_basis_date: str | None) -> str:
+    """문항별 기준일 우선순위에 따라 기준일을 결정한다.
+
+    우선순위:
+    1. 문항에 "기준일"(YYYYMMDD) 필드가 있으면 그 값
+    2. 명령줄 --basis-date
+    3. 연도 키가 4자리 숫자면 그 연도 12월 31일
+    4. 오늘 날짜
+    """
+    if question.get("기준일"):
+        return question["기준일"]
+    if cmdline_basis_date:
+        return cmdline_basis_date
+    if len(year) == 4 and year.isdigit():
+        return f"{year}1231"
+    from datetime import date
+    return date.today().strftime("%Y%m%d")
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -762,6 +778,7 @@ def run_question(
         연도=year,
         번호=qno,
         과목=subject,
+        basis_date=basis_date,
         모델답=모델답,
         정답=correct,
         정오=정오,
@@ -806,6 +823,7 @@ def _append_raw_one(res: QuestionResult, path: Path):
         "연도": res.연도,
         "번호": res.번호,
         "과목": res.과목,
+        "basis_date": res.basis_date,
         "모델답": res.모델답,
         "정답": res.정답,
         "정오": res.정오,
@@ -833,6 +851,7 @@ def save_raw(results: list[QuestionResult], path: Path):
                 "연도": r.연도,
                 "번호": r.번호,
                 "과목": r.과목,
+                "basis_date": r.basis_date,
                 "모델답": r.모델답,
                 "정답": r.정답,
                 "정오": r.정오,
@@ -925,7 +944,7 @@ def _progress_printer(total_expected: int):
         n = counter[0]
         tool_count = len(res.도구호출목록)
         t = res.소요초
-        print(f"[{n}/{total_expected}] {res.연도} {res.번호}번 {res.정오} 도구{tool_count}회 {t}초", flush=True)
+        print(f"[{n}/{total_expected}] {res.연도} {res.번호}번 ({res.basis_date}) {res.정오} 도구{tool_count}회 {t}초", flush=True)
 
     return callback
 
@@ -950,6 +969,8 @@ def main():
                         help="모델 이름 (기본: solar-pro4)")
     parser.add_argument("--seed", type=int, default=42,
                         help="랜덤 시드 (기본: 42)")
+    parser.add_argument("--basis-date", type=str, default=None,
+                        help="기본 기준일 (YYYYMMDD). 문항에 기준일 필드가 없으면 이 값을 사용, 없으면 연도 말 또는 오늘 날짜 사용)")
     parser.add_argument("--dry-run", action="store_true",
                         help="API 호출 없이 문항 수·도구 수만 출력하고 종료")
     parser.add_argument("--resume", action="store_true",
@@ -997,6 +1018,14 @@ def main():
             total_items += len(year_items)
         print(f"문항 수: {total_items}개 (연도: {', '.join(years)})")
         print(f"도구 수: {len(tools)}개")
+        print()
+        print("문항별 기준일:")
+        for y in years:
+            year_items = items.get(y, {})
+            for qno_str, q in sorted(year_items.items(), key=lambda x: int(x[0])):
+                qno = int(qno_str)
+                bd = resolve_basis_date(q, y, args.basis_date)
+                print(f"  {y} {qno}번: {bd}")
         print("dry-run 완료 — API 호출 없이 종료.")
         return
 
@@ -1034,7 +1063,7 @@ def main():
         print(f"기존 완료 문항 {len(completed)}개 로드 (--resume)", flush=True)
 
     # 문항 수집
-    run_items: list[tuple[str, int, dict, int]] = []
+    run_items: list[tuple[str, int, dict, int, str]] = []
     for y in years:
         year_items = items.get(y, {})
         year_answers = answers.get(y, {})
@@ -1045,8 +1074,8 @@ def main():
             if (y, qno) in completed:
                 continue
             correct = year_answers.get(qno_str, 0)
-            basis_date = q.get("기준일", DEFAULT_BASIS_DATE)
-            run_items.append((y, qno, q, correct))
+            basis_date = resolve_basis_date(q, y, args.basis_date)
+            run_items.append((y, qno, q, correct, basis_date))
 
     if not run_items:
         print("실행할 문항이 없습니다.", flush=True)
@@ -1056,8 +1085,7 @@ def main():
     progress_cb = _progress_printer(total_expected)
 
     results: list[QuestionResult] = []
-    for y, qno, q, correct in run_items:
-        basis_date = q.get("기준일", DEFAULT_BASIS_DATE)
+    for y, qno, q, correct, basis_date in run_items:
         try:
             res = run_question(
                 year=y,
@@ -1078,6 +1106,7 @@ def main():
             print(f"  !! {y} {qno}번 예외 → 무응답 처리: {type(e).__name__}: {str(e)[:200]}", flush=True)
             res = QuestionResult(
                 연도=y, 번호=qno, 과목=q.get("과목", ""),
+                basis_date=basis_date,
                 모델답=None, 정답=correct, 정오="무응답", 근거="",
                 도구호출목록=[], 토큰수=0, 소요초=0.0,
             )
