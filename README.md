@@ -123,6 +123,10 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 - 국세법령정보시스템 공개 조회를 1일 캐시, 0.5초 간격으로 사용합니다. 집행기준은 항목·쪽·링크까지만 제공합니다.
 - 일반 법령 전반은 [korean-law-mcp](https://github.com/chrisryugj/korean-law-mcp)와 함께 쓰면 좋습니다.
 
+## 평가 방법
+
+Solar Pro 4가 이 MCP 서버들을 도구로 써서 세법 객관식 문항을 푸는 종합 평가는 `eval/` 폴더를 참고한다. 도구 하나하나의 정확도는 `bench/`에서 측정한다.
+
 ## 출처 · 라이선스
 
 국세청 국세법령정보시스템 · 법제처 국가법령정보 공동활용 · 국세청 「2025 세법해석 사례집」

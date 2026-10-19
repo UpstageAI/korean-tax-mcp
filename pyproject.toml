@@ -20,3 +20,6 @@ korean-tax-mcp = "korean_tax_mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["korean_tax_mcp"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["eval", "bench"]
