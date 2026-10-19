@@ -440,10 +440,6 @@ SYSTEM_V3 = """세법 문제에 답하세요. 도구로 법령·자료를 확인
 - 조문 번호가 확실하지 않으면 find_article(keyword)로 위치를 먼저 찾고, 번호를 알면 바로 law_article을 쓰세요.
 응답 형식: {"reason": "근거 조문과 판단 한두 문장", "answer": 번호(1~5 숫자)}"""
 
-USER_PROMPT = """다음 문제를 읽고 필요 시 도구를 사용하여 정답 번호(1~5)와 한 줄 근거를 JSON으로 응답하세요.
-
-{문제}"""
-
 NUDGE_TOOL = "답하기 전에 도구로 근거(조문 또는 계산)를 최소 1번 확인하세요."
 REPEAT_MSG = "같은 입력으로 이미 받은 결과입니다. 기대와 다르면 입력값·조문·항·키워드를 바꾸거나, 지금까지 정보로 답하세요."
 BLOCK_MSG = "같은 호출이 반복되어 실행하지 않았습니다. 다른 입력을 쓰거나 지금까지 정보로 답하세요."
@@ -595,7 +591,7 @@ def run_question(
 
     messages = [
         {"role": "system", "content": SYSTEM_V3},
-        {"role": "user", "content": USER_PROMPT.format(문제=body)},
+        {"role": "user", "content": body},
     ]
 
     nudged = False
