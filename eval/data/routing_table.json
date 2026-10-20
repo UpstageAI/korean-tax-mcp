@@ -1,0 +1,22 @@
+{
+  "_설명": "4단계 라우팅 매핑표. 1단계 분류 호출이 세목·주제 키 1개를 고르면 그 키의 도구(≤10)+공통 도구만 노출. 작성 Claude 2026-10-20",
+  "공통": ["law_article", "article_history"],
+  "공통_서술형": ["verify_statement", "judge_options", "timing_rules"],
+  "주제": {
+    "법인세_손금_접대비기부금": ["entertainment_adjustment", "entertainment_limit", "missing_receipt_disallowance", "donation_limit"],
+    "법인세_손금_지급이자가지급금": ["deemed_interest", "nonbusiness_interest_disallowance", "unfair_transaction", "thin_capitalization", "business_car_expense"],
+    "법인세_손금_충당금상각": ["bad_debt_adjustment", "bad_debt_allowance", "depreciation_adjustment", "retirement_allowance_adjustment", "asset_grant_reserve", "inventory_valuation_adjustment"],
+    "법인세_익금배당": ["deemed_dividend_bonus_shares", "deemed_dividend_capital_reduction", "dividend_received_deduction", "unfair_transaction"],
+    "법인세_세액": ["corporate_tax", "foreign_tax_credit", "minimum_tax", "loss_carryforward_limit"],
+    "소득세_종합금융기타": ["income_tax", "financial_income_aggregate", "other_income_aggregate", "withholding_tax"],
+    "소득세_근로연말정산": ["earned_income_gross_pay", "wage_income_tax", "special_tax_credit", "deemed_bonus_resettlement", "daily_worker_withholding"],
+    "소득세_퇴직양도": ["retirement_income_tax", "capital_gains_income"],
+    "소득세_비거주자국제": ["residency_check", "nonresident_withholding", "treaty_withholding_rates", "tax_treaty"],
+    "부가세_과세표준매입세액": ["common_input_tax", "vat_common_input_allocation", "input_tax_recalculation", "bundled_supply_split", "vat_deemed_rent", "vat_deemed_input_credit", "vat_bad_debt_credit"],
+    "부가세_간이가산세": ["simplified_vat_return", "vat_simplified_taxpayer", "vat_card_sales_credit", "invoice_penalty"],
+    "상증세": ["inheritance_tax", "gift_tax", "tunnelling_gift", "dominant_shareholder", "ownership_ratio", "related_judge", "kinship_check"],
+    "국세기본법_가산세제척": ["underreporting_penalty", "late_payment_penalty", "assessment_limitation", "related_judge", "basic_rules"],
+    "해석판례": ["search_tax_rulings", "get_tax_ruling", "rulings_by_article", "casebook_search", "execution_standards", "research_issue"]
+  },
+  "확장도구": "expand_tools"
+}
