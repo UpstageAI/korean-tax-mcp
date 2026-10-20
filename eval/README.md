@@ -26,8 +26,40 @@ Solar Pro 4가 **세법 MCP(korean-tax-mcp)**와 **계산 MCP(korean-tax-calc-mc
 
 - **하네스**: HARNESS_V3=1 (중립 프롬프트 + 반복 차단) — 기본 켜짐
 - **조문 찾기**: FIND_ARTICLE=1 (find_article 도구 포함) — 기본 켜짐
-- **도구 상한**: 15회
+- **도구 상한**: 15회 (RunConfig `limit_tools`로 변경 가능)
 - **API**: Upstage API (OpenAI 호환 엔드포인트, `api.upstage.ai`)
+
+### RunConfig 설정 항목
+
+`eval/run_eval.py`는 `RunConfig` dataclass로 실행 조건을 관리한다. 프리셋(`native_direct` 등)에 환경변수 `CFG_OVERRIDE`로 JSON 덮어쓰기를 적용할 수 있다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `name` | str | 조건 이름 (프리셋 키) |
+| `system_prompt` / `user_prompt` | str | 프롬프트 상수 이름 |
+| `tool_set` | str | "direct" | "tree" | "meta" | "none" |
+| `limit_tools` | int | 도구 호출 상한 |
+| `truncate_chars` | int \| None | 도구 결과 자름 길이 (None이면 자르지 않음) |
+| `repeat_block` | bool \| str | True(일반 반복 안내) | "3rd_only"(3회째 차단) | False(비활성화) |
+| `clamp_dates` | bool | 미래 날짜(기준일로 clamping) |
+| `error_streak` | bool | 도구 오류 3회 연속 시 안내 메시지 추가 |
+| `nudge_tool` | bool | 첫 응답에 도구 호출이 없으면 도구 사용 안내 |
+| `keep_content` | bool | assistant 메시지 content 유지 여부 |
+| `routing` | bool | 4단계 라우팅 활성화 (기본 False) |
+| `calc_pipeline` | bool | 5단계 계산 파이프라인 활성화 (기본 False) |
+| `extra` | dict | 조건별 특수 옵션 |
+
+**CFG_OVERRIDE 예시** — 라우팅·계산 파이프라인 켜기:
+
+```bash
+# 라우팅 + 계산 파이프라인 활성화
+CFG_OVERRIDE='{"routing": true, "calc_pipeline": true}' python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
+
+# 도구 상한 12회, 3000자 자름, 3회째 차단
+CFG_OVERRIDE='{"limit_tools": 12, "truncate_chars": 3000, "repeat_block": "3rd_only"}' python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
+```
+
+라우팅 관련 상세는 `eval/data/routing_table.json`을 참고한다. 라우팅이 활성화되면 분류 호출 1회로 문항을 주제·유형(서술형/계산형)으로 분류하고, 매핑표 기반 도구만 노출한다. `expand_tools` 도구로 다른 주제 도구를 최대 2회 추가할 수 있다.
 
 ## 문항 파일 형식
 
@@ -112,8 +144,116 @@ python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/an
 
 결과 폴더(`eval/results/`)에 생성되는 파일:
 
-- **`raw_native_direct.jsonl`**: 문항별 실행 결과. 한 줄에 한 문항. 모델 답, 정오, 근거, 도구 호출 목록, 토큰 수, 소요 시간, 도구 호출 상세, **사용한 기준일(basis_date)** 포함.
+- **`raw_native_direct.jsonl`**: 문항별 실행 결과. 한 줄에 한 문항. 모델 답, 정오, 근거, 도구 호출 목록, 토큰 수(입력·출력 분리), 소요 시간, 도구 호출 상세, **사용한 기준일(basis_date)**, 대화 기록(messages), 실행 구성(run_config) 포함.
 - **`summary.json`**: 조건별 요약 통계. 전체 정답률, 연도별 정답률, 문항당 평균 도구 호출·토큰·시간 포함.
+
+### raw jsonl 필드
+
+| 필드 | 설명 |
+|------|------|
+| `연도`, `번호`, `과목` | 문항 식별자 |
+| `basis_date` | 문항 실행에 사용한 기준일 (YYYYMMDD) |
+| `모델답` | 모델 응답 JSON ({answer, reason, tools_used}) |
+| `정오` | "O" / "X" / "무응답" / "실행실패" / "제외" |
+| `근거` | 모델 응답의 reason 필드 |
+| `도구호출목록` | 도구 호출 요약 목록 (도구명[인자]) |
+| `토큰수`, `입력토큰`, `출력토큰` | 누적 토큰 수 (입력·출력 분리) |
+| `소요초` | 실행 소요 시간 |
+| `messages` | 해당 문항의 전체 대화 기록 (system, user, assistant, tool) |
+| `run_config` | 실행 구성 (cond, harness, limit_tools, 안전장치 on/off 등) |
+| `tool_call_details` | 도구 호출별 상세 (도구명, 인자, 결과 미리보기 200자, 오류 여부) |
+| `harness_events` | 하네스 이벤트 (nudge, clamping, repeat, block, error_streak 등) |
+
+## 결과 비교
+
+두 실행 결과(조건 A vs 조건 B, 또는 시드별 반복)를 비교할 때 `eval/compare_runs.py`를 사용한다.
+
+### 사용법
+
+```bash
+# 두 결과 디렉토리 비교
+python eval/compare_runs.py eval/results_A eval/results_B
+
+# 시드별 반복 측정 집계
+python eval/compare_runs.py --seeds 42 43 eval/results/
+```
+
+### compare_runs.py CLI
+
+```
+usage: compare_runs.py [-h] [--seeds SEED [SEED ...]] dir_a dir_b
+
+두 실행 결과 디렉토리를 비교한다.
+
+positional arguments:
+  dir_a                 조건 A의 결과 디렉토리 (raw_*.jsonl 포함)
+  dir_b                 조건 B의 결과 디렉토리
+
+optional arguments:
+  --seeds SEED [SEED ...]  시드별 반복 측정 집계 (예: --seeds 42 43)
+```
+
+### 출력 예시
+
+```
+조건 A: eval/results_A
+조건 B: eval/results_B
+공통 문항: 40개
+A 정답: 20/40 (50.0%), B 정답: 26/40 (65.0%)
+둘 다 맞음: 20, A만 맞음: 0, B만 맞음: 6, 둘 다 틀림: 14
+실행실패 제외: 0
+McNemar p값: 0.0156 (B 우세, p < 0.05)
+A Wilson 95% CI: [0.35, 0.65]
+B Wilson 95% CI: [0.50, 0.78]
+```
+
+### McNemar 검정
+
+McNemar 정확 이항검정(양측)으로 두 조건 간 정답률 차이가 유의한지 판단한다.
+
+- **귀무가설**: 두 조건의 정답률이 같다.
+- **대립가설**: 두 조건의 정답률이 다르다.
+- **p < 0.05**: 통계적으로 유의한 차이 (B 우세 또는 A 우세)
+- **p >= 0.05**: 차이 없음
+
+McNemar 검정은 **불일치 쌍**(A만 맞음, B만 맞음)만 사용한다. 둘 다 맞거나 둘 다 틀린 문항은 검정에 기여하지 않는다.
+
+### Wilson 95% 신뢰구간
+
+정답률의 Wilson score 95% 신뢰구간을 함께 출력한다. 표본 크기가 작을 때 정규 근사보다 정확하다.
+
+### 반복 측정 (시드별 집계)
+
+`--seeds` 옵션으로 여러 시드의 결과를 누적하여 비교할 수 있다. 문항 × 시드가 한 짝이 되며, 모든 시드 결과를 합산하여 McNemar 검정을 수행한다.
+
+```bash
+# 시드 42, 43의 결과를 누적 비교
+python eval/compare_runs.py --seeds 42 43 eval/results/
+```
+
+이 경우 `results_root/calcset_{label}_s{seed}` 폴더들을 시드별로 짝지어 합산한다.
+
+### 중복 및 실행실패 처리
+
+- **중복**: 같은 (연도, 번호)가 여러 번 나타나면 마지막 줄 사용
+- **실행실패**: 한쪽이라도 "실행실패"면 비교 대상에서 제외 (분모에서 제외, 별도 집계)
+
+## 보류셋
+
+보류셋(holdout set)은 공개 보고 전용 평가 세트다. 개발·튜닝 중 실행하지 않는다.
+
+보류셋 정보는 `eval/data/holdout_manifest.json`에 기록되어 있다.
+
+```json
+{
+  "설명": "보류셋(공개 보고 전용). 개발·튜닝 중 실행 금지.",
+  "files": [
+    {"id": "N2026", "questions": "data_new40/문제_new40.json", "answers": "data_new40/정답_new40.json", "evidence": "data_new40/근거_new40.json", "basis_date": "20261015", "n": 40}
+  ]
+}
+```
+
+보류셋 실행이 필요한 경우(공식 보고 전 최종 검증 등) 위 manifest에 기록된 파일 경로·기준일을 참고하여 실행한다.
 
 ## 계산 MCP 연동
 
