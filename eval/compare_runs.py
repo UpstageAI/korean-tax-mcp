@@ -230,6 +230,7 @@ def compare_seeds(
         verdict = "차이 없음"
 
     return {
+        "n": n_pairs,
         "seeds": len(seeds),
         "n_pairs": n_pairs,
         "a_correct": total_a_correct,
@@ -251,7 +252,14 @@ def compare_seeds(
 
 def _print_table(r: dict) -> None:
     """비교 결과를 표 형태로 표준출력."""
-    n = r["n"]
+    n = r.get("n", r.get("n_pairs"))
+    seed_scores = r.get("seed_scores")
+    if seed_scores:
+        print("시드별:")
+        for s in seed_scores:
+            print(f"  s{s['seed']}  A {s['a_correct']}/{s['n']}  B {s['b_correct']}/{s['n']}  p={s['p']:.3f}")
+        print(f"합산 (문항×시드 짝): {n}")
+        print()
     print(f"문항수: {n}")
     print(f"A 정답: {r['a_correct']}/{n}  (95% CI: [{r['ci_a'][0]:.3f}, {r['ci_a'][1]:.3f}])")
     print(f"B 정답: {r['b_correct']}/{n}  (95% CI: [{r['ci_b'][0]:.3f}, {r['ci_b'][1]:.3f}])")
@@ -268,12 +276,12 @@ def _print_table(r: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="compare_runs — 두 실행 결과 비교")
-    parser.add_argument("dir_a", help="비교 대상 A 디렉토리")
-    parser.add_argument("dir_b", help="비교 대상 B 디렉토리")
+    parser.add_argument("a", help="디렉토리(기본) 또는 --seeds 모드에서는 라벨 A")
+    parser.add_argument("b", help="디렉토리(기본) 또는 --seeds 모드에서는 라벨 B")
     parser.add_argument("--seeds", help="콤마 구분 시드 목록 (예: 42,43,44)")
     parser.add_argument("--root", help="results 루트 디렉토리 (--seeds 사용 시 필수)")
-    parser.add_argument("--label-a", default="A", help="A 라벨 (--seeds 사용 시)")
-    parser.add_argument("--label-b", default="B", help="B 라벨 (--seeds 사용 시)")
+    parser.add_argument("--label-a", default=None, help="A 라벨 (--seeds 사용 시, 미지정 시 a 사용)")
+    parser.add_argument("--label-b", default=None, help="B 라벨 (--seeds 사용 시, 미지정 시 b 사용)")
     args = parser.parse_args()
 
     if args.seeds is not None:
@@ -284,9 +292,11 @@ def main() -> None:
         if not seeds:
             print("시드 목록이 비어 있음", file=sys.stderr)
             sys.exit(2)
-        r = compare_seeds(args.root, args.label_a, args.label_b, seeds)
+        label_a = args.label_a if args.label_a is not None else args.a
+        label_b = args.label_b if args.label_b is not None else args.b
+        r = compare_seeds(args.root, label_a, label_b, seeds)
     else:
-        r = compare(args.dir_a, args.dir_b)
+        r = compare(args.a, args.b)
 
     _print_table(r)
 
