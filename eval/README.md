@@ -301,4 +301,43 @@ python eval/compare_runs.py --seeds 42,43,44 --root eval/results base routing
 - 도구 단위 정확도: `bench/`
 - MCP 패키지: `korean_tax_mcp/`, `korean_tax_calc_mcp/` (별도 레포)
 
+## 오답 원인 분류
+
+`eval/classify_failures.py`는 `eval/results/` 아래의 raw jsonl 결과를 읽어 오답을 7개 분류 중 하나로 붙인다. 규칙 층(실행실패·무응답·도구 미호출·인자 오류)은 raw 기록만으로 결정하고, 나머지는 판정 층에서 API 호출로 분류한다.
+
+### 분류 정의
+
+| 분류 | 명칭 | 설명 |
+|------|------|------|
+| 0 | 정답 | 정오 "O" |
+| 1 | 도구 미호출 | 계산형 문항인데 계산 도구를 호출하지 않음 |
+| 2 | 잘못된 도구 선택 | 호출한 계산 도구가 문항 주제와 다름 |
+| 3 | 인자 오류 | 계산 도구 인자가 문항 사실관계와 다름(값 오추출) |
+| 4 | 도구 결과 부족·오류 | 인자는 맞으나 결과가 틀리거나 필요한 자료를 도구가 못 반환 |
+| 5 | 판단 오류 | 도구 결과는 맞고 충분한데 합산·차감·보기 대조 단계에서 틀림 |
+| 6 | 집계·파싱·무응답 | 무응답 또는 모델 답에서 정답을 파싱하지 못함 |
+| 7 | 실행 실패 | 도구 호출 중 예외가 발생해 실행이 중단됨 |
+
+### 규칙 층 / 판정 층
+
+- **규칙 층**: 실행실패(7), 무응답/파싱(6), 도구 미호출(1), 모든 계산 호출이 인자 오류(3)는 raw 기록만으로 분류.
+- **판정 층**: 위 규칙에 해당하지 않는 오답(2·4·5 후보는 계산형, 4·5 후보는 서술형)은 API 호출로 분류. `--no-judge` 옵션 사용 시 규칙 층만 적용하고 나머지는 미판정으로 남긴다.
+
+### 사용법
+
+```bash
+# 기본 실행 (판정 층 포함, questions는 기본값으로 eval/examples/items.json 사용)
+python eval/classify_failures.py eval/results/calcset_base_s42
+
+# questions 파일 지정
+python eval/classify_failures.py eval/results/calcset_base_s42 --questions eval/examples/items.json
+
+# 판정 층 없이 규칙 층만 사용
+python eval/classify_failures.py eval/results/calcset_base_s42 --questions eval/examples/items.json --no-judge
+```
+
+### 캐시 파일
+
+분류 결과는 `eval/results/calcset_base_s42/failure_classes.jsonl`에 캐시된다. 같은 디렉토리에서 다시 실행하면 캐시된 결과를 재사용하며, 판정 버전이 변경되지 않은 경우 API 재호출을 건너뛴다. 캐시 파일은 한 줄에 한 문항의 분류 결과(연도, 번호, 분류, 소분류, 근거, flags 포함)를 JSON으로 저장한다.
+
 Created by Mia(윤승미)
