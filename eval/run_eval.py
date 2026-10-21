@@ -78,6 +78,7 @@ class RunConfig:
     calc_nudge: int = 0          # 계산형 문항에서 계산 도구 미호출 시 넛지 임계값 (0=끔)
     routing: bool = False         # 4단계 라우팅 (CFG_OVERRIDE로 켬)
     calc_pipeline: bool = False   # 5단계 계산형 파이프라인 (CFG_OVERRIDE로 켬)
+    fact_sheet: bool = False      # 계산형 문항 사실관계 표 추출 단계 (CFG_OVERRIDE로 켬)
 
 
 # HARNESS_V2/V3에 따라 기본 시스템·사용자 프롬프트 결정
@@ -583,6 +584,7 @@ class QuestionResult:
     forced_final: bool = False
     reasoning: str | None = None
     reasoning_tokens: int = 0
+    fact_sheet: str = ""                         # 사실관계 표 원문
     _tool_call_records: list = field(default_factory=list)
     _messages: list[dict] | None = None
     _run_config: dict | None = None
@@ -638,6 +640,7 @@ class LoopResult:
     routing_expand_count: int = 0
     calc_pipeline_result: dict | None = None
     calc_nudged: bool = False                    # 계산형 넛지 발동 여부
+    fact_sheet: str = ""                         # 사실관계 표 원문 (빈 문자열이면 미호출/실패)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -2241,6 +2244,7 @@ def _append_raw_one(
         "forced_final": res.forced_final,
         "reasoning": res.reasoning,
         "reasoning_tokens": res.reasoning_tokens,
+        "fact_sheet": res.fact_sheet,  # 사실관계 표 원문 (항상 존재, 없으면 "")
         "error": getattr(res, "_error_raw", None),
     }
     if messages is None:
@@ -2573,6 +2577,33 @@ def run_question(
     assert cfg is not None and messages is not None and tools is not None
     assert name_to_server is not None and schema_map is not None
 
+    # ── 사실관계 표(fact_sheet) 추출 단계 (계산형 문항, cfg.fact_sheet) ─────────────
+    fact_sheet_content = ""
+    fact_sheet_usage = UsageAcc()
+    if cfg.fact_sheet and is_calc_type(body):
+        fs_system = "세법 계산 문항의 사실관계를 표로 정리하는 역할입니다. 문항에 나온 모든 금액·날짜·비율·수량·조건을 빠짐없이 항목별로 적고, 묻는 값이 무엇인지 마지막 줄에 적으세요. 계산하거나 판단하지 말고 문항에 적힌 그대로 옮기세요. 출력은 마크다운 표 하나: | 항목 | 값 | 비고(문항 원문 표현) |"
+        fs_messages = [
+            {"role": "system", "content": fs_system},
+            {"role": "user", "content": body},
+        ]
+        try:
+            fs_resp = api_chat_complete(
+                base_url, api_key, model, fs_messages,
+                temperature=_RUN_TEMP, seed=seed + 7777, max_tokens=1500, tools=None,
+            )
+            fact_sheet_usage.add(fs_resp)
+            fs_content = (fs_resp.get("choices", [{}])[0].get("message", {}) or {}).get("content", "") or ""
+            if fs_content.strip():
+                fact_sheet_content = fs_content
+                # 기존 user 메시지에 사실관계 표 추가
+                for m in messages:
+                    if m.get("role") == "user":
+                        m["content"] = m.get("content", "") + "\n\n[사실관계 표 — 도구 입력값은 이 표의 항목을 빠짐없이 반영할 것]\n" + fs_content
+                        break
+        except Exception:
+            fact_sheet_content = ""
+            fact_sheet_usage = UsageAcc()
+
     loop_result = run_tool_loop(
         cfg=cfg,
         messages=messages,
@@ -2593,7 +2624,25 @@ def run_question(
     final_answer = loop_result.final_answer
     tool_calls = loop_result.tool_calls
     tool_call_records = loop_result.tool_call_records
-    usage_acc = loop_result.usage_acc
+    usage_acc = UsageAcc()
+    # fact_sheet 추출 단계 사용량 누적
+    if fact_sheet_usage.prompt > 0 or fact_sheet_usage.completion > 0:
+        usage_acc.add({
+            "usage": {
+                "prompt_tokens": fact_sheet_usage.prompt,
+                "completion_tokens": fact_sheet_usage.completion,
+                "total_tokens": fact_sheet_usage.total,
+            }
+        })
+    usage_acc.add({
+        "usage": {
+            "prompt_tokens": loop_result.usage_acc.prompt,
+            "completion_tokens": loop_result.usage_acc.completion,
+            "total_tokens": loop_result.usage_acc.total,
+            "reasoning_tokens": loop_result.usage_acc.reasoning,
+        }
+    })
+    loop_result.fact_sheet = fact_sheet_content
     duplicate_count = loop_result.duplicate_count
     nudged = loop_result.nudged
     calc_nudged = loop_result.calc_nudged
@@ -2660,6 +2709,7 @@ def run_question(
         forced_final=forced_final,
         reasoning=reasoning,
         reasoning_tokens=usage_acc.reasoning,
+        fact_sheet=loop_result.fact_sheet,
     )
     result._중복호출수 = duplicate_count
     result._도구미사용 = 도구미사용
@@ -2693,6 +2743,11 @@ def run_question(
             events["repeat"] = repeat_count
             events["blocked"] = blocked_count
             events["error_streak"] = error_streak_count
+        # 사실관계 표 추출 단계 기록 (호출 시도 시 결과, 미호출 시 False)
+        if cfg.fact_sheet and is_calc_type(body):
+            events["fact_sheet"] = bool(fact_sheet_content)
+        else:
+            events["fact_sheet"] = False
         result._harness_events = events
 
     if progress_callback:

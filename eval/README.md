@@ -48,11 +48,15 @@ Solar Pro 4가 **세법 MCP(korean-tax-mcp)**와 **계산 MCP(korean-tax-calc-mc
 | `routing` | bool | 4단계 라우팅 활성화 (기본 False) |
 | `calc_pipeline` | bool | 5단계 계산 파이프라인 활성화 (기본 False) |
 | `calc_nudge` | int | 계산형 문항에서 계산 도구 미호출 시 넛지 임계값 (0=끔, 기본값 0) |
+| `fact_sheet` | bool | 계산형 문항 사실관계 표 추출 단계 활성화 (기본 False) |
 | `extra` | dict | 조건별 특수 옵션 |
 
 **CFG_OVERRIDE 예시** — 라우팅·계산 파이프라인 켜기:
 
 ```bash
+# 라우팅 + 사실관계 표 추출 활성화
+CFG_OVERRIDE='{"routing": true, "fact_sheet": true}' python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
+
 # 라우팅 + 계산 파이프라인 활성화
 CFG_OVERRIDE='{"routing": true, "calc_pipeline": true}' python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
 
