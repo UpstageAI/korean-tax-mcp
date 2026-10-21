@@ -173,38 +173,66 @@ python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/an
 ```bash
 # 두 결과 디렉토리 비교
 python eval/compare_runs.py eval/results_A eval/results_B
-
-# 시드별 반복 측정 집계
-python eval/compare_runs.py --seeds 42 43 eval/results/
+# 시드별 반복 측정 집계: 위치 인자는 라벨, 폴더는 {root}/calcset_{라벨}_s{시드}
+python eval/compare_runs.py --seeds 42,43,44 --root eval/results base routing
 ```
 
 ### compare_runs.py CLI
 
 ```
-usage: compare_runs.py [-h] [--seeds SEED [SEED ...]] dir_a dir_b
+usage: compare_runs.py [-h] [--seeds SEEDS] [--root ROOT] [--label-a LABEL_A] [--label-b LABEL_B] a b
 
 두 실행 결과 디렉토리를 비교한다.
 
 positional arguments:
-  dir_a                 조건 A의 결과 디렉토리 (raw_*.jsonl 포함)
-  dir_b                 조건 B의 결과 디렉토리
+  a                     조건 A의 결과 디렉토리 (기본) 또는 --seeds 모드에서는 라벨 A
+  b                     조건 B의 결과 디렉토리 (기본) 또는 --seeds 모드에서는 라벨 B
 
 optional arguments:
-  --seeds SEED [SEED ...]  시드별 반복 측정 집계 (예: --seeds 42 43)
+  --seeds SEEDS         시드별 반복 측정 집계 (콤마 구분, 예: --seeds 42,43,44)
+  --root ROOT           results 루트 디렉토리 (--seeds 사용 시 필수)
+  --label-a LABEL_A     A 라벨 (--seeds 사용 시, 미지정 시 a 사용)
+  --label-b LABEL_B     B 라벨 (--seeds 사용 시, 미지정 시 b 사용)
 ```
 
 ### 출력 예시
 
 ```
-조건 A: eval/results_A
-조건 B: eval/results_B
-공통 문항: 40개
-A 정답: 20/40 (50.0%), B 정답: 26/40 (65.0%)
-둘 다 맞음: 20, A만 맞음: 0, B만 맞음: 6, 둘 다 틀림: 14
-실행실패 제외: 0
-McNemar p값: 0.0156 (B 우세, p < 0.05)
-A Wilson 95% CI: [0.35, 0.65]
-B Wilson 95% CI: [0.50, 0.78]
+문항수: 44
+A 정답: 20/44  (95% CI: [0.352, 0.563])
+B 정답: 24/44  (95% CI: [0.418, 0.653])
+
+둘 다 맞음: 15
+A만 맞음  : 5
+B만 맞음  : 9
+둘 다 틀림: 15
+제외(실행실패): 0
+
+McNemar p: 0.317
+판정      : 차이 없음
+```
+
+`--seeds` 모드에서는 시드별 줄이 먼저 출력된다:
+
+```
+시드별:
+  s42  A 20/44  B 17/44  p=0.607
+  s43  A 23/44  B 20/44  p=0.629
+  s44  A 19/44  B 18/44  p=0.841
+합산 (문항×시드 짝): 132
+
+문항수: 132
+A 정답: 62/132  (95% CI: [0.399, 0.528])
+B 정답: 55/132  (95% CI: [0.345, 0.469])
+
+둘 다 맞음: 42
+A만 맞음  : 20
+B만 맞음  : 13
+둘 다 틀림: 57
+제외(실행실패): 0
+
+McNemar p: 0.112
+판정      : 차이 없음
 ```
 
 ### McNemar 검정
@@ -226,9 +254,11 @@ McNemar 검정은 **불일치 쌍**(A만 맞음, B만 맞음)만 사용한다. �
 
 `--seeds` 옵션으로 여러 시드의 결과를 누적하여 비교할 수 있다. 문항 × 시드가 한 짝이 되며, 모든 시드 결과를 합산하여 McNemar 검정을 수행한다.
 
+위치 인자 `a`, `b`는 이 모드에서 라벨로 동작한다. 각 시드의 결과 폴더는 `{root}/calcset_{라벨}_s{시드}` 형식으로 찾는다. `--label-a`/`--label-b`를 지정하면 해당 라벨이 우선하고, 미지정 시 위치 인자 값을 사용한다.
+
 ```bash
-# 시드 42, 43의 결과를 누적 비교
-python eval/compare_runs.py --seeds 42 43 eval/results/
+# 시드 42, 43, 44의 결과를 누적 비교 (base vs routing)
+python eval/compare_runs.py --seeds 42,43,44 --root eval/results base routing
 ```
 
 이 경우 `results_root/calcset_{label}_s{seed}` 폴더들을 시드별로 짝지어 합산한다.
