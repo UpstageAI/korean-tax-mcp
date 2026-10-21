@@ -80,3 +80,22 @@ def test_fact_sheet_failure_does_not_break_question(tmp_path, monkeypatch):
     monkeypatch.setattr(run, "api_chat_complete", flaky)
     res, obj = _run(CALC_Q, tmp_path)
     assert res.정오 == "O" and obj["harness_events"]["fact_sheet"] is False and obj["fact_sheet"] == ""   # 표 실패해도 문항은 진행
+
+
+def test_fact_sheet_event_recorded_without_routing_or_v3(tmp_path, monkeypatch):
+    """fact_sheet 이벤트는 routing·calc_pipeline·HARNESS_V3와 무관하게 기록돼야 한다 (리뷰 반영)."""
+    log = []
+    _setup(monkeypatch, log, {"fact_sheet": True, "routing": False, "calc_pipeline": False})
+    monkeypatch.setattr(run, "HARNESS_V3", False)
+    res, obj = _run(CALC_Q, tmp_path)
+    assert "fact_sheet" in obj["harness_events"] and obj["harness_events"]["fact_sheet"] is True
+
+
+def test_save_raw_includes_fact_sheet(tmp_path, monkeypatch):
+    log = []
+    _setup(monkeypatch, log, {"fact_sheet": True})
+    res, _ = _run(CALC_Q, tmp_path)
+    monkeypatch.setattr(run, "RESULTS_DIR", tmp_path)
+    p = run.save_raw([res], "native_direct", "C2023")
+    txt = pathlib.Path(p).read_text()
+    assert '"fact_sheet"' in txt and "| 항목" in txt                     # save_raw 경로에도 표 원문 저장

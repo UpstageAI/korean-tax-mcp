@@ -91,3 +91,27 @@ def test_no_nudge_when_off_or_descriptive_or_calc_already_called(tmp_path, monke
     monkeypatch.setattr(run, "api_chat_complete", api_calc_first)
     res3, obj3 = _run(CALC_Q, tmp_path)
     assert obj3["harness_events"]["calc_nudged"] is False
+
+
+def test_nudge_fires_when_multiple_tools_per_round(tmp_path, monkeypatch):
+    """한 라운드에 도구 3개씩 부르면 누적이 5를 건너뛴다(3→6). 그래도 5회째 호출 직후 1회 찔러야 한다 (리뷰 반영)."""
+    log = []
+    def api(base_url, api_key, model, messages, **kw):
+        n = sum(1 for m in messages if m.get("role") == "tool")
+        nudged = any(m.get("role") == "user" and NUDGE_KEY in (m.get("content") or "") and "계산 도구" in m["content"] for m in messages[2:])
+        u = {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+        if nudged and not any(m.get("role") == "tool" and "산출세액" in (m.get("content") or "") for m in messages):
+            return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [_tc("corporate_tax", {"base": 500000000}, 99)]}}], "usage": u}
+        if n < 9 and not nudged:
+            calls = [_tc("law_article", {"article": f"제{n+i}조"}, n * 10 + i) for i in range(3)]      # 라운드당 3개
+            return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": calls}}], "usage": u}
+        return {"choices": [{"message": {"role": "assistant", "content": '{"reason": "x", "answer": 3}'}}], "usage": u}
+    monkeypatch.setattr(run, "api_chat_complete", api)
+    monkeypatch.setattr(run, "_build_tools", lambda: ([LAW, CALC], [], {"law_article": ("ktm", "law_article"), "corporate_tax": ("ktcalc", "corporate_tax")}))
+    monkeypatch.setattr(run, "_sync_call_tool", lambda server, name, args: json.dumps({"산출세액": 75000000} if name == "corporate_tax" else {"본문": "x"}))
+    monkeypatch.setattr(run, "HARNESS_V3", True)
+    monkeypatch.setenv("CFG_OVERRIDE", json.dumps({"calc_nudge": 5}))
+    res, obj = _run(CALC_Q, tmp_path)
+    assert obj["harness_events"]["calc_nudged"] is True
+    nudges = [m for m in res._messages if m.get("role") == "user" and NUDGE_KEY in (m.get("content") or "") and "계산 도구" in m["content"]]
+    assert len(nudges) == 1
