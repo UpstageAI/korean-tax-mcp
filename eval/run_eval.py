@@ -434,8 +434,16 @@ def get_api_config() -> tuple[str, str]:
     """API 엔드포인트와 키 반환."""
     key = os.environ.get("UPSTAGE_API_KEY", "")
     if not key:
+        env_path = Path(".env")
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("UPSTAGE_API_KEY="):
+                    key = line.split("=", 1)[1].strip()
+                    break
+    if not key:
         raise RuntimeError(
-            "UPSTAGE_API_KEY 환경변수가 설정되지 않았습니다."
+            "UPSTAGE_API_KEY 환경변수 또는 .env 파일에서 키를 찾을 수 없습니다."
         )
     base_url = os.environ.get("UPSTAGE_API_BASE_URL", "https://api.upstage.ai/v1")
     return base_url, key
@@ -2755,6 +2763,8 @@ def main():
                         help="API temperature (기본: 0.0)")
     parser.add_argument("--dry-run", action="store_true",
                         help="API 호출 없이 문항 수·도구 수만 출력하고 종료")
+    parser.add_argument("--dump-tool-catalog", action="store_true",
+                        help="MCP 도구 이름 목록을 eval/data/tool_catalog.json으로 저장하고 종료 (하네스 점검 10번)")
     parser.add_argument("--resume", action="store_true",
                         help="기존 raw 결과에서 완료된 문항 건너뛰고 이어서 실행")
     parser.add_argument("--results-dir", type=Path, default=None,
@@ -2762,6 +2772,19 @@ def main():
     args = parser.parse_args()
 
     _RUN_TEMP = args.temperature
+
+    if args.dump_tool_catalog:
+        catalog = {
+            "law": _get_ktm_tool_names(),
+            "calc": _get_ktcalc_tool_names(),
+        }
+        catalog_path = Path(__file__).parent / "data" / "tool_catalog.json"
+        catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        catalog_path.write_text(json.dumps(catalog, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"도구 카탈로그 저장: {catalog_path}")
+        print(f"  law: {len(catalog['law'])}개 — {', '.join(catalog['law'])}")
+        print(f"  calc: {len(catalog['calc'])}개 — {', '.join(catalog['calc'])}")
+        sys.exit(0)
 
     # 파일 존재 확인
     if not args.qset.exists():
