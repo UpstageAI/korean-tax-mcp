@@ -47,6 +47,7 @@ Solar Pro 4가 **세법 MCP(korean-tax-mcp)**와 **계산 MCP(korean-tax-calc-mc
 | `keep_content` | bool | assistant 메시지 content 유지 여부 |
 | `routing` | bool | 4단계 라우팅 활성화 (기본 False) |
 | `calc_pipeline` | bool | 5단계 계산 파이프라인 활성화 (기본 False) |
+| `calc_nudge` | int | 계산형 문항에서 계산 도구 미호출 시 넛지 임계값 (0=끔, 기본값 0) |
 | `extra` | dict | 조건별 특수 옵션 |
 
 **CFG_OVERRIDE 예시** — 라우팅·계산 파이프라인 켜기:
@@ -54,6 +55,9 @@ Solar Pro 4가 **세법 MCP(korean-tax-mcp)**와 **계산 MCP(korean-tax-calc-mc
 ```bash
 # 라우팅 + 계산 파이프라인 활성화
 CFG_OVERRIDE='{"routing": true, "calc_pipeline": true}' python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
+
+# 계산형 넛지 활성화 (계산 도구 미호출 시 5회째에 1회 안내)
+CFG_OVERRIDE='{"routing": true, "calc_nudge": 5}' python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
 
 # 도구 상한 12회, 3000자 자름, 3회째 차단
 CFG_OVERRIDE='{"limit_tools": 12, "truncate_chars": 3000, "repeat_block": "3rd_only"}' python eval/run_eval.py --qset eval/examples/items.json --anset eval/examples/answers.json --seed 42
