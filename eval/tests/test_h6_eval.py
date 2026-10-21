@@ -49,3 +49,21 @@ def test_cli_prints_table(tmp_path):
     _w(a / "raw_native_direct_C2023.jsonl", [(1, "O"), (2, "X")]); _w(b / "raw_native_direct_C2023.jsonl", [(1, "O"), (2, "O")])
     out = subprocess.run([sys.executable, str(pathlib.Path(cr.__file__)), str(a), str(b)], capture_output=True, text=True).stdout
     assert "McNemar" in out and "B만 맞음" in out
+
+
+def test_cli_seeds_mode_no_dirs(tmp_path):
+    """--seeds 모드: 위치 인자는 라벨(A B), 디렉토리 없이 동작하고 시드별·합산 표를 찍는다 (하네스 점검 후속)."""
+    for s in (42, 43):
+        for lab in ("A", "B"):
+            d = tmp_path / f"calcset_{lab}_s{s}"; d.mkdir()
+            _w(d / "raw_native_direct_C2023.jsonl", [(i, "O" if (i + s + (lab == "B")) % 3 else "X") for i in range(1, 11)])
+    p = subprocess.run([sys.executable, str(pathlib.Path(cr.__file__)), "--seeds", "42,43", "--root", str(tmp_path), "A", "B"],
+                       capture_output=True, text=True)
+    assert p.returncode == 0, p.stderr
+    assert "McNemar" in p.stdout and "20" in p.stdout                # 문항 10 × 시드 2 = 20짝
+    assert "42" in p.stdout and "43" in p.stdout                      # 시드별 줄
+
+
+def test_cli_seeds_requires_root(tmp_path):
+    p = subprocess.run([sys.executable, str(pathlib.Path(cr.__file__)), "--seeds", "42", "A", "B"], capture_output=True, text=True)
+    assert p.returncode != 0
