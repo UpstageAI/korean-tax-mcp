@@ -2065,7 +2065,7 @@ def run_tool_loop(
                 # ── 계산형 넛지 (cfg.calc_nudge) ─────────────────────────────────────
                 if not calc_nudged and cfg.calc_nudge > 0:
                     is_calc = (routing_state is not None and routing_state.question_type == "계산형") or is_calc_type(body)
-                    if is_calc and total_tool_calls == cfg.calc_nudge:
+                    if is_calc and total_tool_calls >= cfg.calc_nudge:
                         # 지금까지 계산 도구 호출 횟수 확인
                         calc_call_count = sum(1 for tc in tool_calls if _is_calc_tool(tc["tool"], name_to_server))
                         if calc_call_count == 0:
@@ -2288,7 +2288,23 @@ def save_raw(results: list[QuestionResult], cond: str, year: str, reasoning: str
                 "출력토큰": r.출력토큰,
                 "소요초": r.소요초,
                 "forced_final": r.forced_final,
+                "reasoning": r.reasoning,
+                "reasoning_tokens": r.reasoning_tokens,
+                "fact_sheet": r.fact_sheet,
             }
+            if getattr(r, "_error_raw", None) is not None:
+                obj["error"] = r._error_raw
+            if getattr(r, "_messages", None) is not None:
+                obj["messages"] = r._messages
+            if getattr(r, "_run_config", None) is not None:
+                obj["run_config"] = r._run_config
+            if getattr(r, "_tool_call_records", None):
+                obj["tool_call_details"] = [
+                    {"tool": name, "args": args, "result_preview": preview, "is_error": is_error}
+                    for name, args, preview, is_error in r._tool_call_records
+                ]
+            if getattr(r, "_harness_events", None):
+                obj["harness_events"] = r._harness_events
             f.write(json.dumps(obj, ensure_ascii=False) + "\n")
     return path
 
@@ -2721,34 +2737,33 @@ def run_question(
     else:
         result._run_config = None
         result._cfg = None
-    if cfg.routing or cfg.calc_pipeline or HARNESS_V3:
-        events: dict[str, Any] = {}
-        if cfg.routing:
-            events["routing_bucket"] = loop_result.routing_bucket
-            events["routing_qtype"] = loop_result.routing_qtype
-            events["routing_expand_count"] = loop_result.routing_expand_count
-        if cfg.calc_pipeline and loop_result.calc_pipeline_result is not None:
-            cp = loop_result.calc_pipeline_result
-            events["calc_pipeline"] = {
-                "answer": cp.get("answer"),
-                "fallback": cp.get("fallback", False),
-                "extractions": cp.get("extractions", 0),
-                "tool": cp.get("tool"),
-                "attempts": cp.get("attempts", []),
-            }
-        if HARNESS_V3:
-            events["nudged"] = nudged
-            events["calc_nudged"] = calc_nudged
-            events["clamped"] = clamped_count
-            events["repeat"] = repeat_count
-            events["blocked"] = blocked_count
-            events["error_streak"] = error_streak_count
-        # 사실관계 표 추출 단계 기록 (호출 시도 시 결과, 미호출 시 False)
-        if cfg.fact_sheet and is_calc_type(body):
-            events["fact_sheet"] = bool(fact_sheet_content)
-        else:
-            events["fact_sheet"] = False
-        result._harness_events = events
+    events: dict[str, Any] = {}
+    if cfg.routing:
+        events["routing_bucket"] = loop_result.routing_bucket
+        events["routing_qtype"] = loop_result.routing_qtype
+        events["routing_expand_count"] = loop_result.routing_expand_count
+    if cfg.calc_pipeline and loop_result.calc_pipeline_result is not None:
+        cp = loop_result.calc_pipeline_result
+        events["calc_pipeline"] = {
+            "answer": cp.get("answer"),
+            "fallback": cp.get("fallback", False),
+            "extractions": cp.get("extractions", 0),
+            "tool": cp.get("tool"),
+            "attempts": cp.get("attempts", []),
+        }
+    if HARNESS_V3:
+        events["nudged"] = nudged
+        events["calc_nudged"] = calc_nudged
+        events["clamped"] = clamped_count
+        events["repeat"] = repeat_count
+        events["blocked"] = blocked_count
+        events["error_streak"] = error_streak_count
+    # 사실관계 표 추출 단계 기록 (호출 시도 시 결과, 미호출 시 False)
+    if cfg.fact_sheet and is_calc_type(body):
+        events["fact_sheet"] = bool(fact_sheet_content)
+    else:
+        events["fact_sheet"] = False
+    result._harness_events = events
 
     if progress_callback:
         progress_callback(result)

@@ -291,7 +291,7 @@ def _build_system(qtype: str, 인자오류후복구: bool) -> str:
                          "이후 정상 호출로 복구됨(인자오류후복구). 3이 아닌 4·5·2 중 하나로 분류하라.")
         parts.append("  n은 2·3·4·5 중 하나. 해당 없으면 null.")
     else:
-        parts.append("  서술형에서는 1(도구 미호출)·3(인자 오류)은 해당 없음. 분류 후보는 2·4·5 또는 None.")
+        parts.append("  서술형에서는 1(도구 미호출)·3(인자 오류)은 해당 없음. 분류 후보는 4·5 또는 None.")
         parts.append("  n은 4·5 중 하나(서술형). 해당 없으면 null.")
     parts.append("")
     parts.append("JSON 한 줄로만 답하라: {\"분류\": n, \"근거\": \"한 줄\"}")
