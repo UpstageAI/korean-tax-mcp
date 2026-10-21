@@ -75,6 +75,7 @@ class RunConfig:
     nudge_tool: bool
     keep_content: bool
     extra: dict                   # 조건별 특수 옵션
+    calc_nudge: int = 0          # 계산형 문항에서 계산 도구 미호출 시 넛지 임계값 (0=끔)
     routing: bool = False         # 4단계 라우팅 (CFG_OVERRIDE로 켬)
     calc_pipeline: bool = False   # 5단계 계산형 파이프라인 (CFG_OVERRIDE로 켬)
 
@@ -636,6 +637,7 @@ class LoopResult:
     routing_qtype: str = ""
     routing_expand_count: int = 0
     calc_pipeline_result: dict | None = None
+    calc_nudged: bool = False                    # 계산형 넛지 발동 여부
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -705,6 +707,20 @@ def _truncate_result(result: dict, max_chars: int = 6000) -> dict:
         return parsed
     except json.JSONDecodeError:
         return {"_raw_truncated": truncated, "_trunc_warning": f"(잘림: {max_chars}자 초과)"}
+
+
+def _is_calc_tool(name: str, name_to_server: dict) -> bool:
+    """도구 이름이 계산형 도구(ktcalc 서버)인지 판별.
+
+    name_to_server[name][0]이 ktcalc 모듈이거나 문자열 "ktcalc"이면 True.
+    """
+    entry = name_to_server.get(name)
+    if not entry:
+        return False
+    server = entry[0]
+    if isinstance(server, str):
+        return server == "ktcalc"
+    return server is ktcalc
 
 
 def resolve_basis_date(question: dict, year: str, cmdline_basis_date: str | None) -> str:
@@ -1405,7 +1421,7 @@ def is_calc_type(body: str) -> bool:
 
     보기 영역에 '원'/'개' 금액 수치가 있거나, 발문이 액·금액·과세표준·세액·공제액·한도로 끝나면 계산형.
     """
-    if re.search(r'[\d,]+(?:원|개)', body):
+    if re.search(r'[\d,]+만?(?:원|개)', body):
         return True
     tail = body.rstrip("?").strip()
     if re.search(r'(액|금액|과세표준|세액|공제액|한도)$', tail):
@@ -1784,6 +1800,7 @@ def run_tool_loop(
 
     # 카운터 (cfg 플래그로 제어)
     nudged = False
+    calc_nudged = False          # 계산형 넛지 발동 여부
     duplicate_count = 0
     clamped_count = 0
     repeat_count = 0
@@ -1804,15 +1821,16 @@ def run_tool_loop(
     no_tool_first = (cond == "B2")
     last_assistant_content = None
 
+    # ── 문항 본문 추출 (라우팅·calc_pipeline·calc_nudge 공통) ────────────────────
+    body = ""
+    for m in messages:
+        if m.get("role") == "user":
+            body = m.get("content", "")
+            break
+
     # ── 4단계 라우팅 초기화 ──────────────────────────────────────────────────────
     routing_state: RoutingState | None = None
-    body = ""
     if cfg.routing:
-        # body 추출: user 메시지에서 (messages[1] = user)
-        for m in messages:
-            if m.get("role") == "user":
-                body = m.get("content", "")
-                break
         bucket, qtype = classify_question(body, base_url, api_key, model, seed, usage_acc)
         routing_state = RoutingState(bucket=bucket, question_type=qtype, all_tools=tools)
         # 라우팅 시 노출 도구를 state.current_tools()로 교체
@@ -1821,12 +1839,6 @@ def run_tool_loop(
     # ── 5단계 계산형 파이프라인 (cfg.calc_pipeline) ──────────────────────────────
     calc_pipeline_result: dict | None = None
     if cfg.calc_pipeline:
-        # body 추출 (라우팅이 이미 추출했으면 재사용, 없으면 user 메시지에서)
-        if not body:
-            for m in messages:
-                if m.get("role") == "user":
-                    body = m.get("content", "")
-                    break
         is_calc = (routing_state is not None and routing_state.question_type == "계산형") or is_calc_type(body)
         if is_calc:
             # 라우팅 활성 시 라우팅 선택 도구, 아니면 native_direct 도구 사용
@@ -2047,6 +2059,25 @@ def run_tool_loop(
                 messages.append({"role": "tool", "tool_call_id": tc.get("id", ""), "content": result_json})
                 total_tool_calls += 1
 
+                # ── 계산형 넛지 (cfg.calc_nudge) ─────────────────────────────────────
+                if not calc_nudged and cfg.calc_nudge > 0:
+                    is_calc = (routing_state is not None and routing_state.question_type == "계산형") or is_calc_type(body)
+                    if is_calc and total_tool_calls == cfg.calc_nudge:
+                        # 지금까지 계산 도구 호출 횟수 확인
+                        calc_call_count = sum(1 for tc in tool_calls if _is_calc_tool(tc["tool"], name_to_server))
+                        if calc_call_count == 0:
+                            # 노출된 계산 도구 이름 목록
+                            calc_names = [t["function"]["name"] for t in tools if _is_calc_tool(t["function"]["name"], name_to_server)]
+                            names_str = ", ".join(calc_names)
+                            remaining = cfg.limit_tools - total_tool_calls
+                            nudge_content = (
+                                f"이 문항은 계산형입니다. 지금까지 조문만 조회했습니다. "
+                                f"노출된 계산 도구({names_str}) 중 맞는 것으로 계산을 실행한 뒤 답하세요. "
+                                f"남은 호출 {remaining}회."
+                            )
+                            messages.append({"role": "user", "content": nudge_content})
+                            calc_nudged = True
+
                 # V3 스타일 차단 한도 체크 (cfg.repeat_block is True)
                 if cfg.repeat_block is True and blocked_count >= 3:
                     force_break = True
@@ -2097,6 +2128,7 @@ def run_tool_loop(
         routing_qtype=routing_state.question_type if routing_state else "",
         routing_expand_count=len(routing_state._expand_history) if routing_state else 0,
         calc_pipeline_result=calc_pipeline_result,
+        calc_nudged=calc_nudged,
     )
 
 # ── 1단계 측정: make_failed_result, score_counts ──────────────────────────────────
@@ -2564,6 +2596,7 @@ def run_question(
     usage_acc = loop_result.usage_acc
     duplicate_count = loop_result.duplicate_count
     nudged = loop_result.nudged
+    calc_nudged = loop_result.calc_nudged
     clamped_count = loop_result.clamped_count
     repeat_count = loop_result.repeat_count
     blocked_count = loop_result.blocked_count
@@ -2655,6 +2688,7 @@ def run_question(
             }
         if HARNESS_V3:
             events["nudged"] = nudged
+            events["calc_nudged"] = calc_nudged
             events["clamped"] = clamped_count
             events["repeat"] = repeat_count
             events["blocked"] = blocked_count
