@@ -143,3 +143,18 @@ def test_classify_dir_exposed_tools_from_routing(tmp_path):
                           api=api, use_cache=False, routing_table=routing)
     assert out[0]["소분류"] == "도구 있음(inheritance_tax)"
     assert "inheritance_tax" in seen[0] and "corporate_tax" not in seen[0]      # 라우팅 주제의 계산 도구만 노출 목록으로
+
+
+# ── 하네스 점검 후속(리뷰 반영): 판정 프롬프트 후보와 ALLOWED 집합 일치 ──
+
+def test_judge_prompt_candidates_match_allowed(monkeypatch):
+    seen = {}
+    def api(base_url, api_key, model, messages, **kw):
+        seen["sys"] = messages[0]["content"]; return {"choices": [{"message": {"content": '{"분류": 5, "근거": "x"}'}}], "usage": {}}
+    cf.classify_record(_rec(details=[_call("law_article")]), qtype="서술형", law_tools=LAW, calc_tools=CALC, api=api)
+    s = seen["sys"]
+    assert "2·4·5" not in s and "2, 4, 5" not in s                       # 서술형 후보는 4·5뿐(ALLOWED와 일치)
+    def api2(base_url, api_key, model, messages, **kw):
+        return {"choices": [{"message": {"content": '{"분류": 2, "근거": "x"}'}}], "usage": {}}
+    r = cf.classify_record(_rec(details=[_call("law_article")]), qtype="서술형", law_tools=LAW, calc_tools=CALC, api=api2)
+    assert r["분류"] is None and r["소분류"] == "미판정"                   # 2는 서술형에서 거부(동작은 그대로)
