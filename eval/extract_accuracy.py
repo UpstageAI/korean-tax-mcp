@@ -81,6 +81,16 @@ def _reset_동치카운터() -> None:
     _동치카운터["묶음"] = 0
 
 
+def reset_equiv_counter() -> None:
+    """동치 적용 카운터를 모두 0으로 초기화한다."""
+    _reset_동치카운터()
+
+
+def get_equiv_counter() -> dict[str, int]:
+    """현재 동치 적용 횟수 {"비율", "백분율", "묶음"}를 반환한다."""
+    return dict(_동치카운터)
+
+
 # ── 비율 동치 ─────────────────────────────────────────────────────────────────────
 
 def _is_ratio_equivalent(gold_v: dict, model_v: dict) -> bool:
@@ -152,8 +162,10 @@ def match_value(model_v, gold_v, _key: str | None = None) -> float:
             return 1.0
         # 비율 동치 우선 시도
         if _is_ratio_equivalent(gold_v, model_v):
-            _동치카운터["비율"] += 1
-            return _ratio_compare(gold_v, model_v)
+            ratio_result = _ratio_compare(gold_v, model_v)
+            if ratio_result == 1.0:
+                _동치카운터["비율"] += 1
+            return ratio_result
         total = 0.0
         for k, gv in gold_v.items():
             mv = model_v.get(k)
@@ -239,7 +251,7 @@ def score_call(model_args: dict, gold_args: dict) -> dict:
             누락.append(k)
             total += 0.0
         else:
-            mv_score = match_value(mv, gv)
+            mv_score = match_value(mv, gv, _key=k)
             total += mv_score
             if mv_score < 1.0:
                 틀림.append(k)

@@ -97,3 +97,15 @@ def test_score_record_bundles_multiple_gold_calls():
     s = ea.score_record(rec, gold)
     assert s["도구선택"] and 0 < s["일치율"] < 1.0
     assert any(cb.get("묶음") for cb in s["호출별"])
+
+
+def test_ratio_counter_counts_only_successes():
+    ea.reset_equiv_counter()
+    ea.match_value({"taxable": 600, "exempt": 400}, {"taxable": 60, "exempt": 40})   # 동치 성립
+    ea.match_value({"taxable": 530, "exempt": 470}, {"taxable": 60, "exempt": 40})   # 구조만 같고 비율 다름
+    assert ea.get_equiv_counter()["비율"] == 1
+
+
+def test_score_call_excludes_amount_fields_from_percent_equivalence():
+    s = ea.score_call({"amount": 10, "ratio": 10}, {"amount": 0.1, "ratio": 0.1})
+    assert "amount" in s["틀림"] and "ratio" not in s["틀림"]
