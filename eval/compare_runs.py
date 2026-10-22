@@ -252,10 +252,11 @@ def _print_paired_stats_block(s: dict) -> None:
     corr_str = f"{corr:.2f}" if corr is not None else "N/A"
 
     print()
+    se_str = "∞" if math.isinf(se) else _fmt_pp(se)
     print("[짝 통계] "
           f"n={n} K={K}  "
           f"A {mean_a:.1%}  B {mean_b:.1%}  "
-          f"차(A−B) {_fmt_pp(diff)}p (SE {_fmt_pp(se)}p)  "
+          f"차(A−B) {_fmt_pp(diff)}p (SE {se_str}p)  "
           f"95% CI ({_fmt_pp(lo)}, {_fmt_pp(hi)})  "
           f"상관 {corr_str}")
     mde_str = "0.0p" if mde == 0 else f"{_fmt_pp(mde)}p"
@@ -264,8 +265,8 @@ def _print_paired_stats_block(s: dict) -> None:
           f"→ 이 설정으로 볼 수 있는 최소 차이(MDE) {mde_str}")
     n5 = nn.get(0.05, float('inf'))
     n10 = nn.get(0.10, float('inf'))
-    n5_str = "∞" if (math.isinf(n5) or se == 0) else str(int(math.ceil(n5)))
-    n10_str = "∞" if (math.isinf(n10) or se == 0) else str(int(math.ceil(n10)))
+    n5_str = "∞" if (math.isinf(n5) or mde == 0) else str(int(math.ceil(n5)))
+    n10_str = "∞" if (math.isinf(n10) or mde == 0) else str(int(math.ceil(n10)))
     print(f"5%p 차이를 보려면 문항 {n5_str}개(K={K}), "
           f"10%p면 {n10_str}개")
 
