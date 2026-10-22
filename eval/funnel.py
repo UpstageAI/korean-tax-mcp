@@ -85,10 +85,11 @@ def build(
         채택_분모 = 채택_분자 + 덮어씀_수
         채택_비율 = (채택_분자 / 채택_분모 if 채택_분모 > 0 else 0.0)
 
-        # 5. 최종정답 — gold 호출 있는 문항만
+        # 5. 최종정답 — gold 호출 있는 실행(row) 단위
         최종정답_분자 = sum(1 for r in ol_rows
                             if r.get("정오") == "O" and (r.get("연도"), r.get("번호")) in gold_calls)
-        최종정답_분모 = len(gold_calls)
+        최종정답_분모 = sum(1 for r in ol_rows
+                            if (r.get("연도"), r.get("번호")) in gold_calls)
         최종정답_비율 = (최종정답_분자 / 최종정답_분모 if 최종정답_분모 > 0 else 0.0)
     else:
         # 3. 도구정답출력 (모집단: 전체)

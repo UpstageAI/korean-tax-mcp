@@ -110,3 +110,25 @@ def test_funnel_stage_has_denominator_description(tmp_path):
     descs = [s["분모"] for s in stages]
     assert all(isinstance(s.get("분모_설명"), str) and s["분모_설명"] for s in stages)
     assert stages[2]["분모_설명"] != stages[4]["분모_설명"]  # 3단계(도구 호출 실행)와 5단계(전체 실행)는 다른 분모
+
+
+def test_funnel_gold_only_final_stage_counts_runs_not_questions(tmp_path):
+    """--gold-only 5단계 분모는 고유 문항 수가 아니라 실행 수(시드 × 문항)여야 한다(리뷰 반영)."""
+    from eval import funnel
+    body = "① 1,000원 ② 2,000원 ③ 3,000원 ④ 4,000원 ⑤ 5,000원"
+    gold = {"연도": "C2021", "번호": 1, "정답보기": 3, "정답값": 3000, "상태": "도구있음",
+            "호출": [{"이름": "ct", "도구": "corporate_tax", "인자": {"base": 10}, "결과키": "결과.산출세액"}], "결합": "ct", "메모": ""}
+    def rec(jung):
+        return {"연도": "C2021", "번호": 1, "모델답": {"answer": 3}, "정답": 3, "정오": jung, "도구호출목록": ["corporate_tax"],
+                "tool_call_details": [{"tool": "corporate_tax", "args": {"base": 10}, "result_preview": '{"결과": {"산출세액": 3000}}', "is_error": False}],
+                "messages": [{"role": "assistant", "content": None, "tool_calls": [{"id": "c0", "type": "function", "function": {"name": "corporate_tax", "arguments": "{}"}}]},
+                             {"role": "tool", "tool_call_id": "c0", "content": '{"결과": {"산출세액": 3000}}'}], "harness_events": {}}
+    dirs = []
+    for seed, jung in ((42, "O"), (43, "O"), (44, "X")):
+        d = tmp_path / f"calcset_x_s{seed}"; d.mkdir()
+        (d / "raw_native_direct_C2021.jsonl").write_text(json.dumps(rec(jung), ensure_ascii=False) + "\n", encoding="utf-8")
+        dirs.append(str(d))
+    g = tmp_path / "gold.jsonl"; g.write_text(json.dumps(gold, ensure_ascii=False) + "\n", encoding="utf-8")
+    q = tmp_path / "q.json"; q.write_text(json.dumps({"C2021": {"1": {"과목": "세법개론", "본문": body}}}, ensure_ascii=False), encoding="utf-8")
+    final = funnel.build(dirs, str(g), str(q), gold_only=True)[-1]
+    assert final["분모"] == 3 and final["분자"] == 2 and abs(final["비율"] - 2 / 3) < 1e-9
