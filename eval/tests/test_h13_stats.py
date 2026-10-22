@@ -48,3 +48,34 @@ def test_funnel_cli_runs_from_repo_root():
     root = pathlib.Path(__file__).resolve().parents[2]
     p = subprocess.run([sys.executable, str(root / "eval" / "funnel.py"), "--help"], capture_output=True, text=True, cwd=root)
     assert p.returncode == 0 and "--questions" in p.stdout
+
+
+def test_paired_stats_block_prints_with_zero_variance(capsys):
+    """분산 0이면 필요 문항 수가 무한대 — 출력 블록이 OverflowError 없이 '∞'로 찍혀야 한다(리뷰 반영)."""
+    A = {("C", i): [1, 1, 1] for i in range(5)}
+    B = {("C", i): [0, 0, 0] for i in range(5)}
+    s = cr.paired_stats(A, B)
+    cr._print_paired_stats_block(s)
+    out = capsys.readouterr().out
+    assert "짝 통계" in out and "∞" in out
+
+
+def test_funnel_gold_only_uses_one_population(tmp_path):
+    """--gold-only면 3~5단계도 정답 인자가 있는 문항만 분모로 삼는다(리뷰 반영)."""
+    from eval import funnel
+    body = "① 1,000원 ② 2,000원 ③ 3,000원 ④ 4,000원 ⑤ 5,000원"
+    gold = {"연도": "C2021", "번호": 1, "정답보기": 3, "정답값": 3000, "상태": "도구있음",
+            "호출": [{"이름": "ct", "도구": "corporate_tax", "인자": {"base": 10}, "결과키": "결과.산출세액"}], "결합": "ct", "메모": ""}
+    def rec(no, jung):
+        return {"연도": "C2021", "번호": no, "모델답": {"answer": 3}, "정답": 3, "정오": jung, "도구호출목록": ["corporate_tax"],
+                "tool_call_details": [{"tool": "corporate_tax", "args": {"base": 10}, "result_preview": '{"결과": {"산출세액": 3000}}', "is_error": False}],
+                "messages": [{"role": "assistant", "content": None, "tool_calls": [{"id": "c0", "type": "function", "function": {"name": "corporate_tax", "arguments": "{}"}}]},
+                             {"role": "tool", "tool_call_id": "c0", "content": '{"결과": {"산출세액": 3000}}'}], "harness_events": {}}
+    d = tmp_path / "calcset_x_s42"; d.mkdir()
+    (d / "raw_native_direct_C2021.jsonl").write_text(json.dumps(rec(1, "O"), ensure_ascii=False) + "\n" + json.dumps(rec(2, "X"), ensure_ascii=False) + "\n", encoding="utf-8")
+    g = tmp_path / "gold.jsonl"; g.write_text(json.dumps(gold, ensure_ascii=False) + "\n", encoding="utf-8")
+    q = tmp_path / "q.json"; q.write_text(json.dumps({"C2021": {"1": {"과목": "세법개론", "본문": body}, "2": {"과목": "세법개론", "본문": body}}}, ensure_ascii=False), encoding="utf-8")
+    both = funnel.build([str(d)], str(g), str(q))
+    assert both[-1]["분모"] == 2 and both[-1]["모집단"] == "전체"
+    only = funnel.build([str(d)], str(g), str(q), gold_only=True)
+    assert only[-1]["분모"] == 1 and only[-1]["모집단"] == "정답 인자 있음" and only[-1]["비율"] == 1.0

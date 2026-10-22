@@ -288,7 +288,7 @@ python eval/compare_runs.py --seeds 42,43,44 --root eval/results base routing
 4. **채택**: 모델이 도구 출력의 정답값을 자신의 최종 답으로 채택했는가
 5. **최종정답**: 모델이 선택한 보기가 정답과 일치하는가
 
-각 단계는 이전 단계를 분모로 삼아 비율을 계산하므로, 단계마다 탈락하는 문항 수를 추적할 수 있다.
+표의 '모집단' 열은 각 단계의 분모 기준이다. 기본은 1·2단계가 정답 인자가 있는 문항(gold 파일의 호출 기준), 3~5단계가 전체 문항이다. 한 모집단으로 통일해 보려면 `--gold-only`를 지정하면 3~5단계도 gold에 호출이 있는 문항만 분모로 삼는다.
 
 ### 정답 인자 파일 형식
 
@@ -319,6 +319,9 @@ python eval/extract_accuracy.py DIR... --gold eval/data/gold_args.jsonl
 # 깔때기 표 — 5단계 비율 출력
 python eval/funnel.py DIR... --gold eval/data/gold_args.jsonl --questions Q.json
 
+# 한 모집단으로 통일해 보려면 --gold-only
+python eval/funnel.py DIR... --gold eval/data/gold_args.jsonl --questions Q.json --gold-only
+
 # 두 조건 비교 + 짝 통계 (--seeds 모드)
 python eval/compare_runs.py --seeds 42,43,44 --root eval/results A B
 ```
@@ -330,6 +333,8 @@ python eval/compare_runs.py --seeds 42,43,44 --root eval/results A B
 시드 간 분산 A 0.012 B 0.008  문항 간 분산(ω²) 0.015  → 이 설정으로 볼 수 있는 최소 차이(MDE) 19.4p
 5%p 차이를 보려면 문항 73개(K=3), 10%p면 19개
 ```
+
+분산 0으로 차이 SE가 0이면 필요 문항 수 대신 `∞`가 출력된다(MDE 0이면 `0.0p`).
 
 짝 통계는 Anthropic, *A statistical approach to model evaluations*(2024)의 식 (7)·(9)·(10)에 기반한다. 짝 통계 블록은 두 조건 간 차이가 통계적으로 유의한지뿐 아니라, 현재 설정(문항 수 K, 시드 수)으로 실제로 감지 가능한 최소 차이(MDE)와 목표 차이를 감지하려면 몇 문항이 필요한지 알려준다.
 
