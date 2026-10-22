@@ -84,6 +84,193 @@ def mcnemar_p(a_only: int, b_only: int) -> float:
     return min(p_two_sided, 1.0)
 
 
+# ── 짝 통계 (오차막대 논문 식 7·9·10) ─────────────────────────────────────────────
+
+_Z_ALPHA2_DEFAULT = 1.95996
+_Z_BETA_DEFAULT = 0.84162
+
+
+def _z_alpha2(alpha: float = 0.05) -> float:
+    """양측 z_{alpha/2}. alpha=0.05 → 1.95996."""
+    table = {0.05: _Z_ALPHA2_DEFAULT, 0.10: 1.64485, 0.20: 1.28155}
+    return table.get(alpha, _Z_ALPHA2_DEFAULT)
+
+
+def _z_beta(power: float = 0.8) -> float:
+    """z_beta (beta = 1 - power). power=0.8 → beta=0.2 → 0.84162."""
+    table = {0.8: _Z_BETA_DEFAULT, 0.9: 1.28155, 0.95: 1.64485}
+    return table.get(power, _Z_BETA_DEFAULT)
+
+
+def paired_stats(
+    scores_a: dict[tuple, list[float]],
+    scores_b: dict[tuple, list[float]],
+    alpha: float = 0.05,
+    power: float = 0.8,
+) -> dict:
+    """짝 통계 계산.
+
+    입력: 문항 → 시드별 점수 리스트(0/1). 두 dict의 공통 문항만 사용.
+    K = 시드 수(둘 다 같아야 함; 다르면 작은 쪽까지만 사용).
+    """
+    common = set(scores_a.keys()) & set(scores_b.keys())
+    n = len(common)
+    if n == 0:
+        return {
+            "n": 0, "K": 0, "mean_a": 0.0, "mean_b": 0.0,
+            "diff": 0.0, "se_paired": 0.0, "ci95": (0.0, 0.0),
+            "corr": None, "sigma2_a": 0.0, "sigma2_b": 0.0,
+            "omega2": 0.0, "mde": 0.0, "n_needed": {},
+        }
+
+    K_a = min(len(v) for v in scores_a.values()) if scores_a else 0
+    K_b = min(len(v) for v in scores_b.values()) if scores_b else 0
+    K = min(K_a, K_b)
+    if K == 0:
+        return {
+            "n": n, "K": 0, "mean_a": 0.0, "mean_b": 0.0,
+            "diff": 0.0, "se_paired": 0.0, "ci95": (0.0, 0.0),
+            "corr": None, "sigma2_a": 0.0, "sigma2_b": 0.0,
+            "omega2": 0.0, "mde": 0.0, "n_needed": {},
+        }
+
+    mean_a_list: list[float] = []
+    mean_b_list: list[float] = []
+    diff_list: list[float] = []
+    var_a_list: list[float] = []
+    var_b_list: list[float] = []
+
+    for key in common:
+        va = scores_a[key][:K]
+        vb = scores_b[key][:K]
+        xa = sum(va) / K
+        xb = sum(vb) / K
+        mean_a_list.append(xa)
+        mean_b_list.append(xb)
+        diff_list.append(xa - xb)
+
+        if K > 1:
+            mean_a_v = sum((v - xa) ** 2 for v in va) / (K - 1)
+            mean_b_v = sum((v - xb) ** 2 for v in vb) / (K - 1)
+        else:
+            mean_a_v = 0.0
+            mean_b_v = 0.0
+        var_a_list.append(mean_a_v)
+        var_b_list.append(mean_b_v)
+
+    mean_a = sum(mean_a_list) / n
+    mean_b = sum(mean_b_list) / n
+    diff = sum(diff_list) / n
+
+    if n > 1:
+        var_d = sum((d - diff) ** 2 for d in diff_list) / (n - 1)
+        se_paired = math.sqrt(var_d / n)
+    else:
+        se_paired = 0.0
+
+    ci95_lo = diff - 1.96 * se_paired
+    ci95_hi = diff + 1.96 * se_paired
+
+    # 피어슨 상관계수 (x̄_A, x̄_B)
+    if n > 1:
+        var_xa = sum((x - mean_a) ** 2 for x in mean_a_list) / (n - 1)
+        var_xb = sum((x - mean_b) ** 2 for x in mean_b_list) / (n - 1)
+        if var_xa > 0 and var_xb > 0:
+            cov_ab = sum((mean_a_list[i] - mean_a) * (mean_b_list[i] - mean_b)
+                         for i in range(n)) / (n - 1)
+            corr = cov_ab / math.sqrt(var_xa * var_xb)
+        else:
+            corr = None
+    else:
+        corr = None
+
+    sigma2_a = sum(var_a_list) / n
+    sigma2_b = sum(var_b_list) / n
+
+    if n > 1:
+        var_xa_tot = sum((x - mean_a) ** 2 for x in mean_a_list) / (n - 1)
+        var_xb_tot = sum((x - mean_b) ** 2 for x in mean_b_list) / (n - 1)
+        cov_ab_tot = sum((mean_a_list[i] - mean_a) * (mean_b_list[i] - mean_b)
+                         for i in range(n)) / (n - 1)
+        omega2 = max(0.0, var_xa_tot + var_xb_tot - 2 * cov_ab_tot
+                     - sigma2_a / K - sigma2_b / K)
+    else:
+        omega2 = 0.0
+
+    z_a2 = _z_alpha2(alpha)
+    z_b = _z_beta(power)
+    pooled_var = omega2 + sigma2_a / K + sigma2_b / K
+    mde = (z_a2 + z_b) * math.sqrt(pooled_var / n) if n > 0 else 0.0
+
+    n_needed = {}
+    for delta in (0.05, 0.10, 0.15):
+        if delta > 0 and pooled_var > 0:
+            n_needed[delta] = (z_a2 + z_b) ** 2 * pooled_var / (delta ** 2)
+        else:
+            n_needed[delta] = float('inf')
+
+    return {
+        "n": n,
+        "K": K,
+        "mean_a": mean_a,
+        "mean_b": mean_b,
+        "diff": diff,
+        "se_paired": se_paired,
+        "ci95": (ci95_lo, ci95_hi),
+        "corr": corr,
+        "sigma2_a": sigma2_a,
+        "sigma2_b": sigma2_b,
+        "omega2": omega2,
+        "mde": mde,
+        "n_needed": n_needed,
+    }
+
+
+def _fmt_pp(val: float) -> str:
+    """소수 비율을 퍼센트포인트 문자열로 (부호 포함, 소수 1자리)."""
+    pp = val * 100
+    sign = "+" if pp >= 0 else "-"
+    return f"{sign}{abs(pp):.1f}"
+
+
+def _print_paired_stats_block(s: dict) -> None:
+    """짝 통계 블록을 표준출력."""
+    n = s["n"]
+    K = s["K"]
+    mean_a = s["mean_a"]
+    mean_b = s["mean_b"]
+    diff = s["diff"]
+    se = s["se_paired"]
+    lo, hi = s["ci95"]
+    corr = s["corr"]
+    sigma2_a = s["sigma2_a"]
+    sigma2_b = s["sigma2_b"]
+    omega2 = s["omega2"]
+    mde = s["mde"]
+    nn = s["n_needed"]
+
+    corr_str = f"{corr:.2f}" if corr is not None else "N/A"
+
+    print()
+    se_str = "∞" if math.isinf(se) else _fmt_pp(se)
+    print("[짝 통계] "
+          f"n={n} K={K}  "
+          f"A {mean_a:.1%}  B {mean_b:.1%}  "
+          f"차(A−B) {_fmt_pp(diff)}p (SE {se_str}p)  "
+          f"95% CI ({_fmt_pp(lo)}, {_fmt_pp(hi)})  "
+          f"상관 {corr_str}")
+    mde_str = "0.0p" if mde == 0 else f"{_fmt_pp(mde)}p"
+    print(f"시드 간 분산 A {sigma2_a:.3f} B {sigma2_b:.3f}  "
+          f"문항 간 분산(ω²) {omega2:.3f}  "
+          f"→ 이 설정으로 볼 수 있는 최소 차이(MDE) {mde_str}")
+    n5 = nn.get(0.05, float('inf'))
+    n10 = nn.get(0.10, float('inf'))
+    n5_str = "∞" if (math.isinf(n5) or mde == 0) else str(int(math.ceil(n5)))
+    n10_str = "∞" if (math.isinf(n10) or mde == 0) else str(int(math.ceil(n10)))
+    print(f"5%p 차이를 보려면 문항 {n5_str}개(K={K}), "
+          f"10%p면 {n10_str}개")
+
+
 # ── load_dir ─────────────────────────────────────────────────────────────────────
 
 def load_dir(dir_path: str | pathlib.Path) -> dict[tuple[str, int], str]:
@@ -199,6 +386,8 @@ def compare_seeds(
     total_excluded_failed = 0
     n_pairs = 0
     seed_scores: list[dict] = []
+    scores_a: dict[tuple, list[float]] = {}
+    scores_b: dict[tuple, list[float]] = {}
 
     for seed in seeds:
         dir_a = root / f"calcset_{label_a}_s{seed}"
@@ -220,6 +409,16 @@ def compare_seeds(
             "p": r["mcnemar_p"],
         })
 
+        # 문항별 시드 점수 수집 (paired_stats용)
+        qa = load_dir(dir_a)
+        qb = load_dir(dir_b)
+        for key, va in qa.items():
+            score_a = 1.0 if va == "O" else 0.0
+            scores_a.setdefault(key, []).append(score_a)
+        for key, vb in qb.items():
+            score_b = 1.0 if vb == "O" else 0.0
+            scores_b.setdefault(key, []).append(score_b)
+
     ci_a = wilson_ci(total_a_correct, n_pairs)
     ci_b = wilson_ci(total_b_correct, n_pairs)
     p = mcnemar_p(total_a_only, total_b_only)
@@ -228,6 +427,8 @@ def compare_seeds(
         verdict = "B 우세" if total_b_correct > total_a_correct else ("A 우세" if total_a_correct > total_b_correct else "차이 없음")
     else:
         verdict = "차이 없음"
+
+    stats = paired_stats(scores_a, scores_b)
 
     return {
         "n": n_pairs,
@@ -245,6 +446,7 @@ def compare_seeds(
         "ci_b": ci_b,
         "verdict": verdict,
         "seed_scores": seed_scores,
+        "stats": stats,
     }
 
 
@@ -272,6 +474,10 @@ def _print_table(r: dict) -> None:
     print()
     print(f"McNemar p: {r['mcnemar_p']:.6g}")
     print(f"판정      : {r['verdict']}")
+
+    # 짝 통계 블록 (--seeds 모드)
+    if "stats" in r:
+        _print_paired_stats_block(r["stats"])
 
 
 def main() -> None:
