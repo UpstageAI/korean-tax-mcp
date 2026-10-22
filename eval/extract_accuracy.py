@@ -4,6 +4,7 @@
 """
 import argparse
 import json
+import math
 import pathlib
 import sys
 from collections import defaultdict
@@ -99,10 +100,10 @@ def _is_ratio_equivalent(gold_v: dict, model_v: dict) -> bool:
     if set(gold_v.keys()) != set(model_v.keys()):
         return False
     for v in gold_v.values():
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 or v != v:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 or not math.isfinite(v):
             return False
     for v in model_v.values():
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 or v != v:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 or not math.isfinite(v):
             return False
     if sum(gold_v.values()) == 0 or sum(model_v.values()) == 0:
         return False

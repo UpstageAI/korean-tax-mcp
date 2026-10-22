@@ -109,3 +109,9 @@ def test_ratio_counter_counts_only_successes():
 def test_score_call_excludes_amount_fields_from_percent_equivalence():
     s = ea.score_call({"amount": 10, "ratio": 10}, {"amount": 0.1, "ratio": 0.1})
     assert "amount" in s["틀림"] and "ratio" not in s["틀림"]
+
+
+def test_ratio_equivalence_rejects_infinity():
+    import math
+    assert ea.match_value({"a": math.inf, "b": 1}, {"a": 60, "b": 40}) < 1.0
+    assert ea.match_value({"a": math.inf, "b": math.inf}, {"a": math.inf, "b": math.inf}) <= 1.0  # 크래시 없이 반환
