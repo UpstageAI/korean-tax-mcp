@@ -76,3 +76,14 @@ def test_run_dirs_cache_is_per_dir(tmp_path):
     assert sorted(r["dir"] for r in rows) == ["calcset_x_s42", "calcset_x_s43"]
     rows2, summary2 = ol.run_dirs([str(d1), str(d2)], str(q), calc_tools=CALC, no_judge=True)  # 캐시 사용 2회째도 동일
     assert summary2["구분별"] == summary["구분별"]
+
+
+def test_per_tool_stats_only_count_calc_tools(tmp_path):
+    """도구별 채택·덮어씀 집계에 law_article 같은 세법 도구가 섞이면 안 된다(리뷰 반영)."""
+    d = tmp_path / "calcset_x_s42"; d.mkdir()
+    rec = _rec(3, "O", ["law_article", "capital_gains_income"], ['{"본문": "제95조"}', '{"결과": {"양도소득금액": 29400000}}'])
+    (d / "raw_native_direct_C2021.jsonl").write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+    q = tmp_path / "q.json"; q.write_text(json.dumps({"C2021": {"15": {"과목": "세법개론", "본문": BODY}}}, ensure_ascii=False), encoding="utf-8")
+    rows, summary = ol.run_dirs([str(d)], str(q), calc_tools=CALC, no_judge=True, no_cache=True)
+    assert rows[0]["구분"] == "채택"
+    assert "law_article" not in summary["도구별"] and summary["도구별"]["capital_gains_income"]["채택"] == 1

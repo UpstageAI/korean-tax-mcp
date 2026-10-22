@@ -433,7 +433,7 @@ def run_dirs(
         if row["도구호출"]:
             n_도구호출 += 1
         for tool in row["호출도구"]:
-            if row["도구호출"]:
+            if tool in calc_tools:
                 if g == "채택":
                     도구별[tool]["채택"] += 1
                 elif g == "덮어씀":
