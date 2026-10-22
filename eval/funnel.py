@@ -6,6 +6,10 @@ import argparse
 import pathlib
 import sys
 
+# CLI로 직접 실행할 때 패키지 경로를 잡는다.
+if __name__ == "__main__":
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
 from eval import compare_runs as cr
 from eval import extract_accuracy as ea
 from eval import override_log as ol

@@ -40,3 +40,11 @@ def test_funnel_stage_order(tmp_path):
     stages = funnel.build([str(d)], str(g), str(q))
     assert [s["단계"] for s in stages] == ["도구선택", "인자일치", "도구정답출력", "채택", "최종정답"]
     assert all(s["비율"] == 1.0 for s in stages)
+
+
+def test_funnel_cli_runs_from_repo_root():
+    """`python eval/funnel.py --help`가 저장소 루트에서 바로 실행돼야 한다(다른 eval CLI와 동일)."""
+    import subprocess, pathlib, sys
+    root = pathlib.Path(__file__).resolve().parents[2]
+    p = subprocess.run([sys.executable, str(root / "eval" / "funnel.py"), "--help"], capture_output=True, text=True, cwd=root)
+    assert p.returncode == 0 and "--questions" in p.stdout
