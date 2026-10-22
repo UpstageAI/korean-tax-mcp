@@ -4,6 +4,7 @@
 """
 import argparse
 import json
+import math
 import pathlib
 import sys
 from collections import defaultdict
@@ -70,12 +71,84 @@ def _norm_numeric(v) -> float | str | None:
     return v
 
 
-def match_value(model_v, gold_v) -> float:
+# ── 동치 적용 횟수 카운터 ─────────────────────────────────────────────────────────
+
+_동치카운터 = {"비율": 0, "백분율": 0, "묶음": 0}
+
+
+def _reset_동치카운터() -> None:
+    _동치카운터["비율"] = 0
+    _동치카운터["백분율"] = 0
+    _동치카운터["묶음"] = 0
+
+
+def reset_equiv_counter() -> None:
+    """동치 적용 카운터를 모두 0으로 초기화한다."""
+    _reset_동치카운터()
+
+
+def get_equiv_counter() -> dict[str, int]:
+    """현재 동치 적용 횟수 {"비율", "백분율", "묶음"}를 반환한다."""
+    return dict(_동치카운터)
+
+
+# ── 비율 동치 ─────────────────────────────────────────────────────────────────────
+
+def _is_ratio_equivalent(gold_v: dict, model_v: dict) -> bool:
+    """둘 다 dict이고 모든 값이 유한 비음수 숫자(bool 제외)이며
+    키 집합이 같고 합이 0보다 크면 True."""
+    if set(gold_v.keys()) != set(model_v.keys()):
+        return False
+    for v in gold_v.values():
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 or not math.isfinite(v):
+            return False
+    for v in model_v.values():
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 or not math.isfinite(v):
+            return False
+    if sum(gold_v.values()) == 0 or sum(model_v.values()) == 0:
+        return False
+    return True
+
+
+def _ratio_compare(gold_v: dict, model_v: dict, tol: float = 1e-3) -> float:
+    """각 키의 (값/합) 비율이 tol 이내면 1.0, 아니면 0.0."""
+    gold_sum = sum(gold_v.values())
+    model_sum = sum(model_v.values())
+    for k in gold_v:
+        g_ratio = gold_v[k] / gold_sum
+        m_ratio = model_v[k] / model_sum
+        if abs(g_ratio - m_ratio) > tol:
+            return 0.0
+    return 1.0
+
+
+# ── 백분율 동치 ───────────────────────────────────────────────────────────────────
+
+def _is_percent_equivalent(mn, gn) -> bool:
+    """둘 다 float이고 하나가 0 < g ≤ 1, 다른 하나가 g×100(오차 1e-6)이면 True."""
+    if not isinstance(mn, float) or not isinstance(gn, float):
+        return False
+    if 0 < gn <= 1 and abs(mn - gn * 100) < 1e-6:
+        return True
+    if 0 < mn <= 1 and abs(gn - mn * 100) < 1e-6:
+        return True
+    return False
+
+
+_PERCENT_EXCLUDED_SUFFIXES = ("amount", "price", "금액", "base")
+
+
+# ── match_value ────────────────────────────────────────────────────────────────────
+
+def match_value(model_v, gold_v, _key: str | None = None) -> float:
     """0.0~1.0 일치율.
 
     스칼라: norm 후 같으면 1, 다르면 0. 숫자 문자열과 숫자는 같은 것으로 본다.
-    dict: gold 키별 match_value 평균(gold 키 누락 시 0).
+    dict:  먼저 비율 동치(모든 값이 유한 비음수 숫자, 합>0, 키 집합 동일)를 시도 →
+           성립하면 비율 비교 결과(1.0/0.0) 반환.
+           아니면 gold 키별 match_value 평균(gold 키 누락 시 0).
     list: dict 원소면 탐욕 매칭, 스칼라면 다중집합 교집합/gold 길이.
+    백분율 동치: 스칼라에서 gold·model 중 하나가 0<g≤1, 다른 하나가 g×100이면 1.0.
     """
     if model_v is None and gold_v is None:
         return 1.0
@@ -88,10 +161,16 @@ def match_value(model_v, gold_v) -> float:
             return 0.0
         if not gold_v:
             return 1.0
+        # 비율 동치 우선 시도
+        if _is_ratio_equivalent(gold_v, model_v):
+            ratio_result = _ratio_compare(gold_v, model_v)
+            if ratio_result == 1.0:
+                _동치카운터["비율"] += 1
+            return ratio_result
         total = 0.0
         for k, gv in gold_v.items():
             mv = model_v.get(k)
-            total += match_value(mv, gv)
+            total += match_value(mv, gv, _key=k)
         return total / len(gold_v)
 
     # list
@@ -100,7 +179,6 @@ def match_value(model_v, gold_v) -> float:
             return 0.0
         if not gold_v:
             return 1.0 if not model_v else 0.0
-        # 원소가 dict인지 확인
         if gold_v and isinstance(gold_v[0], dict):
             return _match_list_of_dicts(model_v, gold_v)
         else:
@@ -109,6 +187,11 @@ def match_value(model_v, gold_v) -> float:
     # 스칼라
     mn = _norm_numeric(model_v)
     gn = _norm_numeric(gold_v)
+    # 백분율 동치 (금액 필드 제외)
+    if _key is None or not _key.endswith(_PERCENT_EXCLUDED_SUFFIXES):
+        if _is_percent_equivalent(mn, gn):
+            _동치카운터["백분율"] += 1
+            return 1.0
     return 1.0 if mn == gn else 0.0
 
 
@@ -166,11 +249,10 @@ def score_call(model_args: dict, gold_args: dict) -> dict:
     for k, gv in gold_args.items():
         mv = model_args.get(k)
         if mv is None and gv is not None and not (isinstance(gv, (dict, list)) and not gv):
-            # 금고에 값이 있는데 모델에 없음
             누락.append(k)
             total += 0.0
         else:
-            mv_score = match_value(mv, gv)
+            mv_score = match_value(mv, gv, _key=k)
             total += mv_score
             if mv_score < 1.0:
                 틀림.append(k)
@@ -193,36 +275,63 @@ def score_record(rec: dict, gold: dict) -> dict:
 
     도구선택 = any(t in 정답도구 for t in 모델호출도구)
 
+    # 도구별 그룹화
+    gold_by_tool: dict[str, list] = defaultdict(list)
+    for gc in gold_calls:
+        gold_by_tool[gc.get("도구", "")].append(gc)
+
+    model_by_tool: dict[str, list] = defaultdict(list)
+    for tc in tool_calls:
+        model_by_tool[tc.get("tool", "")].append(tc)
+
     호출별: list[dict] = []
     총일치율 = 0.0
-    for gc in gold_calls:
-        g_tool = gc.get("도구", "")
-        g_args = gc.get("인자", {})
-        # 같은 도구의 모델 호출 중 최고 일치율
-        same_calls = [tc for tc in tool_calls if tc.get("tool", "") == g_tool]
-        if not same_calls:
-            s = score_call({}, g_args)
-            s["도구명"] = g_tool
-            호출별.append(s)
-            총일치율 += s["일치율"]
-        else:
-            best_score = 0.0
-            best_s = None
-            for tc in same_calls:
-                s = score_call(tc.get("args", {}), g_args)
-                if s["일치율"] > best_score:
-                    best_score = s["일치율"]
-                    best_s = s
-            if best_s is not None:
-                best_s = dict(best_s)
-                best_s["도구명"] = g_tool
-                호출별.append(best_s)
-                총일치율 += best_s["일치율"]
-            else:
+
+    for g_tool, g_calls in gold_by_tool.items():
+        m_calls = model_by_tool.get(g_tool, [])
+        gold_count = len(g_calls)
+        model_count = len(m_calls)
+
+        bundling = gold_count > 1 and model_count < gold_count
+        factor = model_count / gold_count if bundling else 1.0
+
+        if bundling:
+            _동치카운터["묶음"] += gold_count
+
+        for gc in g_calls:
+            g_args = gc.get("인자", {})
+            if not m_calls:
                 s = score_call({}, g_args)
                 s["도구명"] = g_tool
+                if bundling:
+                    s["묶음"] = True
+                    s["일치율"] *= factor
                 호출별.append(s)
                 총일치율 += s["일치율"]
+            else:
+                best_score = 0.0
+                best_s = None
+                for tc in m_calls:
+                    s = score_call(tc.get("args", {}), g_args)
+                    if s["일치율"] > best_score:
+                        best_score = s["일치율"]
+                        best_s = s
+                if best_s is not None:
+                    best_s = dict(best_s)
+                    best_s["도구명"] = g_tool
+                    if bundling:
+                        best_s["묶음"] = True
+                        best_s["일치율"] *= factor
+                    호출별.append(best_s)
+                    총일치율 += best_s["일치율"]
+                else:
+                    s = score_call({}, g_args)
+                    s["도구명"] = g_tool
+                    if bundling:
+                        s["묶음"] = True
+                        s["일치율"] *= factor
+                    호출별.append(s)
+                    총일치율 += s["일치율"]
 
     n = len(gold_calls)
     평균일치율 = 총일치율 / n if n > 0 else 0.0
@@ -247,9 +356,10 @@ def run_dirs(dirs: list[str], gold_path: str = "eval/data/gold_args.jsonl"
     """각 dir의 raw_*.jsonl을 gold와 대조.
 
     요약: {"실행", "도구선택률", "평균일치율", "완전일치율",
-           "정오별_평균일치율", "필드별_틀림횟수"}.
+           "정오별_평균일치율", "필드별_틀림횟수", "동치_적용_횟수"}.
     각 dir에 extract_accuracy.jsonl 저장.
     """
+    _reset_동치카운터()
     gold = load_gold(gold_path)
     all_rows: list[dict] = []
     dir_rows_map: dict[str, list[dict]] = {}
@@ -321,6 +431,7 @@ def run_dirs(dirs: list[str], gold_path: str = "eval/data/gold_args.jsonl"
         "완전일치율": 완전일치율,
         "정오별_평균일치율": 정오별_평균,
         "필드별_틀림횟수": dict(필드별_틀림),
+        "동치_적용_횟수": dict(_동치카운터),
     }
     return all_rows, 요약
 

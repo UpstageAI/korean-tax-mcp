@@ -74,3 +74,44 @@ def test_print_summary_runs(tmp_path, capsys):
     ea._print_summary(summary, rows, [str(d)])
     out = capsys.readouterr().out
     assert "C2021-15" in out and "틀림" in out
+
+
+def test_match_ratio_equivalent_dicts():
+    assert ea.match_value({"taxable": 600, "exempt": 400}, {"taxable": 60, "exempt": 40}) == 1.0
+    assert ea.match_value({"taxable": 530, "exempt": 470}, {"taxable": 60, "exempt": 40}) < 1.0
+    assert ea.match_value({"확정": {"taxable": 600, "exempt": 400}}, {"확정": {"taxable": 60, "exempt": 40}}) == 1.0
+
+
+def test_match_percent_equivalent_number():
+    assert ea.match_value(10, 0.1) == 1.0
+    assert ea.match_value(0.1, 10) == 1.0
+    assert ea.match_value(10, 0.2) == 0.0
+
+
+def test_score_record_bundles_multiple_gold_calls():
+    gold = {"연도": "C2021", "번호": 19, "정답보기": 4, "정답값": 238000, "상태": "도구있음",
+            "호출": [{"이름": "a", "도구": "deemed_dividend_bonus_shares", "인자": {"source": "자기주식처분이익", "capitalized_amount": 2200000}, "결과키": "x"},
+                   {"이름": "b", "도구": "deemed_dividend_bonus_shares", "인자": {"source": "재평가적립금_토지1%", "capitalized_amount": 1200000}, "결과키": "x"}],
+            "결합": "a+b", "메모": ""}
+    rec = _rec(19, "deemed_dividend_bonus_shares", {"source": "자기주식처분이익", "capitalized_amount": 2200000})
+    s = ea.score_record(rec, gold)
+    assert s["도구선택"] and 0 < s["일치율"] < 1.0
+    assert any(cb.get("묶음") for cb in s["호출별"])
+
+
+def test_ratio_counter_counts_only_successes():
+    ea.reset_equiv_counter()
+    ea.match_value({"taxable": 600, "exempt": 400}, {"taxable": 60, "exempt": 40})   # 동치 성립
+    ea.match_value({"taxable": 530, "exempt": 470}, {"taxable": 60, "exempt": 40})   # 구조만 같고 비율 다름
+    assert ea.get_equiv_counter()["비율"] == 1
+
+
+def test_score_call_excludes_amount_fields_from_percent_equivalence():
+    s = ea.score_call({"amount": 10, "ratio": 10}, {"amount": 0.1, "ratio": 0.1})
+    assert "amount" in s["틀림"] and "ratio" not in s["틀림"]
+
+
+def test_ratio_equivalence_rejects_infinity():
+    import math
+    assert ea.match_value({"a": math.inf, "b": 1}, {"a": 60, "b": 40}) < 1.0
+    assert ea.match_value({"a": math.inf, "b": math.inf}, {"a": math.inf, "b": math.inf}) <= 1.0  # 크래시 없이 반환
