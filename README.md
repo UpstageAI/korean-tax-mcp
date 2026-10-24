@@ -6,7 +6,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
-> **0.7.0부터 Solar Pro 4가 코드를 쓰고** CodeSolar가 리뷰, Claude가 테스트로 교차 검증합니다. 도구 22개, 상세는 [CHANGELOG](CHANGELOG.md).
+> **0.7.0부터 Solar Pro 4가 코드를 쓰고** CodeSolar가 리뷰, Claude가 테스트로 교차 검증합니다. 도구 23개, 상세는 [CHANGELOG](CHANGELOG.md).
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules, treaties. [English](README-EN.md)
 
@@ -74,7 +74,7 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 
 > **데이터 전송 안내** — 기본 동작은 법제처·국세청 공개 API만 호출하며, AI 판단·요약·번역(사실관계 대조, 승패 요약, 영문 번역)은 사용자 AI가 수행합니다. Upstage로 전송되는 내용은 없습니다. 선택: `UPSTAGE_API_KEY`를 설정하면 Solar가 대조·요약·번역을 수행하며, 이때 입력 내용이 Upstage API(api.upstage.ai)로 전송되니 **개인정보 등 민감정보는 넣지 마세요**. 망분리 환경에서는 `KOREAN_TAX_MCP_SOLAR_BASE_URL`로 기관 내부 Solar에 연결하면 외부 전송 없이 사용할 수 있습니다.
 
-## 도구 (22개)
+## 도구 (23개)
 
 | 묶음 | 도구 | 하는 일 |
 |---|---|---|
