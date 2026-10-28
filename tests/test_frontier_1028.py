@@ -34,3 +34,11 @@ def test_keyword_view_keeps_all_items_under_matching_paragraph():
     d = json.loads((r.content[0] if hasattr(r, "content") else r[0][0]).text)
     assert "제4항 제1호" in d["반환 범위"] and "제4항 제2호" in d["반환 범위"]
     assert "6년차" in d["본문"]
+
+
+def test_timing_rules_keyword_synonyms_and_definitions():
+    from korean_tax_mcp import timing_rules as T
+    assert any("공급시기 전" in r["항목"] for r in T.lookup("부가", None, "선발급")["규칙"])
+    hits = T.lookup("부가", None, "중간지급 6개월")["규칙"]
+    assert hits and all("6개월" in (r.get("정의") or "") for r in hits)
+    assert T.lookup("부가", None, "장기할부 1년")["규칙"]
