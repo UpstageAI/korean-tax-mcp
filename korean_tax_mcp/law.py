@@ -520,7 +520,11 @@ def article_en(law, article_no):
 def history(law, article_no, last=8):
     """조문의 연혁: 최근 시행본들(시행예정 포함)에서 이 조 본문이 바뀐 시점."""
     norm, _ = normalize_article(article_no)
-    vs = sorted({v["시행일자"]: v for v in _versions(law)}.values(), key=lambda x: x["시행일자"])[-last:]
+    today = time.strftime("%Y%m%d")
+    allv = sorted({v["시행일자"]: v for v in _versions(law)}.values(), key=lambda x: x["시행일자"])
+    past = [v for v in allv if v["시행일자"] <= today]
+    future = [v for v in allv if v["시행일자"] > today]
+    vs = past[-last:] + future      # 시행 예정본이 많아도 지난 시행본 last개는 항상 비교
     if not vs: return {"error": f"'{law}' 연혁을 찾지 못함 — 정식 법령명 확인"}
     jo = jo6(norm)
     def body(v):
@@ -533,13 +537,58 @@ def history(law, article_no, last=8):
     rows, prev = [], None
     for v, b in zip(vs, bodies):
         changed = None if b is None or prev is None else (b != prev)
+        상태 = "시행예정" if v["시행일자"] > today else ("현행" if past and v["시행일자"] == past[-1]["시행일자"] else "연혁")
         rows.append({"시행일": v["시행일자"], "공포일": v.get("공포일자", ""), "제개정": v.get("제개정구분명", ""),
-                     "상태": v.get("현행연혁코드", ""), "이 조 변경": "확인 불가" if b is None else ("기준" if prev is None else ("바뀜" if changed else "그대로"))})
+                     "상태": 상태, "이 조 변경": "확인 불가" if b is None else ("기준" if prev is None else ("바뀜" if changed else "그대로"))})
         if b is not None: prev = b
     upcoming = [r for r in rows if r["상태"] == "시행예정" and r["이 조 변경"] == "바뀜"]
-    return {"법령": law, "조": norm, "연혁": rows,
-            "요약": ("시행 예정 개정에서 이 조가 바뀜: " + ", ".join(r["시행일"] for r in upcoming)) if upcoming else "시행 예정 개정 중 이 조 변경 없음",
-            "주의": f"최근 {len(rows)}개 시행본만 비교(법률 조문 본문 기준). 더 이전은 law_article(as_of)로 확인"}
+    changed_past = [r for r in rows if r["상태"] != "시행예정" and r["이 조 변경"] == "바뀜"]
+    요약 = [("지난 시행본에서 이 조가 바뀐 시행일: " + ", ".join(f"{r['시행일']}(공포 {r['공포일']})" for r in changed_past)) if changed_past
+            else f"비교한 지난 {len([r for r in rows if r['상태'] != '시행예정'])}개 시행본에서 이 조 변경 없음",
+            ("시행 예정 개정에서 이 조가 바뀜: " + ", ".join(r["시행일"] for r in upcoming)) if upcoming else "시행 예정 개정 중 이 조 변경 없음"]
+    return {"법령": law, "조": norm, "연혁": rows, "요약": " / ".join(요약),
+            "주의": f"지난 시행본 {len([r for r in rows if r['상태'] != '시행예정'])}개 + 시행 예정본 비교(법률 조문 본문 기준, 상태는 오늘 날짜로 판정). "
+                   "더 이전은 law_article(as_of)로, 바뀐 개정이 언제부터 적용되는지는 article_addenda(공포일)로 확인"}
+
+
+def _article_mentioned(line, norm):
+    """부칙 줄이 이 조를 가리키는지 — '제87조'는 '제87조의2'와 구별."""
+    return re.search(re.escape(norm) + r"(?!의\d)", line) is not None
+
+
+def addenda(law, article_no=None, promulgated=None, since=None, n=8, as_of=None):
+    """부칙(시행일·적용례·경과조치) 조회.
+    article_no: 이 조를 언급한 부칙 줄만. promulgated: 그 공포일(YYYYMMDD) 부칙 전체(일반 적용례 포함).
+    since: 이 날짜(YYYYMMDD) 이후 공포 부칙만. as_of: 부칙 목록을 가져올 시행본 기준일(기본 오늘)."""
+    ef = as_of or time.strftime("%Y%m%d")
+    _, units = _fetch_law_articles_with_addenda(law, ef)
+    if not units:
+        return {"error": f"'{law}' 부칙을 찾지 못함 — 정식 법령명 확인"}
+    norm = normalize_article(article_no)[0] if article_no else None
+    def ymd(u):
+        d = re.sub(r"\D", "", u.get("date") or "")
+        if not d:
+            m = re.search(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", u.get("head", ""))
+            d = f"{m.group(1)}{int(m.group(2)):02d}{int(m.group(3)):02d}" if m else ""
+        return d
+    out = []
+    for u in sorted(units, key=ymd, reverse=True):
+        d = ymd(u)
+        if since and d and d < since: continue
+        if promulgated and d != promulgated: continue
+        lines = [ln.strip() for ln in u["lines"] if ln.strip()]
+        if norm and not promulgated:
+            hit = [ln for ln in lines if _article_mentioned(ln, norm)]
+            if not hit: continue
+            general = [ln for ln in lines if "일반적 적용례" in ln or ln.startswith("제1조(시행일)")]
+            out.append({"부칙": u["head"], "공포일": d, "이 조 관련": hit[:6], "시행일·일반 적용례": general[:3]})
+        else:
+            out.append({"부칙": u["head"], "공포일": d, "전문": lines[:60]})
+        if len(out) >= n: break
+    return {"법령": law, **({"조": norm} if norm else {}), "부칙": out,
+            "읽는 법": "개정 조문이 언제부터 적용되는지는 ① 이 조를 직접 언급한 적용례·경과조치 ② 없으면 일반 적용례(예: '시행일이 속하는 과세기간에 발생하는 소득분부터') 순으로 본다. "
+                     "소득세 납세의무는 과세기간이 끝나는 때 성립(국세기본법 제21조)하므로, 연중 개정이라도 일반 적용례가 '과세기간' 기준이면 그해 전체에 적용된다.",
+            "주의": "부칙 문언 대조 결과 — 법적 판단은 원문으로 확인"}
 # ── 조문 위치 찾기 (find_article) ────────────────────────────────────────────
 
 _DEFAULT_LAWS = (

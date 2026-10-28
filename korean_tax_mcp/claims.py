@@ -147,6 +147,15 @@ def _best_sentence(stmt: str, context: str) -> str:
     return max(cs, key=lambda c: len(sg & set(_grams(c))) / max(len(sg), 1))
 
 
+def _lead(text: str, phrase: str, width: int = 14) -> set[str]:
+    """phrase 바로 앞 문구의 두 글자 묶음(숫자 대조 상대 고르기용)."""
+    i = text.find(phrase)
+    if i < 0:
+        return set()
+    t = re.sub(r"\d", "", _STRIP.sub("", text[max(0, i - width):i]))
+    return {t[j:j + 2] for j in range(len(t) - 1)}
+
+
 def _signals(stmt: str, context: str) -> list[dict]:
     out: list[dict] = []
     # 숫자: 문맥원문 전체
@@ -154,7 +163,10 @@ def _signals(stmt: str, context: str) -> list[dict]:
     for val, unit, phrase, fmt in _numbers(stmt):
         same = [n for n in law_nums if n[1] == unit and n[3] == fmt] or [n for n in law_nums if n[1] == unit]   # 같은 표기형 우선
         if same and not any(abs(n[0] - val) < 1e-9 for n in same):
-            out.append({"종류": "숫자", "진술": phrase, "조문": same[0][2]})
+            # 조문에 같은 단위 숫자가 여럿이면, 앞 문구(예: '한도액의')가 진술과 가장 닮은 숫자를 대조 상대로 (Claude 2026-10-28)
+            sp_ = _lead(stmt, phrase)
+            pick = max(same, key=lambda n: len(sp_ & _lead(context, n[2])))
+            out.append({"종류": "숫자", "진술": phrase, "조문": pick[2]})
     # 양태: 가장 겹치는 조문 문장과 비교, 같은 어간일 때만
     cs = _best_sentence(stmt, context)
     sm, sp = _modality(stmt)
@@ -331,7 +343,24 @@ def compare(statement: str, units: list[Unit]) -> dict:
         den = sum(w[g] * idf(g) for g in w) or 1.0
         return num / den
 
-    best = [max(range(n), key=lambda i: overlap(s, i)) for s in sents]
+    # 어느 항을 근거로 삼을지는 숫자를 빼고, 드문 두 글자 낱말(예: '문화', '전통')을 함께 본다 —
+    # 숫자가 틀린 진술일수록 숫자가 같은 엉뚱한 항으로 끌려가는 것을 막는다(Claude 2026-10-28).
+    def _bi(text: str) -> set[str]:
+        t = re.sub(r"\d", "", _STRIP.sub("", text))
+        return {t[j:j + 2] for j in range(len(t) - 1)}
+    ctx_bi = [_bi(c) for c in contexts]
+    df2: dict[str, int] = {}
+    for gs in ctx_bi:
+        for g in gs:
+            df2[g] = df2.get(g, 0) + 1
+
+    def anchor(sent: str, i: int) -> float:
+        sb = _bi(sent)
+        rare = {g for g in sb if g in df2 and df2[g] <= max(1, n // 4)}   # 이 조에서 드문 낱말만
+        bonus = sum(math.log(n / df2[g]) + 1.0 for g in rare if g in ctx_bi[i]) / (sum(math.log(n / df2[g]) + 1.0 for g in rare) or 1.0)
+        return overlap(sent, i) + 0.6 * bonus
+
+    best = [max(range(n), key=lambda i: anchor(s, i)) for s in sents]
     signals: list[dict] = []
     for s, bi in zip(sents, best):
         for sig in _signals(s, contexts[bi]):
