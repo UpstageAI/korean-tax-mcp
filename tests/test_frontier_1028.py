@@ -21,3 +21,16 @@ def test_verify_statement_anchors_on_rare_topic_not_number():
 def test_addenda_article_match_excludes_branch_articles():
     assert law._article_mentioned("제87조제2호의 개정규정", "제87조")
     assert not law._article_mentioned("제87조의2제1항의 개정규정", "제87조")
+
+
+def test_keyword_view_keeps_all_items_under_matching_paragraph():
+    """항 머리말에 keyword가 있고 '다음 각 호'로 이어지면 호 전부를 돌려준다(일부 호만 보이면 특례를 놓침). 네트워크 — LAW_OC 있을 때만."""
+    import asyncio, pytest
+    if not os.environ.get("LAW_OC"):
+        pytest.skip("LAW_OC 미설정")
+    from korean_tax_mcp.server import mcp
+    r = asyncio.run(mcp.call_tool("law_article", {"law_name": "소득세법 시행령", "article": "제40조의2",
+                                                  "keyword": "연금수령연차", "as_of": "20261231"}))
+    d = json.loads((r.content[0] if hasattr(r, "content") else r[0][0]).text)
+    assert "제4항 제1호" in d["반환 범위"] and "제4항 제2호" in d["반환 범위"]
+    assert "6년차" in d["본문"]
