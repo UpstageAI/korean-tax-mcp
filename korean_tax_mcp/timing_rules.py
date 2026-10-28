@@ -11,6 +11,29 @@ _SUPPORTED = ("법인", "소득", "부가", "양도", "상증", "국기", "종�
 _WARNING = "현행 조문 기준 표 — 지난 해 사안은 law_article(as_of=그 해 말일)로 그 해 조문을 확인. 사실관계를 어느 규칙에 맞출지는 판단 몫"
 
 
+# 평소 쓰는 말 → 표의 문구 (Claude 2026-10-28: '선발급'이 표의 '공급시기 전 … 발급'과 안 맞던 문제)
+_SYNONYMS = {
+    "선발급": ["공급시기 전"], "먼저발급": ["공급시기 전"], "사전발급": ["공급시기 전"],
+    "중간지급": ["중간지급조건부"], "할부": ["할부"], "장기할부": ["장기할부"], "완성도": ["완성도기준"],
+    "간주임대료": ["간주임대료", "임대보증금"], "선수금": ["선불"], "선불": ["선불"], "수출": ["수출재화", "선(기)적"],
+    "폐업": ["폐업"], "상품권": ["상품권"], "임대료": ["임대"], "성립": ["납세의무 성립"], "확정": ["확정"],
+}
+
+
+def _norm(s):
+    return "".join((s or "").split())
+
+
+def _matches(r, keyword):
+    """keyword의 낱말이 모두(띄어쓰기 무시) 규칙의 항목·시기·예외·정의·구분·근거 어딘가에 있으면 일치. 동의어도 봄."""
+    hay = _norm(" ".join(str(r.get(f) or "") for f in ("구분", "항목", "시기", "예외", "정의", "근거")))
+    for w in keyword.split():
+        cands = [w] + _SYNONYMS.get(_norm(w), [])
+        if not any(_norm(c) in hay for c in cands):
+            return False
+    return True
+
+
 def lookup(tax=None, kind=None, keyword=""):
     """시기 규칙표에서 필터 조건에 맞는 규칙을 반환.
 
@@ -50,16 +73,14 @@ def lookup(tax=None, kind=None, keyword=""):
             result["규칙"] = [r for r in result["규칙"] if r.get("구분") == kind]
         if keyword:
             k = keyword.strip()
-            result["규칙"] = [r for r in result["규칙"]
-                            if k in (r.get("항목", "") + r.get("시기", "") + r.get("예외", ""))]
+            result["규칙"] = [r for r in result["규칙"] if _matches(r, k)]
         return result
 
     if kind:
         selected = [r for r in selected if r.get("구분") == kind]
     if keyword:
         k = keyword.strip()
-        selected = [r for r in selected
-                    if k in (r.get("항목", "") + r.get("시기", "") + r.get("예외", ""))]
+        selected = [r for r in selected if _matches(r, k)]
 
     return {
         "규칙": selected,
