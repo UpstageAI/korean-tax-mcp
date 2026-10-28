@@ -1340,6 +1340,21 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
     elif keyword:
         km = _호_목_매칭(body, keyword)
         if km:
+            # 항 머리말에 keyword가 있고 "다음 각 호"로 이어지면 그 항의 호 전부를 함께 — 일부 호만 보이면 단서·특례를 놓친다 (Claude 2026-10-28)
+            _kw = re.sub(r"\s+", "", keyword)
+            _seen = {(h["항"], h["호"]) for h in km}
+            _extra = []
+            for c in _호_목_맥락_분할(body):
+                head = re.sub(r"\s+", "", c.get("항_머리말") or "")
+                if c.get("호") and _kw in head and "각호" in head and (c["항"], c["호"]) not in _seen:
+                    _extra.append({"항": c["항"], "호": c["호"], "항_머리말": c.get("항_머리말", ""),
+                                   "호_본문": c.get("본문", ""), "목_일치": []})
+                    _seen.add((c["항"], c["호"]))
+            if _extra:
+                def _ho_key(h):
+                    m1 = re.search(r"\d+", h["항"] or ""); m2 = re.search(r"\d+", h["호"] or "")
+                    return (int(m1.group()) if m1 else 0, int(m2.group()) if m2 else 0)
+                km = sorted(km + _extra, key=_ho_key)
             # 조 머리말: 본문 첫 줄에서 개정 표시(<개정 …>, 미완결 "<개정") 제거.
             first_line = body.split("\n")[0].strip() if body else ""
             jo_head = re.sub(r"<개정[^>]*>|<개정\b", "", first_line).strip()
