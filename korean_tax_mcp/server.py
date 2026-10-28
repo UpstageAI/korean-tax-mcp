@@ -641,6 +641,31 @@ def article_history(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def article_addenda(
+    law_name: Annotated[str, Field(description="법령 정식 명칭. 예: '소득세법', '소득세법 시행령'")],
+    article: Annotated[str, Field(description="이 조를 언급한 부칙만(예 '제87조'). promulgated를 주면 생략 가능")] = "",
+    promulgated: Annotated[str, Field(description="특정 개정의 공포일 YYYYMMDD — 그 부칙 전문(시행일·일반 적용례·경과조치). article_history의 공포일을 그대로")] = "",
+    since: Annotated[str, Field(description="이 날짜(YYYYMMDD) 이후 공포된 부칙만")] = "",
+    n: Annotated[int, Field(description="반환 부칙 수(1~20)", ge=1, le=20)] = 8,
+) -> dict:
+    """Addenda (부칙): from when does an amendment apply? 개정 조문의 시행일·적용례·경과조치.
+    언제: 연중 개정된 규정을 어느 과세기간·어느 지급/양도분부터 적용하는지 판단할 때. article_history로 바뀐 시점(공포일)을 찾고 이 도구로 그 부칙을 읽는다.
+    입력: 법령명 → law_name, 조 → article(그 조를 언급한 부칙 줄), 공포일 → promulgated(그 개정 부칙 전문), 이후만 → since, 개수 → n.
+    반환: {법령, 조, 부칙: [{부칙, 공포일, 이 조 관련 / 시행일·일반 적용례 | 전문}], 읽는 법, 주의}.
+    읽기 전용. 법제처 공식 API — LAW_OC 필요.
+    """
+    try:
+        if not article and not promulgated:
+            return {"error": "article 또는 promulgated 중 하나는 필요"}
+        return law.addenda(law_name, article or None, promulgated or None, since or None, n)
+    except ValueError as e:
+        return {"error": str(e)}
+    except law.NoKey as e: return {"error": str(e)}
+    except Exception as e: return _err(e)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def verify_statement(
     statement: Annotated[str, Field(description="대조할 진술·한 문장·주장. 예: '관할 세무서장은 체납자가 2회 체납하고 체납액이 2천만원인 경우 사업의 정지 또는 허가등의 취소를 요구할 수 있다.'")],
     law_name: Annotated[str, Field(description="정식 법령명. 예: '국세징수법', '소득세법', '법인세법', '국세기본법'")],
