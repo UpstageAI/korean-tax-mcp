@@ -6,7 +6,7 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Code has been written by Solar Pro 4 since 0.7.0**, reviewed by CodeSolar and cross-checked with tests by Claude. 23 tools — see [CHANGELOG](CHANGELOG.md).
+> **Code has been written by Solar Pro 4 since 0.7.0**, reviewed by CodeSolar and cross-checked with tests by Claude. The 0.12.0 audit and fixes were done by Claude. 24 tools — see [CHANGELOG](CHANGELOG.md).
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules and treaties. [한국어](README.md)
 
@@ -64,13 +64,14 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 
 - **Data transmission** — By default the server calls only the public APIs of the Ministry of Government Legislation and the National Tax Service, and AI judgment, summaries and translation are done by your own AI — nothing is sent to Upstage. Optional: when `UPSTAGE_API_KEY` is set, Solar performs the comparison, summary and translation, and then the input is sent to the Upstage API (api.upstage.ai) — **do not enter personal or other sensitive data**. In air-gapped environments, set `KOREAN_TAX_MCP_SOLAR_BASE_URL` to an in-house Solar to avoid any external transmission.
 
-## Tools (23)
+## Tools (24)
 
 | Group | Tool | What it does |
 |---|---|---|
 | Statutes | `law_article` | text in force on a date, table of contents, delegation links, provisos |
 | | `find_article` | find articles by keyword |
 | | `article_history` | when an article changed, upcoming amendments |
+| | `article_addenda` | addenda — from when an amendment applies (effective date, application rules, transitional rules) |
 | Rulings | `search_tax_rulings` | rulings and court/tribunal decisions |
 | | `get_tax_ruling` | full text of a document |
 | | `rulings_by_article` | rulings citing a given article |
