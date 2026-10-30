@@ -60,10 +60,13 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
       "command": "uvx",
       "args": ["korean-tax-mcp"],
       "env": { "LAW_OC": "법제처 OC(선택)", "UPSTAGE_API_KEY": "Upstage 키(선택)" }
-    }
+    },
+    "korean-tax-calc": { "command": "uvx", "args": ["korean-tax-calc-mcp"] }
   }
 }
 ```
+
+두 번째 줄의 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)는 짝 서버입니다 — 여기서 찾은 조문·해석을 근거로 세액·한도·판정을 코드로 계산하고(85개 도구), 법정서식 엑셀까지 만듭니다. 같이 두면 **근거 찾기 → 계산 → 서식**이 한 대화에서 이어집니다. 조문·판례만 쓰려면 첫 줄만 넣어도 됩니다.
 
 | 키 | 쓰는 곳 |
 |---|---|
