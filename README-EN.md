@@ -50,10 +50,13 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
       "command": "uvx",
       "args": ["korean-tax-mcp"],
       "env": { "LAW_OC": "optional", "UPSTAGE_API_KEY": "optional" }
-    }
+    },
+    "korean-tax-calc": { "command": "uvx", "args": ["korean-tax-calc-mcp"] }
   }
 }
 ```
+
+The second entry, [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp), is the companion server: it turns the statutes and rulings found here into computed amounts, limits and determinations (85 tools) and fills the statutory Excel forms. With both installed, "find the basis → compute → fill the form" runs in one conversation. The first entry alone is enough for statutes and cases.
 
 | Key | Used for |
 |---|---|
