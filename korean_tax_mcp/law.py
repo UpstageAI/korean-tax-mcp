@@ -196,9 +196,11 @@ def jo6(article):
 def _versions(law):
     # 연혁은 한 페이지 100건까지라 끝까지 넘겨 읽는다 — 첫 페이지만 읽으면 개정이 잦은 시행령은
     # 몇 년 전 시행본이 통째로 빠짐(소득세법 시행령은 2018-02 이전이 안 보였음)
+    # 2026-10-30: 법제처 eflaw 검색이 nw 없이는 현행본 1건만 돌려주게 바뀜 → nw=1,2,3(연혁·시행예정·현행) 명시.
+    # 빠지면 as_of 과거 시행본 조회·article_history·article_addenda가 전부 현행본으로 답하는 조용한 오류가 난다.
     out, page = [], 1
     while True:
-        d = _get("lawSearch.do", f"target=eflaw&display=100&page={page}&query=" + urllib.parse.quote(law))
+        d = _get("lawSearch.do", f"target=eflaw&display=100&page={page}&nw=1,2,3&query=" + urllib.parse.quote(law))
         ls = d.get("LawSearch", {})
         rows = _list(ls.get("law"))
         out += [v for v in rows if v.get("법령명한글") == law]
