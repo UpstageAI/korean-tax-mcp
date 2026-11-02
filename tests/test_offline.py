@@ -1185,6 +1185,8 @@ def test_find_article_no_law_name_searches_all(monkeypatch):
     law._FIND_CACHE.clear()
 
     r = _call("find_article", {"keyword": "생계비계좌", "n": 3})
+    law._versions.clear()  # 가짜 법령일련번호가 캐시에 남아 뒤의 실제 조회 테스트를 깨지 않게 비움
+    law._FIND_CACHE.clear()
     assert "error" not in r
     results = r.get("결과", [])
     assert len(results) >= 1
