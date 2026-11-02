@@ -6,6 +6,20 @@ from korean_tax_mcp import casebook, law, ntis
 from korean_tax_mcp.server import mcp
 
 
+@pytest.fixture(autouse=True)
+def _clear_law_caches():
+    """가짜 응답이 법령 캐시에 남아 뒤의 실제 조회 테스트를 깨지 않게 테스트마다 비운다."""
+    from korean_tax_mcp import law
+    def clear():
+        for name in ("_versions", "_three_tier", "_raw_units", "_full_units", "_phrase_defs", "_en_versions"):
+            f = getattr(law, name)
+            (f.clear if hasattr(f, "clear") else f.cache_clear)()
+        law._FIND_CACHE.clear()
+    clear()
+    yield
+    clear()
+
+
 def _call(name, args):
     result = asyncio.run(mcp.call_tool(name, args))
     text = result.content[0].text if result.content else ""
@@ -1185,8 +1199,6 @@ def test_find_article_no_law_name_searches_all(monkeypatch):
     law._FIND_CACHE.clear()
 
     r = _call("find_article", {"keyword": "생계비계좌", "n": 3})
-    law._versions.clear()  # 가짜 법령일련번호가 캐시에 남아 뒤의 실제 조회 테스트를 깨지 않게 비움
-    law._FIND_CACHE.clear()
     assert "error" not in r
     results = r.get("결과", [])
     assert len(results) >= 1
