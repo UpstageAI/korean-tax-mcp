@@ -29,7 +29,10 @@ mcp = MCPServer(
     instructions="한국 세법 쟁점의 근거(국세청 해석·판례·통칙·집행기준·조문)를 찾는다. search_tax_rulings로 넓게 찾고, get_tax_ruling으로 본문을 읽고, "
                  "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 조문 번호를 모르면 find_article로 먼저 찾고, 긴 조문은 law_article의 keyword/paragraph로 필요한 항만 보라. "
                  "특정 사업연도 기준 정리는 research_issue, 사실 날짜의 귀속·공급시기는 timing_rules, 쟁점의 납세자 승·패 사례 비교는 compare_outcomes, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
-                 "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다.")
+                 "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다. "
+                 "귀속·공급시기·성립시기는 직접 정하기 전에 timing_rules를 먼저 본다. "
+                 "계산 도구(korean-tax-calc-mcp) 결과가 직접 계산이나 기억과 다르면 바로 어느 쪽을 고르지 말고, 두 값을 가르는 조문을 law_article로 열어 요건을 사실관계에 하나씩 대조한다. "
+                 "도구가 틀렸다는 조문 근거를 찾지 못하면 도구 값을 따르고, 다른 값을 쓸 때는 그 조문 번호를 밝힌다.")
 
 TAXES = tuple(ntis.TAX_CODES)
 RO = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
