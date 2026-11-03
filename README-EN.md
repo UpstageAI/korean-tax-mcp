@@ -67,6 +67,19 @@ The second entry, [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-
 
 - **Data transmission** — By default the server calls only the public APIs of the Ministry of Government Legislation and the National Tax Service, and AI judgment, summaries and translation are done by your own AI — nothing is sent to Upstage. Optional: when `UPSTAGE_API_KEY` is set, Solar performs the comparison, summary and translation, and then the input is sent to the Upstage API (api.upstage.ai) — **do not enter personal or other sensitive data**. In air-gapped environments, set `KOREAN_TAX_MCP_SOLAR_BASE_URL` to an in-house Solar to avoid any external transmission.
 
+## Recommended system prompt
+
+Five rules that tell the AI when to call the tools and when to trust their answers. The server instructions carry the same rules, but some clients weight them lightly or ignore them. Adding the block below to your system prompt (Claude Desktop project instructions, Claude Code `CLAUDE.md`, or other custom instructions) makes the AI follow them more closely.
+
+```text
+When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp as follows.
+1. For every amount and every judgment, first check whether a tool exists. If you do not know the name, use find_tool; for timing of income or supply, check timing_rules first.
+2. If a tool exists, call it before calculating by hand.
+3. If the tool result differs from your own calculation, do not pick one right away. Recheck the inputs, open the deciding provision with law_article, and match its requirements to the facts one by one.
+4. If no provision shows the tool is wrong, use the tool result. If you use a different value, state the reason (input error or article number) in one line.
+5. If two values come out (before/after apportionment, total vs. taxable part, etc.), answer only the one the question asks for.
+```
+
 ## Tools (24)
 
 | Group | Tool | What it does |
