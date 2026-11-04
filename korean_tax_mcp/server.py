@@ -255,7 +255,7 @@ def law_article(
     with_delegation: Annotated[bool, Field(description="True면 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단)")] = False,
     with_rules: Annotated[bool, Field(description="True면 그 조의 기본통칙 전문과 집행기준 항목도 함께")] = False,
     keyword: Annotated[str, Field(description="키워드가 들어간 항(①②…/제1항…)만 반환. 긴 조문(4,000자 초과)에서 항 번호 모를 때 사용")] = "",
-    paragraph: Annotated[str, Field(description="원하는 항만 지정. '①'·'1'·'제1항'·'②' 등. 호 지정: '②2호'·'제2항 제2호', 여러 항: '2,3'·'②,③'·'제2항, 제3항'. 그 항만 반환")] = "",
+    paragraph: Annotated[str, Field(description="원하는 항만 지정. '①'·'1'·'제1항'·'②' 등. 호 지정: '②2호'·'제2항 제2호', 여러 호: '①5호,6호'·'제1항 제5호~제6호'(항을 빼면 제1항의 호로 봄), 여러 항: '2,3'·'②,③'·'제2항, 제3항'. 그 항·호만 반환")] = "",
 ) -> dict:
     """Get statute text as in force on a date, with optional Act → Decree → Rule chain. 조문 원문(기준일 시행본)과 3단 위임.
 
@@ -568,7 +568,7 @@ def tax_treaty(
 ) -> dict:
     """Read Korea's bilateral tax treaties (96 countries) article by article, Korean or English. 한국의 조세조약 조문(국문·영문).
     언제: 비거주자 원천징수 제한세율, 고정사업장, 거주자 판정 등 국제거래 쟁점. 국내법 조문은 law_article, 국제조세 해석은 search_tax_rulings(tax='국조').
-    반환: {국가, 발효일, 조문: [{조, 제목, 영문 제목, 본문}], 링크} — 조문 번호는 조약마다 다르니 keyword로 찾는 게 정확.
+    반환: {국가, 발효일(현행 협정 — 조약 전문 기준), 서명일?, 최초 협정 발효일?(신협정으로 바뀐 조약), 관련 문서?, 종전 협정 문서?, 조문: [{조, 제목, 영문 제목, 본문}], 링크} — 조문 번호는 조약마다 다르니 keyword로 찾는 게 정확.
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
     try:
@@ -646,8 +646,9 @@ def treaty_withholding_rates(
 ) -> dict:
     """Treaty withholding tax caps on dividends, interest and royalties for a country, with the clause text. 조세조약 원천징수 제한세율(배당·이자·사용료).
     언제: "미국 법인에 배당하면 몇 %?" 같은 질문. 세율과 지분 요건을 조약 원문에서 뽑고 근거 조항((a)·(b)…)을 함께 준다. 조문 전체는 tax_treaty.
-    반환: {국가, 발효일, 제한세율: [{소득, 조문, 세율: [{세율(%), 근거}], 요건·기타: [{지분요건(%), 근거}], 개정 문서 언급, 주의}], 주의, 링크}.
-    자동 추출이라 개정 의정서·교환각서가 조문을 바꿨으면 '개정 문서 언급'에 표시 — 적용 전 확인. 지방소득세 등 국내법은 별도.
+    반환: {국가, 발효일(현행 협정), 최초 협정 발효일?, 제한세율: [{소득, 조문, 세율: [{세율(%), 근거}], 요건·기타: [{지분요건(%), 근거}], 개정 문서 언급, 주의}], 지방소득세: {대상조세 포함, 근거, 안내}, 주의, 링크}.
+    자동 추출이라 개정 의정서·교환각서가 조문을 바꿨으면 '개정 문서 언급'에 표시 — 적용 전 확인.
+    지방소득세: 대상조세에 한국 지방소득세(주민세)가 있는 조약은 제한세율이 법인세+지방소득세 합계 상한(법인세법 제98조의7①2호), 없으면 지방소득세는 따로(1호).
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
     try: return ntis.withholding_rates(country, _INCOME_EN.get(income, income))

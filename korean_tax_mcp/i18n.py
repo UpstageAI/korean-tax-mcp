@@ -37,9 +37,13 @@ KEYS = {
     "요청 호": "requested_item", "반환 범위": "scope", "항 목록": "paragraph_list", "항 번호": "paragraph_no", "첫 문장": "first_sentence",
     "길이": "length", "잘린 항": "truncated_paragraph", "생략된 항": "omitted_paragraphs", "읽기 주의": "reading_notes", "종류": "kind",
     "원문": "original_text", "위치": "location", "읽기 주의 더 있음": "more_reading_notes", "일치_위치": "match_locations",
-    "일치 없음": "no_match", "항_호_목록": "paragraph_item_list", "앞30자": "first_30_chars", "그림": "images",
+    "맥락_위치": "context_locations", "일치 없음": "no_match", "항_호_목록": "paragraph_item_list", "앞30자": "first_30_chars", "그림": "images",
     "법령명 안내": "law_name_note", "법령명 경고": "law_name_warning", "일치 문장": "matching_sentences", "관련 부칙": "related_addenda",
     "부칙": "addenda",
+    # tax_treaty · treaty_withholding_rates — 현행 협정 발효일·지방소득세
+    "서명일": "signed", "최초 협정 발효일": "original_treaty_in_force", "발효일 주의": "in_force_note",
+    "관련 문서": "related_documents", "종전 협정 문서": "superseded_treaty_documents",
+    "지방소득세": "local_income_tax", "대상조세 포함": "covered_by_treaty",
     # verify_citations · casebook_search
     "형식 미인식": "unrecognized", "생략": "omitted", "사례집에 없는 말": "terms_not_in_casebook",
     # residency_check

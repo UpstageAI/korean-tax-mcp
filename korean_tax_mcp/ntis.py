@@ -291,6 +291,73 @@ def treaties():
             for x in _act("ASISTC001MR01", {"txaAgrmClCd": "01"}).get("txaTraDVOList") or []}
 
 
+_KDATE_LINE = re.compile(r"^\s*(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*(?:[^\n]*?)(서명|발효)\s*$")
+_DOC_DATE = re.compile(r"(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})")
+
+
+def _ymd(y, m, d): return f"{int(y):04d}.{int(m):02d}.{int(d):02d}."
+
+
+def treaty_meta(listed, rows):
+    """현행 협정의 서명일·발효일과 부속 문서 구분(실사용 점검 #88·#108).
+
+    국세청 조약 목록의 발효일(valdOcrnDt)은 최초 협정 기준이라, 신협정으로 바뀐 조약(일본 1999·싱가포르 2019 등)은
+    조문 본문과 날짜가 어긋났다. 조약 '전문' 머리의 'YYYY년 M월 D일 … 발효' 줄을 현행 협정의 발효일로 쓴다.
+    반환: (메타 dict, 종전 협정 문서 이름 set)
+    """
+    pre = next((r for r in rows if (r.get("txaAgrmTextNm") or "").strip() == "전문"), None)
+    text = re.sub(r"<[^>]+>", "", (pre or {}).get("txaAgrmTextCntn") or "")
+    cur = sign = None
+    for ln in text.split("\n")[:12]:
+        m = _KDATE_LINE.match(ln)
+        if m and m.group(4) == "발효" and not cur: cur = _ymd(*m.group(1, 2, 3))
+        if m and m.group(4) == "서명" and not sign: sign = _ymd(*m.group(1, 2, 3))
+    meta = {"발효일": cur or listed}
+    if sign: meta["서명일"] = sign
+    if cur and cur != listed: meta["최초 협정 발효일"] = listed
+    if not cur:
+        meta["발효일 주의"] = "국세청 조약 목록의 발효일 — 개정 협정·의정서가 있으면 조약 전문·의정서에서 현행 문서의 발효일 확인"
+    key = lambda s: tuple(int(x) for x in s.strip(".").split("."))
+    related, old = [], []
+    for r in rows:
+        nm = (r.get("txaAgrmTextNm") or "").strip()
+        if "의정서" not in (r.get("txaAgrmTextUqnm") or "") or nm in ("전문", "의정서", ""): continue
+        d = _DOC_DATE.search(nm)
+        superseded = nm.startswith("최초협정") or bool(cur and d and key(_ymd(*d.groups())) < key(cur))
+        (old if superseded else related).append(nm)
+    if related: meta["관련 문서"] = related
+    if old: meta["종전 협정 문서"] = old   # 현행 협정 발효 전 문서 — 현행 조문을 고친 것이 아님
+    return meta, set(old)
+
+
+_KR_SIDE = re.compile(r"(?:대한민국|한국)\s*(?:의\s*경우|에\s*있어서는|에\s*대하여는|에서는|에\s*관하여는)")
+
+
+def local_tax_coverage(rows):
+    """대상조세 조문(보통 제2조)의 한국 측 조세에 지방소득세(주민세)가 있는지. 법인세법 제98조의7① 각 호 판단용(실사용 점검 #108)."""
+    art = next((r for r in rows if "의정서" not in (r.get("txaAgrmTextUqnm") or "")
+                and "대상조세" in re.sub(r"\s+", "", r.get("txaAgrmTextNm") or "")), None)
+    text = re.sub(r"<[^>]+>", "", (art or {}).get("txaAgrmTextCntn") or "")
+    m = _KR_SIDE.search(text)
+    if not m:
+        return {"대상조세 포함": None,
+                "안내": "대상조세 조문에서 한국 측 조세 목록을 찾지 못함 — tax_treaty(country, keyword='대상조세')로 확인. "
+                        "지방소득세(주민세)가 있으면 제한세율은 지방소득세 포함 상한(법인세법 제98조의7①2호), 없으면 지방소득세는 따로(같은 항 1호)"}
+    rest = text[m.start():]
+    end = re.search(r"[\"“”]\s*한국의\s*조세\s*[\"“”][^\n]*", rest)
+    seg = rest[:end.end()] if end else rest[:400]
+    seg = re.split(r"\n\s*(?:나\.|나\)|\(b\)|\(나\))", seg)[0]
+    seg = re.sub(r"\s+", " ", seg).strip()
+    no = (art.get("txaAgrmTextUqnm") or "").strip()
+    if re.search(r"주민세|지방소득세", seg):
+        return {"대상조세 포함": True, "근거": f"{no} {seg}".strip(),
+                "안내": "대상조세에 한국 지방소득세(주민세)가 포함된 조약 — 제한세율은 원천징수 법인세(소득세)와 지방소득세를 합한 상한. "
+                        "외국법인의 이자·배당·사용료는 제한세율과 '국내 세율에 지방소득세(법인세의 100분의 10)를 반영한 세율' 중 낮은 세율(법인세법 제98조의7①2호) — "
+                        "예: 제한세율 10%면 법인세 10/11, 지방소득세 1/11로 나눠 합계 10%"}
+    return {"대상조세 포함": False, "근거": f"{no} {seg}".strip(),
+            "안내": "대상조세의 한국 측 조세에 지방소득세(주민세)가 없음 — 제한세율은 법인세(소득세)분이고, 지방소득세(원천징수세액의 100분의 10)는 따로(법인세법 제98조의7①1호)"}
+
+
 TREATY_SYNONYMS = {
     "근로": ["근로", "급여", "종속적 인적용역", "고용", "dependent personal services", "employment"],
     "급여": ["근로", "급여", "종속적 인적용역", "고용", "dependent personal services", "employment"],
@@ -346,11 +413,11 @@ def treaty(country, article="", keyword="", english=False):
                 안내 = f"이사 보수 조문 없음 → 근로소득 조항({labor_no} {labor_title}) 검토 권장"
             else:
                 안내 = "이사 보수 조문 없음 → 근로소득 조항 검토 권장"
-            return {"국가": name, "발효일": t[name]["발효일"], "조문": [],
+            return {"국가": name, **treaty_meta(t[name]["발효일"], rows)[0], "조문": [],
                     "안내": 안내,
                     "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
 
-    return {"국가": name, "발효일": t[name]["발효일"], "조문": out,
+    return {"국가": name, **treaty_meta(t[name]["발효일"], rows)[0], "조문": out,
             "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
 
 
@@ -398,7 +465,10 @@ def withholding_rates(country, income=None):
     name = country if country in t else next((n for n in t if country and (country in n or n in country)), None)
     if not name: return {"error": f"조약 체결국에서 '{country}'를 찾지 못함", "체결국": sorted(t)}
     rows = _act("ASISTC002MR01", {"txaAgrmBscId": t[name]["id"]}).get("txaTraDVOList") or []
-    prot = [r for r in rows if "의정서" in (r.get("txaAgrmTextUqnm") or "") and r.get("txaAgrmTextNm") not in ("전문",)]
+    meta, superseded = treaty_meta(t[name]["발효일"], rows)
+    # 종전 협정 원문(최초협정 등)은 같은 소득 조문을 언급해도 현행 조문을 고친 문서가 아니다(실사용 점검 #108)
+    prot = [r for r in rows if "의정서" in (r.get("txaAgrmTextUqnm") or "") and r.get("txaAgrmTextNm") not in ("전문",)
+            and (r.get("txaAgrmTextNm") or "").strip() not in superseded]
     out = []
     for ko, en in INCOME.items():
         if income and income != ko: continue
@@ -410,8 +480,9 @@ def withholding_rates(country, income=None):
                    if re.search(rf"(?:Article|제)\s*{re.sub(r'[^0-9]', '', no or '')}(?!\d)|{en.title()}", (p.get("txaAgrmTextEnglCntn") or "") + (p.get("txaAgrmTextCntn") or ""))]
         out.append({"소득": ko, "조문": no, "제목": art.get("txaAgrmTextNm"), "세율": rates, "요건·기타": others[:6],
                     "개정 문서 언급": touched, "주의": "개정 의정서·교환각서가 이 조문을 바꿨을 수 있음 — 언급된 문서 확인" if touched else ""})
-    return {"국가": name, "발효일": t[name]["발효일"], "제한세율": out,
-            "주의": "조약 원문에서 자동 추출 — 적용 전 원문·개정 의정서·국내법(지방소득세 별도 등) 확인", "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
+    return {"국가": name, **meta, "제한세율": out, "지방소득세": local_tax_coverage(rows),
+            "주의": "조약 원문에서 자동 추출 — 적용 전 원문·개정 의정서·교환각서 확인. 지방소득세를 제한세율 안에 넣을지는 '지방소득세' 항목 참고",
+            "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
 
 
 # ── 별표·서식 (세율표·기준금액표·신고서 서식 등) ──
