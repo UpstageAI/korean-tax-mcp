@@ -21,7 +21,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import _mask_oc, casebook, cite, i18n, law, localdocs, ntis, outcome, residency, solar, timeline
+from . import _mask_oc, casebook, cite, i18n, law, localdocs, net, ntis, outcome, residency, solar, timeline
 from . import timing_rules as _timing_rules_data
 
 mcp = MCPServer(
@@ -43,7 +43,10 @@ ART = "조문 번호. '제52조' 또는 '제28조의2' 형식"
 NTIS_NOTE = "읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시."
 
 
-def _err(e): return {"error": f"{type(e).__name__}: {_mask_oc(str(e))}"}
+def _err(e):
+    # 연결 실패·시간 예산 초과는 무엇이 안 됐고 다음에 무엇을 할지 적은 안내문 그대로(원시 URLError 대신)
+    if isinstance(e, (net.Unreachable, net.BudgetExceeded)): return {"error": _mask_oc(str(e))}
+    return {"error": f"{type(e).__name__}: {_mask_oc(str(e))}"}
 
 import contextvars
 LANG = contextvars.ContextVar("lang", default="ko")
@@ -265,9 +268,21 @@ def law_article(
     결과의 '연결'에 상위·하위 조문 위치가 있으니 그 조를 law_article로 이어서 조회.
     반환: {법령, 조, 적용 시행일, 적용 기준일, 본문, 링크, 반환 범위, 연결, 읽기 주의(돌려준 본문의 단서·우선·제외 구절 원문, 최대 3개), 기준일 안내?, 최근 개정?, 다시 조회?} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
     읽기 전용. 법제처 공식 API — 환경변수 LAW_OC(무료) 필요, 없으면 발급 안내 오류.
+    전체 시간 예산 약 45초 — 넘으면 받은 부분(본문 등)만 돌려주고 '부분 결과'에 빠진 항목을 적는다.
     """
+    with net.budget(LAW_ARTICLE_BUDGET):
+        return _law_article(law_name, article, as_of, with_delegation, with_rules, keyword, paragraph)
+
+
+# law_article 전체 시간 예산(초). MCP 클라이언트의 흔한 60초 제한보다 짧게 — 넘기면 받은 부분만 돌려준다.
+try: LAW_ARTICLE_BUDGET = float(os.environ.get("KTM_LAW_ARTICLE_BUDGET") or 45)
+except ValueError: LAW_ARTICLE_BUDGET = 45.0
+
+
+def _law_article(law_name, article, as_of, with_delegation, with_rules, keyword, paragraph):
     ef = re.sub(r"\D", "", as_of or "")
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
+    partial = []   # 시간 예산·연결 문제로 못 받은 항목
     try:
         norm, hang = law.normalize_article(article)
         if LANG.get() == "en" and not with_delegation:   # 영어: 공식 영문 번역본 + 한국어 원문 시행본
@@ -276,9 +291,11 @@ def law_article(
             out["원문(한국어)"] = {"적용 시행일": ko.get("적용 시행일"), "본문": _truncate_text(ko.get("본문", ""))}
         else:
             if with_delegation:
-                tiers = law.tiers(law_name, norm, ef)
-                out = {"위임체계": [{"단계": t["단계"], "법령": t["법령"], "조": t["조"],
-                                     "적용 시행일": t["적용 시행일"], "본문": _truncate_text(t.get("본문", ""))}
+                tiers = law.tiers(law_name, norm, ef, notes=partial)
+                if tiers and all(t.get("error") for t in tiers): return {"error": tiers[0]["error"]}
+                out = {"위임체계": [{"단계": t["단계"], "법령": t.get("법령"), "조": t.get("조"), "error": t["error"]} if t.get("error") else
+                                    {"단계": t["단계"], "법령": t.get("법령"), "조": t.get("조"),
+                                     "적용 시행일": t.get("적용 시행일"), "본문": _truncate_text(t.get("본문", ""))}
                                     for t in tiers]}
             else:
                 a = law._article_body_with_scope(law_name, norm, hang, ef, paragraph, keyword)
@@ -297,9 +314,13 @@ def law_article(
         return {"error": str(e)}
     except Exception as e:
         return _err(e)
+    NETERR = (net.Unreachable, net.BudgetExceeded)
+    SKIP = {"error": "시간 예산을 다 써서 조회하지 않음"}
     if with_rules:
         base = re.sub(r"\s*(시행령|시행규칙)$", "", law_name)
         for k, f in (("기본통칙", ntis.basic_rules), ("집행기준", ntis.exec_standards)):
+            if net.expired():
+                out[k] = SKIP; partial.append(k); continue
             try:
                 r = f(base, norm)
                 if "통칙" in r:
@@ -307,14 +328,19 @@ def law_article(
                 if "항목" in r:
                     r["항목"] = [{"항목": it["항목"], "쪽": it["쪽"]} for it in r["항목"]]
                 out[k] = r
-            except Exception as e: out[k] = _err(e)
+            except Exception as e:
+                out[k] = _err(e)
+                if isinstance(e, NETERR): partial.append(k)
     # 목차: law_article 결과에 법령 전체 목차 추가. 실패해도 본문은 그대로 반환.
     try:
+        if net.expired(): raise net.BudgetExceeded(LAW_ARTICLE_BUDGET)
         out["목차"] = law.toc(law_name, norm, ef)
     except Exception as e:
         out["목차"] = {"error": str(e)}
+        if isinstance(e, NETERR): partial.append("목차")
     # 연결 필드: links 결과(포인터만, 본문 없음). 실패해도 본문 조회는 그대로 반환.
     try:
+        if net.expired(): raise net.BudgetExceeded(LAW_ARTICLE_BUDGET)
         con = law.links(law_name, norm, ef)
         keep = ("법령", "조", "항", "구절", "확인")
         slim = lambda x: {k: x[k] for k in keep if x.get(k)}
@@ -325,6 +351,10 @@ def law_article(
             out["연결"]["참고(공식표만)"] = ref
     except Exception as e:
         out["연결"] = {"error": str(e)}
+        if isinstance(e, NETERR): partial.append("연결")
+    if partial:
+        out["부분 결과"] = (f"시간 예산({LAW_ARTICLE_BUDGET:.0f}초)·연결 문제로 받지 못한 항목: {', '.join(dict.fromkeys(partial))}. "
+                          "받은 본문은 그대로 유효함 — 빠진 항목이 필요하면 잠시 후 다시 호출하거나 with_delegation·with_rules 없이 나눠 조회")
     out["다음 단계"] = "찾는 내용이 이 조에 없으면 목차에서 조를 골라 law_article로 바로 조회\n" \
                        "보기 여러 개를 한 번에 대조: judge_options(statements, law_name, articles) / 한 문장: verify_statement(statement, law_name, article, as_of)"
 

@@ -20,7 +20,7 @@ import urllib.request
 from functools import lru_cache
 from pathlib import Path
 
-from . import _mask_oc
+from . import _mask_oc, net
 
 BASE = "https://taxlaw.nts.go.kr"
 CTX = ssl.create_default_context(); CTX.verify_flags &= ~ssl.VERIFY_X509_STRICT
@@ -31,10 +31,10 @@ KINDS = {"해석": "question", "판례": "precedent"}
 CACHE = Path(os.environ.get("KOREAN_TAX_MCP_CACHE", Path.home() / ".cache" / "korean-tax-mcp"))
 TTL = int(os.environ.get("KOREAN_TAX_MCP_CACHE_TTL", 86400))
 _lock = threading.Lock(); _last = [0.0]
-UA = "korean-tax-mcp (+https://github.com/UpstageAI/korean-tax-mcp)"
+UA = net.USER_AGENT
 
 
-def _act(action, param, timeout=40):
+def _act(action, param, timeout=net.TIMEOUT):
     key = hashlib.sha256(json.dumps([action, param], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     f = CACHE / f"{key}.json"
     try:
@@ -53,12 +53,12 @@ def _act(action, param, timeout=40):
     return out
 
 
-def _fetch(action, param, timeout):
+def _fetch(action, param, timeout=net.TIMEOUT):
+    """연결 끊김·시간 초과는 net.request가 최대 3회 시도. 끝내 안 되면 net.Unreachable(다음 단계 안내 포함)."""
     data = urllib.parse.urlencode({"actionId": action, "paramData": json.dumps(param, ensure_ascii=False)}).encode()
     req = urllib.request.Request(BASE + "/action.do", data=data, method="POST",
                                  headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA})
-    with urllib.request.urlopen(req, context=CTX, timeout=timeout) as r:
-        d = json.loads(r.read())
+    d = json.loads(net.request(req, site="nts", ctx=CTX, timeout=timeout))
     if d.get("status") != "SUCCESS": raise RuntimeError(f"NTIS 응답 {d.get('status')}: {d.get('message')}")
     return d["data"][action]
 
@@ -157,11 +157,17 @@ def search_issues(issues, kinds=("해석", "판례"), tax=None, n_per=5, recent_
                             if len(rec) >= 2: break
                     acc += rec
                 except Exception as e:
-                    item["최근_오류"] = f"{type(e).__name__}: {str(e)}"
+                    item["최근_오류"] = _msg(e)
             out.append(item)
         except Exception as e:
-            out.append({"쟁점": issue, "결과": [], "오류": f"{type(e).__name__}: {str(e)}"})
+            out.append({"쟁점": issue, "결과": [], "오류": _msg(e)})
     return out
+
+
+def _msg(e):
+    """오류 문구 — 연결 실패·시간 예산 초과는 안내문 그대로, 그 밖은 '유형: 내용'."""
+    if isinstance(e, (net.Unreachable, net.BudgetExceeded)): return str(e)
+    return f"{type(e).__name__}: {str(e)}"
 
 
 def _bigrams(t):
@@ -180,6 +186,9 @@ def _pooled(query, kinds, tax, n, start, end):
     last_exc = None
     for v in dict.fromkeys(x for x in (query[:80], _keywords(query, 5), _keywords(query, 4), _keywords(query, 3), _keywords(query, 2)) if x):
         try: rs = _search(v, kinds, tax, "정확도", 30, start, end)
+        except net.Unreachable as e:   # 사이트에 연결이 안 되면 남은 검색어도 마찬가지 — 재시도를 쌓지 않고 멈춤
+            last_exc = e
+            break
         except Exception as e:
             last_exc = e
             continue

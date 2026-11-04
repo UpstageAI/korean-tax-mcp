@@ -8,7 +8,7 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-from . import _mask_oc, law, ntis
+from . import _mask_oc, law, net, ntis
 
 MAX = 30   # 종류별 조회 상한 — 넘으면 '생략'으로 알림
 
@@ -43,6 +43,7 @@ def _key(t):
 
 def _check_doc(raw):
     try: hits = ntis._search(raw, ("해석", "판례"), None, "정확도", 5)   # 번호 조회는 재정렬 없이
+    except net.Unreachable as e: return {"인용": raw, "결과": "조회 실패", "이유": e.short, "_net": str(e)}
     except Exception as e: return {"인용": raw, "결과": "조회 실패", "이유": str(e)[:80]}
     k = _key(raw)
     m = next((h for h in hits if _key(h["문서번호"]) == k), None)
@@ -120,6 +121,7 @@ def _check_law(ref, got):
     label = " ".join(x for x in (name, art, hang, ho) if x)
     e = got.get("_exc")
     if isinstance(e, law.NoKey): return {"인용": label, "결과": "미검증", "이유": "LAW_OC 없음"}
+    if isinstance(e, net.Unreachable): return {"인용": label, "결과": "조회 실패", "이유": e.short, "_net": str(e)}
     if e is not None: return {"인용": label, "결과": "조회 실패", "이유": _mask_oc(str(e))[:80]}
     if got.get("error"): return {"인용": label, "결과": "법령명 미확인", "이유": _mask_oc(got["error"])}
     ok = got.get("본문") and not got["본문"].startswith("조문 없음")
@@ -166,6 +168,8 @@ def verify(text, as_of=""):
     l = [_check_law(r, got[(r[0], r[1])]) for r in laws[:MAX]]
 
     items = d + l + unparsed
+    # 사이트 연결 실패는 인용마다 짧게, 무엇을 할지는 한 번만
+    net_msgs = list(dict.fromkeys(x.pop("_net") for x in d + l if "_net" in x))
     ok = sum(1 for x in items if x["결과"] == "확인")
     nv = sum(1 for x in items if x["결과"] == "미검증")
     out = {"문서번호": d, "조문": l}
@@ -176,5 +180,6 @@ def verify(text, as_of=""):
     out["요약"] = s
     skipped = max(0, len(docs) - MAX) + max(0, len(laws) - MAX)
     if skipped: out["생략"] = f"상한({MAX}건/종류) 초과로 {skipped}건 확인 안 함 — 나눠서 다시 검증"
+    if net_msgs: out["연결 안내"] = " / ".join(net_msgs)
     out["주의"] = "확인은 '존재'만 뜻함 — 인용한 내용이 그 문서·조문의 내용과 맞는지는 본문으로 확인"
     return out

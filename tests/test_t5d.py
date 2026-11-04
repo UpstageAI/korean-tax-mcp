@@ -128,6 +128,7 @@ def test_ita_12_fixture_full_no_section():
 
 # ── 실제 law._article_body_with_scope 네트워크 스모크 (선택) ──────────────────────
 
+@pytest.mark.skipif(not __import__("os").environ.get("LAW_OC"), reason="LAW_OC 없음 — 실제 법제처 호출")
 def test_ngs_41_live_keyword():
     """실제 네트워크 호출로 keyword='생계비계좌' 결과가 기대 2줄과 일치하는지 확인."""
     r = law._article_body_with_scope("국세징수법", "제41조", None, "", None, "생계비계좌")
