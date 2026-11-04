@@ -160,11 +160,13 @@ def request(req, *, site, ctx=None, timeout=TIMEOUT):
     k = _blocked(site)
     if k: raise Unreachable(site, k, 0, cached=True)
     timeout = min(timeout or TIMEOUT, TIMEOUT)
-    kind, last, attempts = None, None, 0
+    kind, last, attempts, by_budget = None, None, 0, False
     for i in range(MAX_ATTEMPTS):
         left = remaining()
         if left is not None and left < MIN_LEFT:
-            if kind: break
+            if kind:
+                by_budget = True
+                break
             raise _over()
         attempts += 1
         try:
@@ -178,8 +180,13 @@ def request(req, *, site, ctx=None, timeout=TIMEOUT):
         if kind not in ("reset", "timeout") or i + 1 >= MAX_ATTEMPTS: break
         wait = BACKOFF * (2 ** i) * random.uniform(0.5, 1.5)
         left = remaining()
-        if left is not None and left - wait < MIN_LEFT: break
+        if left is not None and left - wait < MIN_LEFT:
+            by_budget = True
+            break
         time.sleep(wait)
+    # 재시도할 수 있었는데 시간 예산이 모자라 멈춘 경우는 사이트 장애가 아니라 예산 소진으로 알린다
+    if by_budget and kind in ("reset", "timeout") and attempts < MAX_ATTEMPTS:
+        raise _over() from last
     # 연결 단계 실패(거부·DNS·경로 없음)이거나 끝까지 다 시도해도 안 됐을 때만 사이트를 잠시 막힘으로 기억
     if kind not in ("reset", "timeout") or attempts >= MAX_ATTEMPTS: _trip(site, kind)
     raise Unreachable(site, kind, attempts) from last

@@ -222,3 +222,14 @@ def test_law_article_delegation_partial_rows(monkeypatch):
     assert "부당행위계산" in rows[0].get("본문", "")
     assert rows[1]["법령"] == "법인세법 시행령" and rows[1].get("error"), rows[1]
     assert "위임체계" in (r.get("부분 결과") or ""), r
+
+
+# ── 리뷰 반영: 예산이 모자라 재시도를 멈춘 경우는 사이트 장애가 아니라 예산 소진으로 알림 ──
+def test_budget_cut_retry_reports_budget_not_unreachable(monkeypatch, sleeps):
+    from korean_tax_mcp import net
+    _urlopen(monkeypatch, lambda req, n: (_ for _ in ()).throw(_reset()))
+    req = urllib.request.Request("https://taxlaw.nts.go.kr/x")
+    with net.budget(1.5):                          # 첫 시도 후 대기(≈1초)를 하면 MIN_LEFT보다 적게 남음
+        with pytest.raises(net.BudgetExceeded):
+            net.request(req, site="nts")
+    assert not net._blocked("nts")                 # 사이트를 막힘으로 기록하지 않음
