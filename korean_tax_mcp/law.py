@@ -1068,6 +1068,106 @@ def _normalize_paragraph_spec(spec):
     return hang, None, None
 
 
+_HO_ONE = re.compile(r"^제?\s*(\d+)(?:\s*의\s*(\d+))?\s*(호)?(?:\s*의\s*(\d+))?$")
+
+
+def _호_하나(s):
+    """'5'·'5호'·'제5호'·'9의2'·'제9호의2' → ((9, 2), 호 표시 여부). 못 읽으면 None."""
+    m = _HO_ONE.match(s.strip())
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2) or m.group(4) or 0)), bool(m.group(3))
+
+
+def _호_목록_파싱(spec):
+    """호 여러 개·구간 지정을 읽는다(실사용 점검 #110). '5호,6호'·'5,6호'·'5~6호'·'①5호,6호'·'제1항 제5호~제6호'.
+
+    반환: (항 또는 None, [("하나", (n, b)) | ("구간", (n, b), (n, b))]) — 호 지정 형식이 아니면 None.
+    '2,3'처럼 '호'가 하나도 없으면 여러 항 지정이므로 None.
+    """
+    s = str(spec or "").strip()
+    if "호" not in s:
+        return None
+    hang, rest = None, s
+    m = re.match(r"^([①-⑳])\s*(.*)$", s) or re.match(r"^제?\s*(\d+)\s*항\s*(.*)$", s)
+    if m:
+        g = m.group(1)
+        hang = f"제{_HANG_CIRCLED[g]}항" if g in _HANG_CIRCLED else f"제{int(g)}항"
+        rest = m.group(2)
+    items, marked = [], False
+    for part in re.split(r"\s*(?:,|ㆍ|·|、|/|및)\s*", rest.strip()):
+        if not part:
+            continue
+        ends = re.split(r"\s*(?:~|∼|-|부터)\s*", re.sub(r"\s*까지$", "", part))
+        if len(ends) == 1:
+            one = _호_하나(ends[0])
+            if not one:
+                return None
+            items.append(("하나", one[0])); marked |= one[1]
+        elif len(ends) == 2:
+            a, b = _호_하나(ends[0]), _호_하나(ends[1])
+            if not (a and b):
+                return None
+            items.append(("구간", a[0], b[0])); marked |= a[1] or b[1]
+        else:
+            return None
+    if not items or not marked:
+        return None
+    return hang, items
+
+
+def _호_목록_선택(para_text, items):
+    """항 텍스트에서 items에 해당하는 호 tuple 목록(본문 순서)과 없는 호 라벨 목록."""
+    have = [_ho_tuple(h) for h in _항_내_호_목록(para_text)]
+    pick, missing = [], []
+    for it in items:
+        if it[0] == "하나":
+            if it[1] in have:
+                pick.append(it[1])
+            else:
+                missing.append(_ho_label(*it[1]))
+        else:
+            lo, hi = it[1], it[2]
+            got = [t for t in have if lo <= t <= hi]
+            if not got:
+                missing.append(f"{_ho_label(*lo)}~{_ho_label(*hi)}")
+            pick += got
+    seen = set()
+    pick = [t for t in have if t in pick and not (t in seen or seen.add(t))]
+    return pick, missing
+
+
+def _호_목록_본문(body, paragraph, spec):
+    """호 목록 지정(spec = _호_목록_파싱 결과)으로 본문을 고른다. 반환: dict(본문, 반환 범위, 안내?) 또는 None(항·호를 못 찾음)."""
+    hang, items = spec
+    _, paragraphs = _split_paragraphs(body)
+    note = ""
+    if not paragraphs:                                   # 항 없이 호만 있는 조문
+        cands = [("", _split_article_title(body)[1])]
+    elif hang:
+        cands = [(hn, pt) for hn, pt in paragraphs if hn == hang]
+    else:
+        # 항을 주지 않으면 제1항의 호로 본다. 제1항에 그 호가 없으면 그 호가 있는 첫 항
+        cands = sorted(paragraphs, key=lambda x: x[0] != "제1항")
+    for hn, pt in cands:
+        pick, missing = _호_목록_선택(pt, items)
+        if not pick:
+            continue
+        if paragraphs and not hang:
+            note = f"항을 지정하지 않아 {hn}의 호로 봄 — 다른 항이면 '제2항 5호,6호'처럼 항을 함께 지정"
+        if missing:
+            note = (note + ". " if note else "") + f"{', '.join(missing)}가 {hn or '이 조'}에 없음 — 호 목록: {', '.join(_항_내_호_목록(pt))}"
+        head = re.sub(r"<개정[^>]*>|<개정\b|<신설[^>]*>|<신설\b", "", pt.split("\n")[0]).strip() if hn else ""
+        parts = [head] if head else []
+        parts += [_추출_호_본문(pt, _ho_label(*t)) or "" for t in pick]
+        out = {"본문": "\n".join(p for p in parts if p),
+               "반환 범위": (f"{hn} " if hn else "") + ", ".join(_ho_label(*t) for t in pick)}
+        if note:
+            out["안내"] = note
+        return out
+    return None
+
+
 def _호_뒤_파싱(전체_입력, 항_번호):
     """항 번호 뒤의 호 부분을 추출. '②2호'·'제2항 제2호' 등에서 '제N호' 반환."""
     # 1. 입력이 원문자(①~⑳)로 시작하면 그 원문자 뒤 추출
@@ -1317,7 +1417,18 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
     a = article(law_name, norm, ef)
     body = a.get("본문", "")
 
-    if paragraph:
+    ho_spec = _호_목록_파싱(paragraph) if paragraph else None
+    if ho_spec and (ho_spec[0] is None or len(ho_spec[1]) > 1 or ho_spec[1][0][0] == "구간"):
+        # 호 여러 개·구간·항 없는 호 지정 — '5호,6호'·'제1항 제5호~제6호'·'6호' (실사용 점검 #110)
+        got = _호_목록_본문(body, paragraph, ho_spec)
+        if got:
+            a.update(got)
+        else:
+            a["항 목록"] = _parse_paragraphs(body)
+            a["본문"] = body if len(body) <= 4000 else body[:4000]
+            a["반환 범위"] = "전체" if len(body) <= 4000 else "항 목록"
+            a["안내"] = f"'{paragraph}'의 호를 이 조문 본문에서 찾지 못함 — 항·호 번호 확인"
+    elif paragraph:
         hang, ho, multi = _normalize_paragraph_spec(paragraph)
 
         if hang is None and ho is None and multi is None:
@@ -1330,7 +1441,7 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
                 a["반환 범위"] = "전체"
             a["안내"] = (
                 f"'{paragraph}'은 항·호 지정으로 인식할 수 없음 — "
-                "받을 수 있는 형식: ②, 제2항, ②2호, 제2항 제2호, 2,3"
+                "받을 수 있는 형식: ②, 제2항, ②2호, 제2항 제2호, 2,3(여러 항), ①5호,6호·제1항 제5호~제6호(여러 호)"
             )
         else:
             picked = _pick_paragraph(body, paragraph)
@@ -1384,57 +1495,14 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
                         a["안내"] = f"'{paragraph}'항은 이 조문 본문에서 확인되지 않음 — 항 번호 확인"
                         a["반환 범위"] = "전체"
     elif keyword:
-        km = _호_목_매칭(body, keyword)
-        if km:
-            # 항 머리말에 keyword가 있고 "다음 각 호"로 이어지면 그 항의 호 전부를 함께 — 일부 호만 보이면 단서·특례를 놓친다 (Claude 2026-10-28)
-            _kw = re.sub(r"\s+", "", keyword)
-            _seen = {(h["항"], h["호"]) for h in km}
-            _extra = []
-            for c in _호_목_맥락_분할(body):
-                head = re.sub(r"\s+", "", c.get("항_머리말") or "")
-                if c.get("호") and _kw in head and "각호" in head and (c["항"], c["호"]) not in _seen:
-                    _extra.append({"항": c["항"], "호": c["호"], "항_머리말": c.get("항_머리말", ""),
-                                   "호_본문": c.get("본문", ""), "목_일치": []})
-                    _seen.add((c["항"], c["호"]))
-            if _extra:
-                def _ho_key(h):
-                    m1 = re.search(r"\d+", h["항"] or "")
-                    return (int(m1.group()) if m1 else 0, _ho_tuple(h["호"] or "") or (0, 0))
-                km = sorted(km + _extra, key=_ho_key)
-            # 조 머리말: 본문 첫 줄에서 개정 표시(<개정 …>, 미완결 "<개정") 제거.
-            first_line = body.split("\n")[0].strip() if body else ""
-            jo_head = re.sub(r"<개정[^>]*>|<개정\b", "", first_line).strip()
-            match_locs = []
-            jo_label = a.get("조", "")  # "전체" 대체용 실제 조 번호
-            # 항별로 그룹화: 각 항마다 항_머리말 1줄 + 매칭된 호 문장들
-            항_groups = {}
-            for hit in km:
-                항_l = hit["항"]; 호_l = hit["호"]
-                disp_항 = jo_label if 항_l == "전체" else 항_l
-                loc = f"{disp_항} {호_l}" if 호_l else disp_항
-                match_locs.append(loc)
-                if disp_항 not in 항_groups:
-                    항_groups[disp_항] = {"항_머리말": hit.get("항_머리말", ""), "호들": []}
-                if not 호_l:
-                    # 호 없는 항은 호_본문이 곧 항 전체 — 머리말을 따로 또 붙이면 같은 항이 두 번 나온다(모의 2차 #66)
-                    항_groups[disp_항]["항_머리말"] = ""
-                # 호 본문: 호 번호가 있으면 호 번호 접두사 유지(t5c #4), 없으면 그대로
-                body_hit = hit["호_본문"]
-                if 호_l:
-                    n, b = _ho_tuple(호_l)  # "제18호" → 18, "제9호의2" → 9의2
-                    body_hit = f"{n}{'의' + str(b) if b else ''}. {body_hit}"
-                항_groups[disp_항]["호들"].append(body_hit)
-            chunks = []
-            for 항_l in sorted(항_groups.keys(), key=lambda x: int(re.search(r"\d+", x).group()) if re.search(r"\d+", x) else 0):
-                group = 항_groups[항_l]
-                # 항 머리말: 개정 표시 제거 후 추가. 조 머리말과 동일하면 중복이므로 생략.
-                항_head = re.sub(r"<개정[^>]*>|<개정\b", "", group["항_머리말"]).strip()
-                if 항_head and 항_head != jo_head:
-                    chunks.append(항_head)
-                chunks.extend(group["호들"])
-            a["본문"] = jo_head + "\n" + "\n".join(chunks)
-            a["일치_위치"] = match_locs
-            a["반환 범위"] = f"keyword 일치(호): {', '.join(match_locs)}"
+        hit = _keyword_scope(body, keyword, a.get("조", ""))
+        if hit:
+            a["본문"], a["일치_위치"], ctx_locs = hit
+            a["반환 범위"] = f"keyword 일치: {', '.join(a['일치_위치'])}"
+            if ctx_locs:
+                # 각 호 앞 문장에 keyword가 있어 함께 붙인 호 — 그 호 자체에는 keyword가 없다(실사용 점검 #100)
+                a["맥락_위치"] = ctx_locs
+                a["반환 범위"] += f" / 맥락으로 함께 붙인 호(keyword 없음): {', '.join(ctx_locs)}"
         else:
             # 항·호·목 어디에도 keyword 없음 → "일치 없음" + 항·호 목록(번호+앞30자)
             ctx_all = _호_목_맥락_분할(body)
@@ -1558,12 +1626,14 @@ def _호_목_분할(body):
 
     반환: [{"항": "제1항", "항_머리말": "…", "호": [{"호": "제1호", "목": ["가.", "나."], "본문": "…"}]}]
     항 표시가 없으면 전체를 하나의 항으로, 호 표시만 있으면 그 호들로 분할.
-    항 마커는 동그라미 숫자(①~⑩)만 사용한다. 텍스트 "제1항"은 문장 내 참조일 수 있어
-    항 마커로 사용하지 않는다(중복 필터링 불필요).
+    항 마커는 줄 맨 앞 동그라미 숫자(①~⑳)를 쓴다(줄 맨 앞 표시가 없을 때만 문장 안 ①~⑩). 텍스트 "제1항"은
+    문장 내 참조일 수 있어 항 마커로 사용하지 않는다(중복 필터링 불필요).
+    ⑪ 이후 항이 ⑩에 묶여 '제10항'으로 표시되지 않게 줄 맨 앞 ⑪~⑳도 항 경계로 본다(실사용 점검, 소득령 제155조).
     """
     if not body:
         return []
-    ant = list(re.finditer(r"[①-⑩]", body))
+    ant = [re.compile(r"[①-⑳]").search(body, m.start(1)) for m in re.finditer(r"(?m)^[ \t]*([①-⑳])", body)] \
+        or list(re.finditer(r"[①-⑩]", body))
     if not ant:
         return [_항_블록(body, None)]
     out = []
@@ -1625,34 +1695,80 @@ def _항_블록(block, 항_norm):
             merged.append(b)
     return {"항": 항_norm or "전체", "항_머리말": 항_머리말, "호": merged}
 
-def _호_목_매칭(body, kw):
-    """keyword가 포함된 호·목 단위 위치 목록.
+_AMEND_TAG = re.compile(r"<(?:개정|신설|전문개정|본조신설|타법개정|제목개정)[^>]*>")
 
-    각 항목: {항, 호, 항_머리말, 호_본문, 목_일치}
+
+def _kw_norm(s):
+    """keyword 대조용 정규화 — 개정·신설 표시 제거, 공백 무시, 가운뎃점 통일, 소문자(실사용 점검 #92)."""
+    s = _AMEND_TAG.sub("", s or "")
+    s = re.sub(r"[·•‧∙]", "ㆍ", s)
+    return re.sub(r"\s+", "", s).lower()
+
+
+def _ho_runs(labels, all_labels):
+    """같은 항의 호 라벨 목록을 연속 구간으로 묶는다. ['제1호','제2호','제3호'] → ['제1호~제3호']."""
+    pos = {h: i for i, h in enumerate(all_labels)}
+    runs, cur = [], []
+    for h in labels:
+        if cur and pos.get(h, -9) == pos.get(cur[-1], -9) + 1:
+            cur.append(h)
+        else:
+            if cur: runs.append(cur)
+            cur = [h]
+    if cur: runs.append(cur)
+    return [r[0] if len(r) == 1 else f"{r[0]}~{r[-1]}" for r in runs]
+
+
+def _keyword_scope(body, keyword, jo_label=""):
+    """keyword가 든 항 머리말(각 호 외의 부분)·호·호 없는 항을 찾아 (본문, 일치_위치, 맥락_위치)를 돌려준다. 없으면 None.
+
+    - 항 머리말에 keyword가 있으면 '제N항 각 호 외의 부분'으로 일치 표시(실사용 점검 #92 — 머리말을 안 봐서 '일치 없음'이던 문제).
+    - 그 머리말이 "다음 각 호"로 이어지면 그 항의 호 전부를 함께 붙이되, keyword가 없는 호는 '맥락_위치'로 따로 적는다(#100).
+    - 대조는 공백·개정 표시를 무시한다.
     """
-    if not body or not kw:
-        return []
-    kw_lower = kw.lower()
-    tree = _호_목_분할(body)
-    matched = []
-    for ant in tree:
-        항_머리말 = ant.get("항_머리말", "")
-        for ho in ant["호"]:
-            hb = ho["본문"]
-            if not hb:
+    kwn = _kw_norm(keyword)
+    if not body or not kwn:
+        return None
+    first_line = body.split("\n")[0].strip()
+    jo_head = re.sub(r"<개정[^>]*>|<개정\b", "", first_line).strip()
+    match_locs, ctx_locs, chunks = [], [], []
+    for ant in _호_목_분할(body):
+        disp = jo_label if ant["항"] == "전체" else ant["항"]
+        head = ant.get("항_머리말", "")
+        hos = [h for h in ant["호"] if h["본문"]]
+        has_ho = any(h["호"] for h in hos)
+        head_hit = has_ho and kwn in _kw_norm(head)
+        with_all = head_hit and "각호" in _kw_norm(head)
+        if head_hit:
+            match_locs.append(f"{disp} 각 호 외의 부분" if disp else "각 호 외의 부분")
+        lines, ctx = [], []
+        for h in hos:
+            hb = h["본문"]
+            if not h["호"]:
+                if kwn in _kw_norm(hb):          # 호 없는 항 — 본문이 곧 항 전체
+                    match_locs.append(disp or "전체")
+                    lines.append(hb)
                 continue
-            if kw_lower in hb.lower():
-                mok_hits = []
-                for mk in ho["목"]:
-                    mk_pos = hb.find(mk)
-                    if mk_pos != -1:
-                        mk_text = hb[mk_pos + len(mk):]
-                        nxt = _MOK.search(mk_text)
-                        mk_text = mk_text[:nxt.start()] if nxt else mk_text
-                        if kw_lower in mk_text.lower():
-                            mok_hits.append(mk)
-                matched.append({"항": ant["항"], "호": ho["호"], "항_머리말": 항_머리말, "호_본문": hb, "목_일치": mok_hits})
-    return matched
+            hit = kwn in _kw_norm(hb)
+            if hit or with_all:
+                n, b = _ho_tuple(h["호"])
+                lines.append(f"{n}{'의' + str(b) if b else ''}. {hb}")
+                if hit:
+                    match_locs.append(f"{disp} {h['호']}".strip())
+                else:
+                    ctx.append(h["호"])
+        if not (head_hit or lines):
+            continue
+        if has_ho:
+            항_head = re.sub(r"<개정[^>]*>|<개정\b", "", head).strip()
+            if 항_head and 항_head != jo_head:
+                chunks.append(항_head)
+        chunks.extend(lines)
+        all_hos = [h["호"] for h in hos if h["호"]]
+        ctx_locs += [f"{disp} {r}".strip() for r in _ho_runs(ctx, all_hos)]
+    if not match_locs:
+        return None
+    return jo_head + "\n" + "\n".join(chunks), match_locs, ctx_locs
 
 
 def _호_목_맥락_분할(body):

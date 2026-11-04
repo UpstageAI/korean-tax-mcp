@@ -1,0 +1,510 @@
+{
+ "목록": [
+  {
+   "txaAgrmBscId": "200000000000090190",
+   "txaAgrmNtnNm": "싱가포르",
+   "valdOcrnDt": "19810211"
+  },
+  {
+   "txaAgrmBscId": "200000000000000078",
+   "txaAgrmNtnNm": "일본",
+   "valdOcrnDt": "19701029"
+  }
+ ],
+ "조문": {
+  "일본": [
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "전문",
+    "txaAgrmTextCntn": "<u>* 본 조약은 개정 신협정입니다(최초 협정 1970. 3. 3. 서명, 1970. 10. 29. 발효).</u>\n<b><u><mark>* 교환각서(1999.12.27.)가 존재합니다.  조약 적용 시 교환각서를 반드시 함께 검토하여 주시기 바랍니다. </b></u></mark>\n\n1998년 10월 8일 동경에서 서명\n1999년 11월 22일 발효\n\n\n\n\t대한민국 정부와 일본국 정부는, \n\n\t소득에 대한 조세의 이중과세회피와 탈세방지를 위한 협약의 체결을 희망하여, \n\n\t다음과 같이 합의하였다. ",
+    "txaAgrmTextEnglNm": "Preamble",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제1조",
+    "txaAgrmTextNm": "인적범위",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Persons covered",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제2조",
+    "txaAgrmTextNm": "대상조세",
+    "txaAgrmTextCntn": "\t1.\t이 협약의 적용대상이 되는 조세는 다음과 같다.\n\n\t\t가.\t대한민국의 경우\n\t\t\t(1)\t소득세\n\t\t\t(2)\t법인세\n\t\t\t(3)\t소득세 또는 법인세를 과세표준으로 하여 직접 또는 간접으로 부가되는 농어촌특별세 및 \n\t\t\t(4)\t주민세\n\t\t\t(이하 \"한국의 조세\"라 한다)\n\n\t\t나.\t일본의 경우\n\t\t\t(1)\t소득세\n\t\t\t(2)\t법인세 및\n\t\t\t(3)\t주민세\n\t\t\t(이하 \"일본의 조세\"라 한다)\n\n\n\t2.\t이 협약은 또한 이 협약의 서명일이후 국세든 지방세든 이 조 제1항에서 언급한 조세에 추가 또는 대체하여 부과되는 동일하거나 실질적으로 유사한 조세에 대하여도 적용한다. 양 체약국의 권한있는 당국은 자국세법의 실질적인 개정사항을 그러한 개정후 적당한 기간내에 개정사항을 상호 통보한다. ",
+    "txaAgrmTextEnglNm": "Taxes covered",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제3조",
+    "txaAgrmTextNm": "일반적 정의",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "General definition",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제4조",
+    "txaAgrmTextNm": "거주자",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Resident",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제5조",
+    "txaAgrmTextNm": "고정사업장",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Permanent Establishment",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제6조",
+    "txaAgrmTextNm": "부동산 소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Income from immovable property",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제7조",
+    "txaAgrmTextNm": "사업소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Business profits",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제8조",
+    "txaAgrmTextNm": "해상 및 항공 운송",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Shipping and air transport",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제9조",
+    "txaAgrmTextNm": "특수관계기업",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Associated enterprise",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제10조",
+    "txaAgrmTextNm": "배당",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Dividends",
+    "txaAgrmTextEnglCntn": "1.\tDividends paid by a company which is a resident of a Contracting State to a resident of the other Contracting State may be taxed in that other Contracting State.\n\n\n2.\tHowever, such dividends may also be taxed in the Contracting State of which the company paying the dividends is a resident and according to the laws of that Contracting State, but if the beneficial owner of the dividends is a resident of the other Contracting State, the tax so charged shall not exceed:\n\n\t(a)\t5 per cent of the gross amount of the dividends if the beneficial owner is a company which owns at least 25 per cent of the voting shares issued by the company paying the dividends during the period of six months immediately before the end of the accounting period for which the distribution of profits takes place;\n\n\t(b)\t15 per cent of the gross amount of the dividends in all other cases.\n\nThis paragraph shall not affect the taxation of the company in respect of the profits out of which the dividends are paid.\n\n\n3.\tThe term \"dividends\" as used in this Article means income from shares or other rights, not being debt-claims, participating in profits, as well as income from other corporate rights which is subjected to the same taxation treatment as income from shares by the laws of the Contracting State of which the company making the distribution is a resident.\n\n\n4.\tThe provisions of paragraphs 1 and 2 shall not apply if the beneficial owner of the dividends, being a resident of a Contracting State,carries on business in the other Contracting State of which the company paying the dividends is a resident, through a permanent establishment situated therein, or performs in that other Contracting State independent personal services from a fixed base situated therein, and the holding in respect of which the dividends are paid is effectively connected with such permanent establishment or fixed base. In such case the provisions of Article 7 or Article 14, as the case may be, shall apply.\n\n\n5.\tWhere a company which is a resident of a Contracting State derives profits or income from the other Contracting State, that other Contracting State may not impose any tax on the dividends paid by the company, except insofar as such dividends are paid to a resident of that other Contracting State or insofar as the holding in respect of which the dividends are paid is effectively connected with a permanent establishment or a fixed base situated in that other Contracting State, nor subject the company＇s undistributed profits to a tax on the company＇s undistributed profits, even if the dividends paid or the undistributed profits consist wholly or partly of profits or income arising in such other Contracting State."
+   },
+   {
+    "txaAgrmTextUqnm": "제11조",
+    "txaAgrmTextNm": "이자",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Interest",
+    "txaAgrmTextEnglCntn": "1.\tInterest arising in a Contracting State and paid to a resident of the other Contracting State may be taxed in that other Contracting State.\n\n\n2.\tHowever, such interest may also be taxed in the Contracting State in which it arises and according to the laws of that Contracting State, but if the beneficial owner of the interest is a resident of the other Contracting State, the tax so charged shall not exceed 10 per cent of the gross amount of the interest.\n\n\n3.\tNotwithstanding the provisions of paragraph 2, interest arising in a Contractig State and derived by the Government of the other Contracting State, a local authority thereof, the Central Bank of that other Contracting State or any financial institution wholly owned by that Government or that Central Bank or by both, shall be exempt from tax in the first-mentioned Contracting State.\n\n\n4.\tFor the purposes of paragraph 3, the terms \"the Central Bank\" and \"financial institution wholly owned by that Government or that Central Bank or by both\" mean\n\n\t(a)\tin the case of Korea:\n\t\t(i)\tthe Bank of Korea;\n\t\t(ii)\tthe Korea Export-Import Bank;\n\t\t(iii)\tthe Korea Development Bank; and\n\t\t(iv)\tsuch other financial institution the capital of which is wholly owned by the Government of Korea or the Bank of Korea or by both as may be agreed upon from time to time between the Governments of the two Contracting States;\n\n\t(b)\tin the case of Japan:\n\t\t(i)\tthe Bank of Japan;\n\t\t(ii)\tthe Export-Import Bank of Japan; and\n\t\t(iii)\tsuch other financial institution the capital of which is wholly owned by the Government of Japan or the Bank of Japan or by both as may be agreed upon from time to time between the Governments of the two Contracting States.\n\n\n5.\tThe term \"interest\" as used in this Article means income from debt-claims of every kind, whether or not secured by mortgage and whether or not carrying a right to participate in the debtor＇s profits, and in particular, income from government securities and income from bonds or debentures, including premiums and prizes attaching to such securities, bonds or debenures.\n\n\n6.\tThe provisions of paragraphs 1, 2 and 3 shall not apply if the beneficial owner of the interest, being a resident of a Contracting State, carries on business in the other Contracting State in which the interest arises, through a permanent establishment situated therein, or performs in that other Contracting State independent personal services from a fixed base situated therein, and the debt-claim in respect of which the interest is paid is effectively connected with such permanent establishment or fixed base. In such case the provisions of Article 7 or Article 14, as the case may be, shall apply.\n\n\n7.\tInterest shall be deemed to arise in a Contracting State when the payer is that Contracting State itself, a local authority thereof or a resident of that Contracting State. Where, however, the person paying the interest, whether he is a resident of a Contracting State or not, has in a Contracting State a permanent establishment or a fixed base in connection with which the indebtedness on which the interest is paid was incurred, and such interest is borne by such permanent establishment or fixed base, then such interest shall be deemed to arise in the Contracting State in which the permanent establishment or fixed base is situated.\n\n\n8.\tWhere, by reason of a special relationship between the payer and the beneficial owner or between both of them and some other person, the amount of the interest exceeds the amount which would have been agreed upon by the payer and the beneficial owner in the absence of such relationship, the provisions of this Article shall apply only to the last-mentioned amount. In such case, the excess part of the payments shall remain taxable according to the laws of each Contracting State, due regard being had to the other provisions of this Convention."
+   },
+   {
+    "txaAgrmTextUqnm": "제12조",
+    "txaAgrmTextNm": "사용료",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Royalties",
+    "txaAgrmTextEnglCntn": "1.\tRoyalties arising in a Contracting State and paid to a resident of the other Contracting State may be taxed in that other Contracting State.\n\n\n2.\tHowever, such royalties may also be taxed in the Contracting State in which they arise and according to the laws of that Contracting State, but if the beneficial owner of the royalties is a resident of the other Contracting State, the tax so charged shall not exceed 10 per cent of the gross amount of the royalties.\n\n\n3.\tThe term \"royalties\" as used in this Article means payments of any kind received as a consideration for the use of, or the right to use, any copyright of literary, artistic or scientific work including software, cinematograph films and films or tapes for radio or television broadcasting, any patent, trade mark, design or model, plan, secret formula or process, or for the use of, or for the right to use, industrial, commercial, or scientific equipment, or for information concerning industrial, commercial or scientific experience, as well as receipts from a bare boat charter of ships or aircraft.\n\n\n4.\tRoyalties shall be deemed to arise in a Contracting State when the payer is that Contracting State itself, a local authority thereof or a resident of that Contracting State. Where, however, the person paying the royalties, whether he is a resident of a Contracting State or not, has in a Contracting State a permanent establishment or a fixed base in connection with which the liability to pay the royalties was incurred, and such royalties are borne by such permanent establishment or fixed base, then such royalties shall be deemed to arise in the Contracting State in which the permanent establishment or fixed base is situated.\n\n\n5.\tThe provisions of paragraphs 1, 2 and 4 shall likewise apply to proceeds arising from the alienation of any copyright of literary, artistic or scientific work including software, cinematograph films and films or tapes for radio or television broadcasting, any patent, trade mark, design or model, plan, or secret formula or process, except when the provisions of paragraph 4 of Article 13 are applicable to the gains to be derived from such proceeds.\n\n\n6.\tThe provisions of paragraphs 1, 2 and 5 shall not apply if the beneficial owner of the royalties or proceeds, being a resident of a Contracting State, carries on business in the other Contracting State in which the royalties or proceeds arise, through a permanent establishment situated therein, or performs in that other Contracting State independent personal services from a fixed base situated therein, and the right or property in respect of which the royalties or proceeds are paid is effectively connected with such permanent establishment or fixed base. In such case the provisions of Article 7 or Article 14, as the case may be, shall apply.\n\n\n7.\tWhere, by reason of a special relationship between the payer and the beneficial owner or between both of them and some other person, the amount of the royalties or proceeds, having regard to the use, right or information for which they are paid, exceeds the amount which would have been agreed upon by the payer and the beneficial owner in the absence of such relationship, the provisions of this Article shall apply only to the last-mentioned amount. In such case, the excess part of the payments shall remain taxable according to the laws of each Contracting State, due regard being had to the other provisions of this Convention."
+   },
+   {
+    "txaAgrmTextUqnm": "제13조",
+    "txaAgrmTextNm": "양도소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Capital gains",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제14조",
+    "txaAgrmTextNm": "독립적 인적용역",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Independent presonal services",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제15조",
+    "txaAgrmTextNm": "근로소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Income form employment",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제16조",
+    "txaAgrmTextNm": "이사의 보수",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Director's fee",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제17조",
+    "txaAgrmTextNm": "예능인 및 체육인",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Entertainers and sports persons",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제18조",
+    "txaAgrmTextNm": "연금",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Pensions",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제19조",
+    "txaAgrmTextNm": "정부 용역",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Government service",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제20조",
+    "txaAgrmTextNm": "학생",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Students",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제21조",
+    "txaAgrmTextNm": "교수 및 교사",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Professors and teachers",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제22조",
+    "txaAgrmTextNm": "기타소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Other income",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제23조",
+    "txaAgrmTextNm": "이중과세의 방지",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Elimination of double taxation",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제24조",
+    "txaAgrmTextNm": "무차별",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Non-discrimination",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제25조",
+    "txaAgrmTextNm": "상호 합의 절차",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Mutual agreement procedure",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제26조",
+    "txaAgrmTextNm": "정보 교환",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Exchange of information",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제27조",
+    "txaAgrmTextNm": "조세 징수 협조",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Assistance in the collection of taxes",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제28조",
+    "txaAgrmTextNm": "외교사절 및 영사관원",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Members of diplomatic missions and consular posts",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제29조",
+    "txaAgrmTextNm": "발효",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Entry into force",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제30조",
+    "txaAgrmTextNm": "종료",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "Termination",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "의정서",
+    "txaAgrmTextCntn": "\t대한민국과일본국간의소득에대한조세의이중과세회피와탈세방지를위한협약(이하 \"협약\"이라 한다)을 서명함에 있어서, 아래 서명자는 협약의 불가분의 일부를 이루는 다음 규정에 합의하였다.\n\n\n\t1.\t협약 제10조제2항가목의 규정에 불구하고, 동목에 의하여 부과된 조세는 2003년 12월 31일까지 배당총액의 10퍼센트를 초과하지 아니한다.\n\n\n\t2.\t협약 제17조제1항가목의 규정에 불구하고, 타방체약국에서 수행된 인적활동으로부터 일방체약국의 거주자인 개인이 취득하는 소득은, 그러한 소득이 어느 역년동안 미화 1만불 또는 그에 상당하는 대한민국 원화 또는 일본 엔화 금액을 초과하지 아니한다면, 타방체약국에서 면세된다.\n\n\n\t3.\t체약국의 권한있는 당국들은 협약의 규정들을 이용하는 것이 협약을 악용하는 것에 해당한다고 동의한다면, 이 협약의 혜택을 적용하지 아니한다.\n\n\n\t이상의 증거로 아래 서명자는 그들 각자의 정부로부터 정당하게 권한을 위임받아 이 의정서에 서명하였다. \n\n\t1998년 10월 8일 도오꾜오에서 영어로 2부를 작성하였다. \n\n\n\n대한민국 정부를 위하여  /  일본국 정부를 위하여",
+    "txaAgrmTextEnglNm": "Protocol",
+    "txaAgrmTextEnglCntn": "\tAt the signing of the Convention between the Republic of Korea and Japan for the Avoidance of Double Taxation and the Prevention of Fiscal Evasion with respect to Taxes on Income (hereinafter referred to as \"the Convention\"), the undersigned have agreed upon the following provisions which shall form an integral part of the Convention:\n\n\n1.\tNotwithstanding the provision of sub-paragraph (a) of paragraph 2 of Article 10 of the Convention, the tax charged under the said sub-paragraph shall not exceed 10 per cent of the gross amount of the dividends until December 31, 2003.\n\n\n2.\tNotwithstanding the provisions of sub-paragraph (a) of paragraph 1 of Article 17 of the Convention, income derived by an individual who is a resident of a Contracting State from his personal activities exercised in the other Contracting State shall be exempt in that other Contracting State if such income does not exceed an aggregate amount of 10,000 United States dollars or its equivalent in Korean Won or Japanese Yen during any calendar year.\n\n\n3.\tThe benefits of the Convention shall not apply if the competent authorities of the Contracting States agree that the taking advantage of those provisions constitutes an abuse of the provisions of the Convention.\n\n\n\tIN WITNESS WHEREOF the undersigned, being duly authorised thereto by their respective Governments, have signed this Protocol.\n\n\tDONE in duplicate at Tokyo this eighth day of October, 1998, in the English language.\n\n\n\nFOR THE GOVERNMENT OF THE REPUBLIC OF KOREA  /  FOR THE GOVERNMENT OF JAPAN"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "교환각서(1999.12.27.) ",
+    "txaAgrmTextCntn": "‘소득에 관한 조세의 이중과세회피 및 탈세방지를 위한 대한민국과 일본국간의 협약 제18조 제3항 (b)에 의거한 교환각서’ 개정을 위한 교환각서\n\n\n(한국측 각서)\n\n서울, 1999년 12월 27일\n\n\n각\t하,\n\n\t본인은 1970년 3월 3일 동경에서 서명된 소득에 관한 조세의 이중과세회피 및 탈세방지를 위한 대한민국과 일본국간의 협약(이하 “협약”이라 한다)과 협약 제18조 제3항 (b)에 관한 동일자의 교환각서 및 1985년 3월 27일의 양국 정부간의 교환각서(이하 각기 “1970년 교환각서” 및 “1985년 교환각서”라 한다)를 언급하는 영광을 가지는 바입니다.\n\n\t본인은 또한 대한민국 정부를 대표하여 1985년 교환각서에 의하여 발효된 합의사항을 대체하기 위하여 다음 합의사항을 제안하는 영광을 가지는 바입니다.\n\n\t1.\t1999년 조세특례제한법(법률 제5982호, 이하 “1999년 조세특례제한법”이라 한다)의 다음 조항에 규정된 조치들은 협약 제18조 3항 (b)에서 언급된 “한국에서의 경제개발을 촉진하기 위한 특별장려조치”이다.\n\t\t(가)\t제121-2조 제2항 및 제3항--외국인 투자기업이나 외국인투자가의 소득에 대한 소득세 또는 법인세의 감면에 관한 것\n\t\t(나)\t제121-4조 제1항--외국인 투자기업의 증자시 소득세 또는 법인세의 감면에 관한 것\n\t\t(다)\t제121-6조 제1항--기술도입계약으로부터 발생된 소득에 대한 소득세 또는 법인세의 면제에 관한 것\n\t\t(라)\t부칙 제5조(그 포함된 규정이 1988년 외국인투자촉진법(법률 제5559호, 이하 “1998년 외국인 투자 촉진법”이라 한다)의 소득세 또는 법인세 감면과 관련된 범위에 한함)--1998년 외국인 투자촉진법의 관련규정에 따라 부여된 소득세 또는 법인세 감면과 관련된 경과조치에 관한 것.\n\n\t2.\t현재의 합의사항은 아래와 관련하여 효력을 갖는다.\n\t\t가.\t1999년 조세특례제한법에 의하여 감면되어 왔거나 감면될 소득세 또는 법인세, 그리고\n\t\t나.\t한국 세법의 다음 각 조항에 따라 감면되어 왔거나 감면될 소득세 또는 법인세(그 포함된 규정이 상기 제1항에서 규정된 1999년 조세특례제한법에 의하여 소득세 또는 법인세의 감면과 관련된 범위에 한함)\n\t\t\t(1)\t1983년 외자도입법(법률 제3691호)\n\t\t\t\t(가)\t제14조 제2 (1)항 및 제3항\n\t\t\t\t(나)\t제16조 제1항\n\t\t\t\t(다)\t제21조 제1항(1991년 2월 28일까지 체결된 차관계약으로부터 발생한 소득에 대하여 적용되어 왔거나 적용될 소득세 또는 법인세의 감면과 관련된 범위에 한함)\n\t\t\t\t(라)\t제24조 제1항, 그리고\n\t\t\t\t(마)\t부칙 제4조(그 포함된 규정이 1966년 외자도입법(법률 제1802호)에 의한 소득세 또는 법인세의 감면과 관련된 범위에 한함.\n\t\t\t(2)\t1997년 외국인투자 및 외자도입에 관한 법률(법률 제5256호)\n\t\t\t\t(가)\t제14조 제2항 및 제3항\n\t\t\t\t(나)\t제16조 제1항, 그리고\n\t\t\t\t(다)\t제24조 제1항\n\t\t\t(3)\t1998년 외국인투자 및 외자도입에 관한 법률(법률 제5538호, 이하 “1998년 외국인투자 및 외자도입에 관한 법률” 이라 한다)\n\t\t\t\t(가)\t제14조 제2항 및 제3항\n\t\t\t\t(나)\t제16조 제1항, 그리고\n\t\t\t\t(다)\t제24조 제1항\n\t\t\t(4)\t1998년 외국인투자촉진법\n\t\t\t\t(가)\t제9조 제2항 및 제3항\n\t\t\t\t(나)\t제11조 제1항\n\t\t\t\t(다)\t제26조 제1항, 그리고\n\t\t\t\t(라)\t부칙 제5조(그 포함된 규정이 1998년 외국인투자 및 외자도입에 관한 법률에 의하여 소득세 또는 법인세의 감면과 관련된 범위에 한함)\n\n\t3.\t1985년 교환각서에 의하여 발효된 합의사항은 현재의 합의사항이 발효되는 날에 종료된다.\n\n\n\t이 제안을 일본국 정부가 수락한다면, 동 각서와 일본국 정부가 상기 제안을 수락함을 확인하는 각하의\t회답각서는 각하의 회답일자에 발효될 양국 정부간의 합의를 구성하는 것으로 간주됩니다.\n\n\t본인은 이 기회를 빌어 각하에게 본인의 최대의 경의를 표하는 바입니다.\n\n\n\n외교통상부장관\n홍\t순\t영\n\n주한 일본국 특명전권대사\n오구라 키즈오\n\n\n\n\n\n(일본측 각서)\n\n\n각\t하,\n\n\t본인은 다음과 같이 금일자의 각하의 각서를 접수하였음을 확인하는 영광을 가집니다\n\n“.............................(한국측 각서)................................”\n\n\t본인은 또한 일본국 정부를 대표하여 상기 합의사항을 확인하고 각하의 각서와 동 각서가 이 응답일자에 발효하는 양국 정부간의 합의를 구성하는 것으로 간주하는데 동의하는 영광을 가지는 바입니다\n\n\t본인은 이 기회를 빌어 각하에게 거듭 본인의 최고의 경의를 표하는 바입니다.\n\n\n\n주한 일본국 특명전권대사\n오구라 카즈오\n\n대한민국\n외교통상부장관\n홍 순 영",
+    "txaAgrmTextEnglNm": "Exchange of Notes(1999.12.27.)",
+    "txaAgrmTextEnglCntn": "Exchange of Notes\n\n\n(Korean Note)\n\nSeoul, December 27, 1999\n\n\nExcellency,\n\n\tI have the honour to refer to the Convention between the Republic of Korea and Japan for the Avoidance of Double Taxation and the Prevention of Fiscal Evasion with respect to Taxes on Income signed at Tokyo on the 3rd day of March 1970 (hereinafter referred to as \"the Convention\") and to the Exchange of Notes of the same date and the Exchange of Notes of the 27th day of March 1985 between the two Government concerning paragraph (3) (b) of Article 18 of the Convention\t(hereinafter referred to as \"the Exchange of Notes of 1970\" and \"the Exchange of Notes of 1985\" respectively).\n\n\tI have further the honour to propose on behalf of the Government of the Republic of Korea the following arrangement to replace the arrangement effected by the Exchange of Notes of 1985:\n\n1.\tThe measures set forth in the following articles and paragraph of the Special Tax Treatment Control Act, Law No.5982, 1999 (hereinafter referred to as \"the Special Tax Treatment Control Act of 1999\") are \"the special incentive measures designed to promote economic development in Korea\" referred to in paragraph (3) (b) of Article 18 of the Convention:\n\t(i)\tParagraphs 2 and 3 of Article 121-2 -- relating to reduction and exemption from income tax or corporation tax on the income of a foreign invested enterprise or foreign investor;\n\t(ii)\tParagraph 1 of Article 121-4 -- relating to reduction and exemption from income tax or corporation tax in case where a foreign invested enterprise increases its capital;\n\t(iii)\tParagraph 1 of Article 121-6 -- relating to exemption from income tax or corporation tax on the income derived from a technological inducement contract; and\n\t(iv)\tArticle 5 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax or corporation tax under the Foreign Investment Promotion Act, Law No.5559. 1998 (hereinafter referred to as \"the Foreign Investment Promotion Act of 1998\")) -- relating to the transitional measures concerning reduction and exemption from income tax or corporation tax granted in accordance with the relevant provisions of the Foreign Investment Promotion Act of 1998.\n\n2.\tThe present arrangement shall be effective:\n\t(1)\tin respect of such income tax or corporation tax as has been or may be reduced or exempted under the Special Tax Treatment Control Act of 1999; and\n\t(2)\tin respect of such income tax or corporation tax as has been or may be reduced and exempted under the following articles and paragraphs of Korean taxation laws (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax of corporation tax under the Special Tax Treatment Control Act of 1999 as stated in paragraph 1 above:\n\t\t(a)\tForeign Capital Inducement law, Law No.3691, 1983\n\t\t\t(i)\tParagraph 2 (1) and 3 of Article 14;\n\t\t\t(ii)\tParagraph 1 of Article 16;\n\t\t\t(iii)\tParagraph 1 of Article 21 (only to the extent that the exemption from income tax or corporation tax has been or may be applied to the income derived from a loan contract concluded by February 28, 1991);\n\t\t\t(iv)\tParagraph 1 of Article 24; and\n\t\t\t(v)\tArticle 4 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax or corporation tax under the Foreign Capital Inducement Law, Law No.1802, 1966).\n\t\t(b)\tForeign Investment and Foreign Capital Inducement Act, Law No.5256, 1997\n\t\t\t(i)\tParagraphs 2 and 3 of Article 14;\n\t\t\t(ii)\tParagraph 1 of Article 16; and\n\t\t\t(iii)\tParagraph 1 of Article 24.\n\t\t(c)\tForeign Investment and Foreign Capital Inducement Act, Law No.5538, 1998 (hereinafter referred to as \"the Foreign Investment and Foreign Capital Inducement Act of 1998\")\n\t\t\t(i)\tParagraphs 2 and 3 of Article 14;\n\t\t\t(ii)\tParagraph 1 of Article 16; and\n\t\t\t(iii)\tParagraph 1 of Article 24.\n\t\t(d)\tThe Foreign Investment Promotion Act of 1998\n\t\t\t(i)\tParagraphs 2 and 3 of Article 9;\n\t\t\t(ii)\tParagraph 1 of Article 11;\n\t\t\t(iii)\tParagraph 1 of Article 26; and\n\t\t\t(iv)\tArticle 5 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax or corporation tax under the Foreign Investment and Foreign Capital Inducement Act of 1998)\n\n3.\tThe arrangement effected by the Exchange of Notes of 1985 shall terminate on the date of entry into force of the present arrangement.\n\n\n\tIf this proposal is acceptable to the Government of Japan, this Note and Your Excellency's Note in reply confirming the acceptance by the Government of Japan of the above proposal shall be regarded as constituting an agreement between the two Governments which will enter into force on the date of your Excellency's reply.\n\n\tI avail myself of this opportunity to renew to Your Excellency the assurances of my highest consideration.\n\n\n\nHong Soon-young\nMinister of \nForeign Affairs and Trade\n\nHis Excellency\nMr. Kazuo Ogura\nAmbassador Extraordinary and Plenipotentiary\nof Japan to the Republic of Korea\n\n\n\n\n\n(Japanese Note)\n\nSeoul, December 27, 1999 \n\n\nExcellency,\n\n\tI have the honour to acknowledge the receipt of Your Excellency's Note of today's date, which reads as follows:\n\n\"...................... (Korean Note) ........................\"\n\n\tI have further the honour to confirm on behalf of the Government of Japan the foregoing arrangement and to agree that Your Excellency's Note and this Note shall be regarded as constituting an agreement between the two Governments which will enter into force on the date of this reply.\n\n\tI avail myself of this opportunity to renew to Your Excellency the assurances of my highest consideration.\n\n\n\nKazuo Ogura\nAmbassador Extraordinary and Plenipotentiary\nof Japan\n\nHis Excellency\nMr. Hong Soon-young\nMinister of the Foreign Affairs and Trade\nof the Republic of Korea"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "교환각서2(1999.12.27.)",
+    "txaAgrmTextCntn": "1999년 12월 27일 서울에서 각서교환\n1999년 12월 27일 발효\n\n\n\n대한민국과 일본국간의 소득에 대한 조세의 이중과세회피와 탈세방지를 위한 협약 제23조 제3항에 의거한 교환각서\n\n\n(한국측 각서)\n\n서울, 1999년 12월 27일\n\n\n\t각 하,\n\n\t본인은 1998년 10월 8일 동경에서 서명된 대한민국과 일본국간의 소득에 대한 조세의 이중과세회피와 탈세방지를 위한 협약(이하 \"협약\"이라 한다)과 협약 제23조 제3항에 관한 양국정부간 동일자의 교환각서(이하 \"교환각서\"라 한다)를 언급하는 영광을 가지는 바입니다.\n\n\t본인은 더욱이 대한민국 정부를 대표하여 교환각서에 의해 발효된 합의사항을 대체하기 위하여 다음 합의사항을 제안하는 영광을 가지는 바입니다.\n\n\t1.\t한국 세법상 다음 조항에 규정된 조치들은 협약 제23조 제3항에서 언급된 \"대한민국에서 경제개발을 촉진하기 위하여 고안된 특별유인조치\"이다.\n\t\t(1)\t1998년 조세특례제한법 (법률 제5584호, 이하 \"1998년 조세특례제한법\"이라 한다)\n\t\t\t(가)\t제20조 제1항 및 제2항--공공차관계약으로부터 발생한 소득에 대한 소득세 또는 법인세의 감면에 관한 것\n\t\t\t(나)\t제21조 제1항, 제2항 및 제3항--국제금융거래로부터 발생한 소득과 양도소득에 대한 소득세 또는 법인세 면제에 관한 것\n\t\t\t(다)\t부칙 제9조(그 포함된 규정이 1998년 조세감면규제법(법률 제5534호, 이하 \"1998년 조세감면규제법\"이라 한다)과 공공차관의도입 및 관리에 관한 법률(법률 제5551호,이하 1998년 \"공공차관의 도입 및 관리에 관한 법률\"이라 한다)의 소득세 또는 법인세의 감면에 관련된 범위에 한함)--1998년 조세감면규제법과 1998년 공공차관의 도입 및 관리에 관한 법률의 관련규정에 따라 부여된 소득세 또는 법인세의 감면과 관련된 경과조치에 관한 것\n\t\t(2)\t1999년 조세특례제한법(법률 제5982호, 이하 \"1999년 조세특례제한법\"이라 한다) \n\t\t\t(가)\t제121-2조 제1항, 제2항 및 제3항--외국인 투자기업이나 외국인 투자가의 소득에 대한 소득세 또는 법인세의 감면에 관한 것\n\t\t\t(나)\t제121-4조 제1항--외국인투자기업의 증자시 소득세 또는 법인세의 감면에 관한 것\n\t\t\t(다)\t제121-6조 제1항--기술도입계약으로부터 취득된 소득에 대한 소득세 또는 법인세의 면제에 관한 것\n\t\t\t(라)\t부칙 제5조(그 포함된 규정이 1998년 외국인투자촉진법(법률 제5559호, 이하 \"1998년 외국인투자촉진법\"이라 한다)의 소득세 또는 법인세 감면과 관련된 범위에 한함)--1998년 외국인투자촉진법의 관련규정에 따라 부여된 소득세 또는 법인세의 감면과 관련된 경과조치에 관한 것\n\n\t2.\t현재의 합의사항은 아래와 관련하여 효력을 갖는다.\n\t\t가.\t1998년 조세특례제한법과 1999년 조세특례제한법에 의하여 감면되어왔거나 감면될 소득세 또는 법인세. 그리고 \n\t\t나.\t한국 세법의 다음 조항에 따라 감면되어 왔거나 감면될 소득세 또는 법인세(그 포함된 규정이 상기 제1항에서 규정된 1998년 조세특례제한법 및 1999년 조세특례제한법에 의하여 소득세 또는 법인세의 감면과 관련된 범위에 한함)\n\t\t\t(1)\t1983년 외자도입법(법률 제3691호)\n\t\t\t\t(가)\t제14조 제1항, 제2(1)항 및 제3항\n\t\t\t\t(나)\t제16조 제1항\n\t\t\t\t(다)\t제24조 제1항\n\t\t\t\t(라)\t제28조 제1항 및 제2항, 그리고\n\t\t\t\t(마)\t부칙 제4조(그 포함된 규정이 1966년 외자도입법(법률 제1802호)의 소득세 또는 법인세의 감면과 관련된 범위에 한함)\n\t\t\t(2)\t1997년 외국인투자 및 외자도입에 관한 법률(법률 제5256호)\n\t\t\t\t(가)\t제14조 제1항, 제2항 및 제3항\n\t\t\t\t(나)\t제16조 제1항\n\t\t\t\t(다)\t제24조 제1항, 그리고\n\t\t\t\t(라)\t제28조 제1항 및 제2항\n\t\t\t(3)\t1998년 조세감면규제법 제94조 제1항, 제2항 및 제3항\n\t\t\t(4)\t1998년 외국인 투자 및 외자도입에 관한 법률(법률 제5538호, 이하 \"1998년 외국인투자 및 외자도입에 관한 법률\"이라 한다)\n\t\t\t\t(가)\t제14조 제1항, 제2항 및 제3항\n\t\t\t\t(나)\t제16조 제1항\n\t\t\t\t(다)\t제24조 제1항, 그리고\n\t\t\t\t(라)\t제28조 제1항 및 제2항\n\t\t\t(5)\t1998년 공공차관의 도입 및 관리에 관한 법률\n\t\t\t\t(가)\t제8조 제1항 및 제2항, 그리고\n\t\t\t\t(나)\t부칙 제5조(그 포함된 규정이 1998년 외국인투자 및 외자도입에 관한 법률의 소득세 또는 법인세의 감면과 관련된 범위에 한함)\n\t\t\t(6)\t1998년 외국인투자촉진법\n\t\t\t\t(가)\t제9조 제1항, 제2항 및 제3항\n\t\t\t\t(나)\t제11조 제1항\n\t\t\t\t(다)\t제26조 제1항, 그리고\n\t\t\t\t(라)\t부칙 제5조(그 포함된 규정이 1998년 외국인투자 및 외자도입에관한 법률의 소득세 또는 법인세의 감면과 관련된 범위에 한함)\n\n\t3. 교환각서에 의하여 발효된 합의사항은 현재의 합의사항이 발효하는 날에 종료된다\n\n\n\t이 제안을 일본국 정부가 수락한다면, 동 각서와 일본국 정부가 상기제안을 수락함을 확인하는 각하의 회답각서는 각하의 회답일자에 발효될 양국 정부간의 합의를 구성하는 것으로 간주됩니다.\n\n본인은 이 기회를 빌어 각하에게 본인의 최대의 경의를 표하는 바입니다. \n\n\n\n외교통상부장관\n홍 순 영\n\n주한 일본국 특명전권대사\n오구라 카즈오\n\n\n\n\n\n(일본측 각서)\n\n서울, 1999년 12월 27일\n\n\t각 하, \n\n\t본인은 다음과 같이 금일자의 각하의 각서를 접수하였음을 확인하는 영광을 가집니다.\n\n\"....................................(한국측 각서)......................................\"\n\n\t본인은 또한 일본국 정부를 대표하여 상기 합의사항을 확인하고 각하의 각서와 동 각서가 이 응답일자에 발효하는 양국 정부간 합의를 구성하는 것으로 간주하는데 동의하는 영광을 가지는 바입니다.\n\n\t본인은 이 기회를 빌어 각하에게 거듭 본인의 최고의 경의를 표하는 바입니다.\n\n\n\n주한 일본국 특명전권대사\n오구라 카즈오\n\n대한민국\n외교통상부장관\n홍 순 영",
+    "txaAgrmTextEnglNm": "Exchange of Notes2(1999.12.27.)",
+    "txaAgrmTextEnglCntn": "Exchange of Notes at Seoul December 27, 1999\nEntered into force December 27, 1999\n\n\n(Korean Note)\n\nSeoul, December 27, 1999\n\n\n\n\tExcellency,\n\n\tI have the honour to refer to the Convention between the Republic of Korea and Japan for the Avoidance of Double Taxation and the Prevention of Fiscal Evasion with respect to Taxes on Income signed at Tokyo on the 8th day of October 1998 (hereinafter referred to as \"the Convention\") and to the Exchange of Notes of the same date between the two Governments concerning paragraph 3 of Article 23 of the Convention (hereinafter referred to as \"the Exchange of Notes\").\n\n\tI have further the honour to propose on behalf of the Government of the Republic of Korea the following arrangement to replace the arrangement effected by the Exchange of Notes:\n\n1.\tThe measures set forth in the following articles and paragraphs of Korean taxation laws are \"the special incentive measures designed to promote economic development in Korea\" referred to in paragraph 3 of Article 23 of the Convention:\n\t(a)\tSpecial Tax Treatment Control Act, Law No.5584, 1998 (hereinafter referred to as \"the Special Tax Treatment Control Act of 1998\")\n\t\t(i)\tParagraphs 1 and 2 of Article 20 -- relating to reduction and exemption from income tax or corporation tax on the income derived from a public loan contract; \n\t\t(ii)\tParagraphs 1, 2 and 3 of Article 21 -- relating to exemption from income tax or corporation tax on the income and capital gains from international financial transactions; and\n\t\t(iii)\tArticle 9 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax or corporation tax under the Tax Reduction and Exemption Control Act, Law No.5534, 1998 (hereinafter referred to as \"the Tax Reduction and Exemption Control Act of 1998\") and the Public Loan Inducement and Management Act, Law No.5551, 1998 (hereinafter referred to as \"the Public Loan Inducement and Management Act of 1998\")) -- relating to the transitional measures concerning reduction and exemption from income tax or corporation tax granted in accordance with the relevant provisions of the Tax Reduction and Exemption Control Act of 1998 and the Public Loan Inducement and Management Act of 1998.\n\t(b)\tSpecial Tax Treatment Control Act, Law No.5982, 1999 (hereinafter referred to as \"the Special Tax Treatment Control Act of 1999\")\n\t\t(i)\tParagraphs 1, 2 and 3 of Article 121-2 -- relating to reduction and exemption from income tax or corporation tax on the income of a foreign invested enterprise or foreign investor;\n\t\t(ii)\tParagraph 1 of Article 121-4 -- relating to reduction and exemption from income tax or corporation tax in case where a foreign invested enterprise increases its capital; \n\t\t(iii)\tParagraph 1 of Article 121-6 -- relating to exemption from income tax or corporation tax on the income derived from a technological inducement contract; and\n\t\t(iv)\tArticle 5 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exempton from income tax or corporation tax under the Foreign Investment Promotion Act, Law No.5559, 1998 (hereinafter referred to as \"the Foreign Investment Promotion Act of 1998\")) -- relating to the transitional measures concerning reduction and exemption from income tax or corporation tax granted in accordance with the relevant provisions of the Foreign Investment Promotion Act of 1998.\n\n2.\tThe present arrangement shall be effective:\n\t(1)\tin respect of such income tax or corporation tax as has been or may be reduced or exempted under the Special Tax Treatment Control Act of 1998 and the Special Tax Treatment Control Act of 1999; and\n\t(2)\tin respect of such income tax or corporation tax as has been or may be reduced or exempted under the following articles and paragraphs of Korean taxation laws (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax or corporation tax under the Special Tax Treatment Control Act of 1998 and the Special Tax Treatment Control Act of 1999 as stated in paragraph 1 above):\n\t\t(a)\tForeign Capital Inducement Law, Law No.3691, 1983\n\t\t\t(i)\tParagraphs 1, 2(1) and 3 of Article 14;\n\t\t\t(ii)\tParagraph 1 of Article 16;\n\t\t\t(iii)\tParagraph 1 of Article 24;\n\t\t\t(iv)\tParagraphs 1 and 2 of Article 28; and\n\t\t\t(v)\tArticle 4 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax or corporation tax under the Foreign Capital Inducement Law, Law No.1802, 1966).\n\t\t(b)\tForeign Investment and Foreign Capital Inducement Act, Law No.5256 1997\n\t\t\t(i)\tParagraphs 1, 2 and 3 of Article 14;\n\t\t\t(ii)\tParagraph 1 of Article 16;\n\t\t\t(iii)\tParagraph 1 of Article 24; and\n\t\t\t(iv)\tParagraphs 1 and 2 of Article 28.\n\t\t(c)\tParagraphs 1, 2 and 3 of Article 94 of the Tax Reduction and Exemption Control Act of 1998\n\t\t(d)\tForeign Investment and Foreign Capital Inducement Act, Law No.5538, 1998 (hereinafter referred to as \"the Foreign Investment and Foreign Capital Inducement Act of 1998\")\n\t\t\t(i)\tParagraphs 1, 2 and 3 of Article 14;\n\t\t\t(ii)\tParagraph 1 of Article 16;\n\t\t\t(iii)\tParagraph 1 of Article 24; and\n\t\t\t(iv)\tParagraphs 1 and 2 of Article 28.\n\t\t(e)\tThe Public Loan Inducement and Management Act of 1998\n\t\t\t(i)\tParagraphs 1 and 2 of Article 8; and\n\t\t\t(ii)\tArticle 5 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax or corporation tax under the Foreign Investment and Foreign Capital Inducement Act of 1998).\n\t\t(f)\tThe Foreign Investment Promotion Act of 1998\n\t\t\t(i)\tParagraphs 1, 2 and 3 of Article 9;\n\t\t\t(ii)\tParagraph 1 of Article 11;\n\t\t\t(iii)\tParagraph 1 of Article 26; and\n\t\t\t(iv)\tArticle 5 of Addenda (only to the extent that the provisions contained therein are relevant to reduction and exemption from income tax orcorporation tax under the Foreign Investment and Foreign Capital Inducement Act of 1998).\n\n3.\tThe arrangement effected by the Exchange of Notes shall terminate on the date of entry into force of the present arrangement.\n\n\n\tIf this proposal is acceptable to the Government of Japan, this Note and Your Excellency＇s Note in reply confirming the acceptance by the Government of Japan of the above proposal shall be regarded as constituting an agreement between the two Governments which will enter into force on the date of Your Excellency＇s reply.\n\n\tI avail myself of this opportunity to renew to Your Excellency the assurances of my highest consideration.\n\n\n\nHong Soon-young\nMinister of\nForeign Affairs and Trade\n\nHis Excellency\nMr. Kazuo Ogura\nAmbassador of Extraordinary and Plenipotentiary\nof Japan to the Republic of Korea\n\n\n\n\n\n(Japanese Note)\n\nSeoul, December 27, 1999\n\n\n\tExcellency,\n\n\tI have the honour to acknowledge the receipt of Your Excellency＇s Note of today＇s date, which reads as follows:\n\n\"(Korean Note)\"\n\n\tI have further the honour to confirm on behalf of the Government of Japan the foregoing arrangement and to agree that Your Excellency＇s Note and this Note shall be regarded as constituting an agreement beteen the two Governments which will enter into force on the date of this reply.\n\n\tI avail myself of this opportunity to renew to Your Excellency the assurances of my highest consideration.\n\n\n\nKazuo Ogura,\nAmbassador Extraordinary and\nPlenipotentiary of Japan\n\nHis Excellency\nMr. Hong Soon-young\nMinister of the Foreign Affairs and Trade\nof the Republic of Korea"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "일본측 이자면세기관 변경",
+    "txaAgrmTextCntn": "※ 한-일 조세조약상 일본측 이자면세기관 변경\n\n\n 한-일 이중과세방지협정 제11조 제4(b)(ⅱ)항에 의한 일본측 이자면세기관 변경\n\n가. (종전) 일본국제협력은행(JBIC) : 한-일 조세조약에 이자면세기관으로 명시된 일본수출입은행(JEXIM)이 해외경제협력기구와 합병되어 JBIC가 신규 설립됨에 따라 '99.9월 한국측 서신확인을 통해 JBIC가 이자면세기관 지위를 받게된 바 있음\n\n나. (변경) 일본금융공사(JFC) : JFC는 100% 정부투자기관으로서 JBIC의 국제금융업무를 그대로 승계할 예정, 다만, JFC의 국제업무 담당부서(international business unit)의 경우 “일본국제협력은행(JBIC)\" 명칭을 유지 (기획재정부 국제조세협력과-301(2008.9.18.) \n\n(적용시점) JFC의 설립(예정)일인 '08.10.1일 이후\n\n\n==============================================\n\n※ 한-일 이중과세방지협정 제11조제4(b)(ii)항에 의한 일본측 이자면세기관이 다음과 같이 변경\n\n\n가. (종전) 일본금융공사(JFC)\n\n나. (변경) 일본국제협력은행(JBIC)\n\n* 일본금융공사(JFC)로부터 분리・독립되는 정부소유 금융기관으로서 일본금융공사(JFC)의 국제금융과 관련한 모든 권리・의무를 승계할 예정\n\n(적용시점) '12. 4. 1. (일본국제협력은행 분리・독립)이후",
+    "txaAgrmTextEnglNm": "&nbsp;",
+    "txaAgrmTextEnglCntn": "&nbsp;"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "일본측 대상조세 추가(1차)",
+    "txaAgrmTextCntn": "※ 한-일 이중과세방지협정상 일본측 대상조세 추가\n\n한-일 이중과세방지협정 제2조제2항 규정에 근거하여, 한-일 이중과세방지협정 제2조제1(b)항에 일본측에 새로 도입된 「지방법인세(Local Corporation Tax)」가 포함\n\n(근거규정) 기획재정부 국제조세협력과-518 (2014.11.3.) 공문\n\n(적용시기) '14.10.1. 이후 개시되는 과세연도부터",
+    "txaAgrmTextEnglNm": "&nbsp;",
+    "txaAgrmTextEnglCntn": "&nbsp;"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "일본측 대상조세 추가(2차)",
+    "txaAgrmTextCntn": "※ 한-일 이중과세방지협약 일본측 대상조세 변경 통보\n\n일본 재무성은 일본이 도입한 방위특별법인세(Special Corporation Tax for Defence, '26.4.1.부터 시행 예정)가 한-일 이중과세방지협약 제2조제2항에 따라 동 협약 일본측 대상조세에 해당함을 통보함\n\n(근거규정) 기획재정부 국제조세제도과-640 (2025.12.17.) 공문",
+    "txaAgrmTextEnglNm": "&nbsp;",
+    "txaAgrmTextEnglCntn": "&nbsp;"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "최초협정(1970.10.29.)",
+    "txaAgrmTextCntn": "1970년 3월 3일 동경에서 서명\n1970년 10월 29일 발효\n\n\n소득에 관한 조세의 이중과세회피 및 탈세방지를 위한 대한민국과 일본국간의 협약\n\n\n\n\t대한민국과 일본국은 소득에 관한 조세의 이중과세회피 및 탈세방지를 위한 협약을 체결하는 것을 희망하여,\n\n\t다음과 같이 합의하였다.\n\n\n제1조 \n\n\t(1)\t본 협약의 대상이 되는 조세는 다음의 것으로 한다.\n\t\t(a)\t대한민국에 있어서는 소득세 및 법인세(이하 \"한국의 조세\"라 한다)\n\t\t(b)\t일본국에 있어서는 소득세, 법인세 및 지방주민세(이하 \"일본국의 조세\"라 한다)\n\n\t(2)\t본 협약은 국세이든 또는 지방세이든 본조제(1)항에 의하여 본 협약의 대상이 되는 조세와 실질적으로 유사한 조세로서 본 협약의 서명일이후 현행의 조세에 추가하여 부과되거나 또는 현행의 조세에 대신하여 부과되는 조세에 대하여도 또한 적용된다.\n\n\n제2조 \n\n\t(1)\t본 협약에 있어서 문맥에 따라 달리 해석하여야 할 경우를 제외하고,\n\t\t(a)\t\"한국\"이라 함은 대한민국을 말한다.\n\t\t(b)\t\"일본국\"이라 함은 지리적 의미로 사용되는 경우에는 일본국의 조세에 관한 법령이 시행하고 있는 모든 영역을 말한다.\n\t\t(c)\t\"일방체약국\" 및 \"타방체약국\"이라 함은 문맥에 따라 한국 또는 일본국을 말한다.\n\t\t(d)\t\"인\"이라 함은 개인, 법인 및 기타의 사단을 포함한다.\n\t\t(e)\t\"법인\"이라 함은 법인격이 있는 단체 또는 과세상 법인격이 있는 단체로서 취급되는 단체를 말한다.\n\t\t(f)\t\"조세\"라 함은 문맥에 따라 한국의 조세 또는 일본국의 조세를 말한다.\n\t\t(g)\t\"권한있는 당국\"이라 함은 다음의 것을 말한다.\n\t\t\t(ⅰ)\t한국에 있어서는 재무장관 또는 그의 권한을 받은 대리인을 말하며,\n\t\t\t(ⅱ)\t일본국에 있어서는 대장대신 또는 그의 권한을 받은 대리인을 말한다.\n\n\t(2)\t일방체약국이 본 협약을 적용함에 있어서 특별히 정의되어 있지 아니한 용어는 문맥에 따라 달리 해석하여야 할 경우를 제외하고는 본 협약이 적용되는 조세에 관한 자국의 법령에 있어서 가지는 의미를 가지는 것으로 한다.\n\n\n제3조 \n\n\t(1)\t본 협약의 적용상 \"일방체약국의 거주자\"라 함은 그 체약국의 과세상 그 체약국의거주자인 개인을 말한다.\n \n\t(2)\t본 협약의 적용상 \"일방체약국의 법인\"이라 함은 그 체약국내에 본점 또는 주된 사무소를 가지고 있는 법인을 말한다.\n\n\t(3)\t본조의 제(1)항의 규정으로 말미암아 개인이 양 체약국의 거주자로 되는 경우에는 양 체약국의 권한있는 당국은 상호의 합의에 의하여 그 개인이 본 협약의 적용상 거주자로 간주되는 체약국을 결정하는 것으로 한다.\n\n\n제4조 \n\n\t(1)\t본 협약의 적용상 \"항구적 시설\"이라 함은 고정된 사업장으로서 일방체약국의 거주자 또는 법인이 사업의 전부 또는 일부를 영위하고 있는 것을 말한다.\n\n\t(2)\t\"고정된 사업장\"에는 다음과 같은 것을 포함하나 그에 국한되는 것은 아니다.\n\t\t(a)\t사무소\n\t\t(b)\t상점 또는 기타 고정된 판매장소\n\t\t(c)\t공장\n\t\t(d)\t작업장\n\t\t(e)\t창고\n\t\t(f)\t광산, 채석장 또는 자연자원을 채취하는 기타장소\n\t\t(g)\t건축공사 현장 또는 건설, 설비 또는 조립의 공사로서 6개월을 초과하는 기간동안 존속하는 것\n\n\t(3)\t본조제(1)항의 규정에도 불구하고 항구적 시설에는 다음의 제활동중 어느 하나  또는 그이상의 활동만을 위하여 사용되는 고정된 사업장은 포함하지 아니하는 것으로 한다.\n\t\t(a)\t그 거주자 또는 법인에 속하는 재화나 상품의 타인에 의한 가공\n\t\t(b)\t그 거주자 또는 법인을 위한 재화나 상품의 단순한 구입\n\t\t(c)\t그 거주자 또는 법인에 속하는 재화나 상품의 단순한 보관\n\t\t(d)\t그 거주자 또는 법인을 위한 정보의 수집\n\t\t(e)\t광고, 과학적 조사할동, 재화나 상품의 전시, 정보의 제공 또는 이에 유사한 활동으로서 그 거주자 또는 법인의 사업상 준비적인 성격이나 또는 보조적인 성격을 가진 것\n\n\t(4)\t일방체약국의 거주자 또는 법인이 타방체약국내에 본조제(1)항, 제(2)항 및 제(3)항에 규정하는 항구적 시설을 가지고 있지 아니하더라도 다음의 경우에는 그 타방체약국내에 항구적 시설을 가지고 있는 것으로 간주한다.\n\t\t(a)\t그 타방체약국내에서 다음의 대리인을 통하여 사업에 종사하는 경우\n\t\t\t(ⅰ)\t그 거주자 또는 법인의 명의로 계약을 체결할 권한을 가지고 있으며 또한 그 권한을 그 타방체약국내에서 관례적으로 행사하는 대리인. 다만, 그 권한의 행사가 그 거주자 또는 법인을 위하여 재화나 상품을 구입하는데 국한되는 경우에는 예외로 한다.\n\t\t\t(ⅱ)\t그 타방체약국내에서 전적으로 또는 주로 그 거주자 또는 법인을 위하여 또는 그 거주자 또는 법인 및 그 거주자 또는 법인에 의하여 지배되거나 또는 그 거주자 또는 법인에 지배적인 이해관계를 가지고 있는 타인을 위하여 관례적으로 주문을 취득하는 대리인 또는\n\t\t\t(ⅲ)\t그 거주자 또는 법인에 속하는 재화나 상품의 재고로서 관례적으로 그것으로부터 재화나 상품을 인도하는 것을 그 타방체약국내에 보유하는 대리인\n\t\t(b)\t그 타방체약국내에서 다음의 용역을 제공하는 경우\n\t\t\t(ⅰ)\t건축, 건설, 설비 또는 조립의 공사에 대한 계약에 관련하여 6개월을 초과하는 기간동안 수행하는 감독, 기술 또는 기타의 전문적인 용역과  같은 인적용역 또는\n\t\t\t(ⅱ)\t제12조제(4)항에서 말하는 연예인의 용역\n\n\t(5)\t본조제(4)항의 규정에도 불구하고 일방체약국의 거주자 또는 법인은 타방체약국내에서 선의의 중개인, 총 위탁매매인, 운송대리인, 보관인 또는 기타 독립적인 지위를 가진 대리인으로서 그의 본래의 업무를 정상적인 방법으로 행하는 자의 용역을 이용한다는 이유만으로는 그 타방체약국내에 항구적 시설을 가지고 있는 것으로 간주되지 아니한다.\n\n\t(6)\t일방체약국의 법인이\n\t\t(a)\t타방체약국의 법인 또는\n\t\t(b)\t그 타방체약국내에서 사업을 영위하는 (항구적 시설을 통하여 사업을 하든 또는 다른 방법에 의하여 사업을 하든)\t법인을 지배하고 있거나 또는 그에 지배되고 있다는 사실만으로서는 어느 한 법인도 다른 법인의 항구적 시설로는 되지 아니한다.\n\n\n제5조 \n\n\t(1)\t일방체약국의 거주자 또는 법인에 대하여는 본 협약에서 정하는 제한에 따를 것을 조건으로 타방체약국내의 원천에서 생기는 소득에 대하여만 그 타방체약국에서 과세할 수 있는 것으로 한다.\n\n\t(2)\t본 협약의 규정을 명백히 적용할 수 없는 소득항목에 대하여는 각 체약국에서 자국의 법령에 따라 과세할 수 있다.\n\n\t(3)\t본 협약의 규정은 일방체약국이 자국의 조세를 결정함에 있어서 \n\t\t(a)\t자국의 법령 또는 \n\t\t(b)\t양 체약국간의 다른 협정에 의하여 현재 허여하고 있거나 또는 앞으로 허여할 비과세, 면제, 비용공제, 세액공제 또는 다른 공제헤택을 어떠한 방법으로도 제한하는 것으로 해석되어서는 아니된다.\n\n\t(4)\t어느 일방체약국에서 유효한 법령은 본 협약에 반대규정에 있는 경우를 제외하고는 그 어느 일방체약국에 있어서의 소득에 대한 과세를 계속 규제하는 것으로 한다.\n\n\n제6조 \n\n\t(1)\t일방체약국의 거주자 또는 법인은 타방체약국내에 항구적 시설을 가지고 있지 아니하는 경우에는 그의 산업상 또는 상업상의 이득에 대하여 그 타방체약국에서 면세된다.\n\n\t(2)\t일방체약국의 거주자 또는 법인이 타방체약국내에 항구적시설을 가지고 있는 경우에는 그 타방체약국내의 원천에서 생기는 그 거주자 또는 법인의 전소득에 대하여 그 타방체약국에서 그 항구적 시설에 과세할 수 있다.\n\n\t(3)\t일방체약국의 거주자 또는 법인이 타방체약국내에 가지고 있는 항구적 시설의 산업상 또는 상업상의 이득을 결정함에 있어서는 경영비 및 일반관리비를 포함하는 경비로서 그 이득과 합리적으로 관련되는 경비는 그것이 발생한 장소의 여하에 불구하고 비용으로서 공제하는 것이 허용된다.\n\n\t(4)\t본조제(5)항의 규정에도 불구하고 일방체약국에 소재하는 타방체약국의 거주자 또는 법인의 항구적 시설이 오로지 그 거주자 또는 법인을 위하여 또는 그 거주자 또는 법인이 자신을 위하여 재화나 상품을 단순히 구입하는 것을 이유로 하여 그 항구적 시설이 소재하는 일방체약국내의",
+    "txaAgrmTextEnglNm": "(1970.10.29.)",
+    "txaAgrmTextEnglCntn": "Signed at Tokyo March 3, 1970\nEntered into force October 29, 1970\n\n\nConvention between the Republic of Korea and Japan for the Avoidance of Double Taxation and Prevention of Fiscal Evasion with respect to Taxes on Income\n\n\n\n\tThe Republic of Korea and Japan,\n\n\tDesiring to conclude a Convention for the avoidance of double taxation and the prevention of fiscal evasion with respect to taxes on income,\n\n\tHave agreed as follows:\n\n\nArticle 1\n\n\t(1)\tThe taxes which are the subject of this Convention are:\n\t\t(a)\tIn the Republic of Korea, income tax and the corporation tax (hereinafter referred to as \"Korean tax\")\n\t\t(b)\tIn Japan, the income tax, the corporation tax and the local inhabitant: taxes(hereinafter referred to as \"Japanese tax\").\n\n\t(2)\tThis Convention shall also apply to taxes, whether national or local, substantially similar to those covered by paragraph (1) of this Article, which are imposed in addition to, or in place of, the existing taxes after the date of signature of this Convention.\n\n\nArticle 2\n\n\t(1)\tIn this Convention, unless the context otherwise requires:\n\t\t(a)\tthe term \"Korea\" means the Republic of Korea;\n\t\t(b)\tthe term \"Japan\", when used in a geographical sense, means all the territory in which laws relating to Japanese tax are in force;\n\t\t(c)\tthe terms \"a Contracting State\" and \"the other Contacting State\" mean Korea or Japan, as the context requires;\n\t\t(d)\tthe term \"person\" comprises an individual, a corporation and any other body of persons;\n\t\t(e)\tthe term \"corporation\" means any body corporate or any entity treated as a body corporate for tax purposes;\n\t\t(f)\tthe term \"tax\" means Korean tax or Japanese tax, as the context requires;\n\t\t(g)\tthe term \"competent authorities\" means:\n\t\t\t(i)\t in Korea, the Minister of Finance or his authorized representative;\n\t\t\t(ii)\tin Japan, the Minister of Finance or his authorized representative. \n\n\t(2)\tAs regards the application of this Convention by a Contracting State, an term not expressly defined shall, unless the context otherwise requires, have the meaning which it has under the laws of that Contracting State relating to the taxes to which this Convention applies.\n\n\nArticle 3\n\n\t(1)\tFor the purposes of this Convention, the term \"resident of a Contracting State\" means an individual who is a resident of that Contracting State for tax purposes of that Contracting State.\n\n\t(2)\tFor the purposes of this Convention, the term \"corporation of a Contracting State\" means a corporation which has its head or main office in that Contracting State.\n\n\t(3)\tWhere by reason of the provisions of paragraph (1) of this Article an individual is a resident of both Contracting States, then the competent authorities of both Contracting States shall determine by mutual agreement the Contracting State of which that individualshall be deemed to be a resident for the purposes of this Convention.\n\n\nArticle 4\n\n\t(1)\tFor the purposes of this Convention, the term \"permanent establishment\" means a fixed place of business in which a resident or corporation of a Contracting State wholly or partly carries on business.\n\n\t(2)\tThe term \"a fixed place of business\" includes, but is not limited to\n\t\t(a)\tan office;\n\t\t(b)\ta store or other sales outlet;\n\t\t(c)\ta factory;\n\t\t(d)\ta workshop;\n\t\t(e)\ta warehouse;\n\t\t(f)\ta mine, quarry or other place of extraction of natural resources;\n\t\t(g)\ta building site or construction, installation or assembly project which exists for more than six months.\n\n\t(3)\tNotwithstanding the provisions of paragraph (1) of this Article, a permanent establishment shall not include a fixed place of business used only for one or more of the following activities:\n\t\t(a)\tprocessing by another person of goods or merchandise belonging to the resident or corporation;\n\t\t(b)\tmere purchase of goods or merchandise for the resident or corporation;\n\t\t(c)\tmere storage of goods or merchandise belonging to the resident or corporation;\n\t\t(d)\tcollection of information for the resident or corporation;\n\t\t(e)\tadvertising, the co"
+   }
+  ],
+  "싱가포르": [
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "전문",
+    "txaAgrmTextCntn": "<u>* 본 조약은 개정 신협정입니다(최초 협정 1979. 11. 6. 서명, 1981. 2. 11. 발효).</u>\n\n\n2019년  5월 13일 싱가포르에서 서명\n2019년 12월 31일 발효\n\n\n\n\t대한민국 정부와 싱가포르공화국 정부는,\n\n\t탈세 또는 조세회피(제3국 거주자의 간접 혜택을 위하여 이 협정에서 정한 조세감면을 받으려는 목적으로 조약남용 계약을 이용하는 경우를 포함한다)를 통한 비과세 또는 조세경감의 기회를 창출하지 아니하고 소득에 대한 조세의 이중과세 방지를 위한 협정의 체결을 희망하여,\n\n\t다음과 같이 합의하였다.",
+    "txaAgrmTextEnglNm": "PREAMBLE",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제1조",
+    "txaAgrmTextNm": "대상 인",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "PERSONS COVERED",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제2조",
+    "txaAgrmTextNm": "대상 조세",
+    "txaAgrmTextCntn": "\t1.\t이 협정은 그 조세를 부과하는 방법에 관계없이 한쪽 체약국이나 그 정치적 하부조직 또는 지방당국이 부과하는 소득에 대한 조세에 적용한다.\n\n\n\t2.\t동산 또는 부동산의 양도소득에 대한 조세를 포함하여, 총소득 또는 소득항목에 부과하는 모든 조세는 소득에 대한 조세로 본다.\n\n\n\t3.\t협정을 적용하는 현행 조세는 특히 다음과 같다.\n\n\t\t가.\t한국의 경우,\n\t\t\t1)\t소득세,\n\t\t\t2)\t법인세,\n\t\t\t3)\t농어촌특별세, 그리고\n\t\t\t4)\t지방소득세\n\t\t\t(이하 “한국의 조세”라 한다),\n\n\t\t나.\t싱가포르의 경우,\n\t\t\t-소득세\n\t\t\t(이하 “싱가포르의 조세”라 한다).\n\n\n\t4.\t이 협정은 협정의 서명일 후 현행 조세에 추가로 부과하거나 현행 조세를 대체하여 부과하는 현행 조세와 동일하거나 실질적으로 유사한 모든 조세에도 적용한다. 양 체약국의 권한 있는 당국은 자국의 세법에 이루어진 모든 중요한 변경을 상호 통보한다.",
+    "txaAgrmTextEnglNm": "TAXES COVERED",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제3조",
+    "txaAgrmTextNm": "일반적 정의",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "GENERAL DEFINITIONS",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제4조",
+    "txaAgrmTextNm": "거주자",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "RESIDENT",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제5조",
+    "txaAgrmTextNm": "고정사업장",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "PERMANENT ESTABLISHMENT",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제6조",
+    "txaAgrmTextNm": "부동산 소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "INCOME FROM IMMOVABLE PROPERTY",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제7조",
+    "txaAgrmTextNm": "사업 이윤",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "BUSINESS PROFITS",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제8조",
+    "txaAgrmTextNm": "해운 및 항공 운송",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "SHIPPING AND AIR TRANSPORT",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제9조",
+    "txaAgrmTextNm": "특수관계기업",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "ASSOCIATED ENTERPRISES",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제10조",
+    "txaAgrmTextNm": "배당",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "DIVIDENDS",
+    "txaAgrmTextEnglCntn": "1.\tDividends paid by a company which is a resident of a Contracting State to a resident of the other Contracting State may be taxed in that other State.\n\n\n2.\tHowever, dividends paid by a company which is a resident of a Contracting State may also be taxed in that State according to the laws of that State, but if the beneficial owner of the dividends is a resident of the other Contracting State, the tax so charged shall not exceed:\n\n\ta)\t10 per cent of the gross amount of the dividends if the beneficial owner is a company (other than a partnership) which holds directly at least 25 per cent of the capital of the company paying the dividends;\n\n\tb)\t15 per cent of the gross amount of the dividends in all other cases.\n\nThis paragraph shall not affect the taxation of the company in respect of the profits out of which the dividends are paid.\n\n\n3.\tThe term \"dividends\" as used in this Article means income from shares or other rights, not being debt-claims, participating in profits, as well as income from other corporate rights which is subjected to the same taxation treatment as income from shares by the laws of the State of which the company making the distribution is a resident.\n\n\n4.\tThe provisions of paragraphs 1 and 2 shall not apply if the beneficial owner of the dividends, being a resident of a Contracting State, carries on business in the other Contracting State of which the company paying the dividends is a resident through a permanent establishment situated therein and the holding in respect of which the dividends are paid is effectively connected with such permanent establishment. In such case the provisions of Article 7 shall apply.\n\n\n5.\tWhere a company which is a resident of a Contracting State derives profits or income from the other Contracting State, that other State may not impose any tax on the dividends paid by the company, except insofar as such dividends are paid to a resident of that other State or insofar as the holding in respect of which the dividends are paid is effectively connected with a permanent establishment situated in that other State, nor subject the company's undistributed profits to a tax on the company's undistributed profits, even if the dividends paid or the undistributed profits consist wholly or partly of profits or income arising in such other State."
+   },
+   {
+    "txaAgrmTextUqnm": "제11조",
+    "txaAgrmTextNm": "이자",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "INTEREST",
+    "txaAgrmTextEnglCntn": "1.\tInterest arising in a Contracting State and paid to a resident of the other Contracting State may be taxed in that other State.\n\n\n2.\tHowever, interest arising in a Contracting State may also be taxed in that State according to the laws of that State, but if the beneficial owner of the interest is a resident of the other Contracting State, the tax so charged shall not exceed 10 per cent of the gross amount of the interest.\n\n\n3.\tNotwithstanding the provisions of paragraph 2:\n\n\ta)\tinterest arising in a Contracting State and paid to the Government of the other Contracting State shall be exempt from tax in the first-mentioned State; and\n\n\tb)\tinterest paid in connection with the sale on credit of any industrial, commercial or scientific equipment, or paid in connection with the sale on credit of any merchandise by one enterprise to another enterprise shall be taxable only in the Contracting State of which the recipient is a resident if such recipient is the beneficial owner of the interest.\n\n\n4.\tFor the purpose of paragraph 3, the term “Government”:\n\n\ta)\tin the case of Korea, means the Government of Korea, political subdivisions and local authorities thereof, and shall include\n\t\t(i)\tthe Bank of Korea;\n\t\t(ii)\tthe Korea Investment Corporation;\n\t\t(iii)\tthe Export-Import Bank of Korea;\n\t\t(iv)\tthe Korea Trade Insurance Corporation;\n\t\t(v)\ta statutory body; and\n\t\t(vi)\tany institution performing functions of a governmental nature and wholly owned by the Government of Korea as may be specified and agreed from time to time between the competent authorities of the Contracting States;\n\n\tb)\tin the case of Singapore, means the Government of Singapore and shall\n\t\tinclude:\n\t\t(i)\tthe Monetary Authority of Singapore;\n\t\t(ii)\tthe GIC Private Limited;\n\t\t(iii)\ta statutory body; and\n\t\t(iv)\tany institution performing functions of a governmental nature and wholly owned by the Government of Singapore as may be specified and agreed from time to time between the competent authorities of the Contracting States.\n\n\n5.\tThe term \"interest\" as used in this Article means income from debt-claims of every kind, whether or not secured by mortgage and whether or not carrying a right to participate in the debtor's profits, and in particular, income from government securities and income from bonds or debentures, including premiums and prizes attaching to such securities, bonds or debentures. Penalty charges for late payment shall not be regarded as interest for the purpose of this Article.\n\n\n6.\tThe provisions of paragraphs 1 and 2 shall not apply if the beneficial owner of the interest, being a resident of a Contracting State, carries on business in the other Contracting State in which the interest arises through a permanent establishment situated therein and the debt-claim in respect of which the interest is paid is effectively connected with such permanent establishment. In such case the provisions of Article 7 shall apply.\n\n\n7.\tInterest shall be deemed to arise in a Contracting State when the payer is a resident of that State. Where, however, the person paying the interest, whether that person is a resident of a Contracting State or not, has in a Contracting State a permanent establishment in connection with which the indebtedness on which the interest is paid was incurred, and such interest is borne by such permanent establishment, then such interest shall be deemed to arise in the State in which the permanent establishment is situated.\n\n\n8.\tWhere, by reason of a special relationship between the payer and the beneficial owner or between both of them and some other person, the amount of the interest, having regard to the debt-claim for which it is paid, exceeds the amount which would have been agreed upon by the payer and the beneficial owner in the absence of such relationship, the provisions of this Article shall apply only to the last-mentioned amount. In such case, the excess part of the payments shall remain taxable according to the laws of each Contracting State, due regard being had to the other provisions of this Agreement."
+   },
+   {
+    "txaAgrmTextUqnm": "제12조",
+    "txaAgrmTextNm": "사용료",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "ROYALTIES",
+    "txaAgrmTextEnglCntn": "1.\tRoyalties arising in a Contracting State and paid to a resident of the other Contracting State may be taxed in that other State.\n\n\n2.\tHowever, royalties arising in a Contracting State may also be taxed in that State according to the laws of that State, but if the beneficial owner of the royalties is a resident of the other Contracting State, the tax so charged shall not exceed 5 per cent of the gross amount of the royalties.\n\n\n3.\tThe term \"royalties\" as used in this Article means payments of any kind received as a consideration for the use of, or the right to use, any copyright of literary, artistic or scientific work, including cinematograph films and films or tapes used for radio or television broadcasting, any patent, trade mark, design or model, plan, secret formula or process, or for information concerning industrial, commercial or scientific experience.\n\n\n4.\tThe provisions of paragraphs 1 and 2 shall not apply if the beneficial owner of the royalties, being a resident of a Contracting State, carries on business in the other Contracting State in which the royalties arise through a permanent establishment situated therein and the right or property in respect of which the royalties are paid is effectively connected with such permanent establishment. In such case the provisions of Article 7 shall apply.\n\n\n5.\tRoyalties shall be deemed to arise in a Contracting State when the payer is a resident of that State. Where, however, the person paying the royalties, whether that person is a resident of a Contracting State or not, has in a Contracting State a permanent establishment in connection with which the liability to pay the royalties was incurred and such royalties are borne by such permanent establishment, then such royalties shall be deemed to arise in the State in which the permanent establishment is situated.\n\n\n6.\tWhere, by reason of a special relationship between the payer and the beneficial owner or between both of them and some other person, the amount of the royalties, having regard to the use, right or information for which they are paid, exceeds the amount which would have been agreed upon by the payer and the beneficial owner in the absence of such relationship, the provisions of this Article shall apply only to the last-mentioned amount. In such case, the excess part of the payments shall remain taxable according to the laws of each Contracting State, due regard being had to the other provisions of this Agreement."
+   },
+   {
+    "txaAgrmTextUqnm": "제13조",
+    "txaAgrmTextNm": "양도 소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "CAPITAL GAINS",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제14조",
+    "txaAgrmTextNm": "고용 소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "INCOME FROM EMPLOYMENT",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제15조",
+    "txaAgrmTextNm": "이사의 보수",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "DIRECTORS' FEES",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제16조",
+    "txaAgrmTextNm": "예능인 및 체육인",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "ENTERTAINERS AND SPORTSPERSONS",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제17조",
+    "txaAgrmTextNm": "연금",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "PENSIONS",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제18조",
+    "txaAgrmTextNm": "정부 용역",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "GOVERNMENT SERVICE",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제19조",
+    "txaAgrmTextNm": "학생",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "STUDENTS",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제20조",
+    "txaAgrmTextNm": "그 밖의 소득",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "OTHER INCOME",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제21조",
+    "txaAgrmTextNm": "이중과세의 제거 ",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "ELIMINATION OF DOUBLE TAXATION",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제22조",
+    "txaAgrmTextNm": "차별 금지",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "NON-DISCRIMINATION",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제23조",
+    "txaAgrmTextNm": "상호 합의 절차",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "MUTUAL AGREEMENT PROCEDURE",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제24조",
+    "txaAgrmTextNm": "정보 교환",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "EXCHANGE OF INFORMATION",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제25조",
+    "txaAgrmTextNm": "외교사절 및 영사관원",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "MEMBERS OF DIPLOMATIC MISSIONS AND CONSULAR POSTS",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제26조",
+    "txaAgrmTextNm": "혜택 부여 자격",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "ENTITLEMENT TO BENEFITS ",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제27조",
+    "txaAgrmTextNm": "발효",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "ENTRY INTO FORCE",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "제28조",
+    "txaAgrmTextNm": "종료",
+    "txaAgrmTextCntn": "",
+    "txaAgrmTextEnglNm": "TERMINATION",
+    "txaAgrmTextEnglCntn": ""
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "의정서",
+    "txaAgrmTextCntn": "\t대한민국 정부와 싱가포르공화국 정부 간의 소득에 대한 조세의 이중과세 방지와 탈세 및 조세회피 예방을 위한 협정을 서명하는 시점에, 아래의 서명자들은 다음의 규정이 이 협정의 불가분의 일부를 구성함에 합의하였다.\n\n\n\t1.\t제7조제1항 및 제2항과 관련하여, \n\n산업적, 상업적 또는 과학적 장비나 부지의 측량ㆍ공급ㆍ설치ㆍ건설계약 또는 공공사업의 측량ㆍ공급ㆍ설치ㆍ건설계약의 경우, 기업이 고정사업장을 가지고 있을 때에는, 그 고정사업장의 이윤은 총 계약액에 따라 결정하지 아니하고, 그 고정사업장이 소재한 체약국 내에서 실질적으로 수행한 계약부분에 따라 결정하는 것으로 양해한다. 그 기업의 본점에 의하여 수행된 계약분과 관련된 이윤은 그 기업이 거주자인 체약국에서만 과세할 수 있는 것으로 양해한다.\n\n\n\t2.\t제10조, 제11조 및 제12조와 관련하여, \n\n그 규정들에 의한 배당, 이자 또는 사용료의 수익적 소유자를 결정하기 위한 목적으로, 2014년 7월 15일 기준 경제협력개발기구 모델조세협약 제10조, 제11조 및 제12조에 대한 주석서를 따르는 것으로 양해한다.\n\n\n\t3.\t제22조와 관련하여, \n\n한쪽 체약국이 그 한쪽 체약국의 국내 정책 및 기준에 따라 경제ㆍ사회 발전 촉진을 위한 조세감면 혜택을 그 한쪽 체약국의 국민에게 부여하는 경우, 이 조에 따른 차별로 해석하지 아니한다.\n\n\n\t4.\t이 협정과 관련하여, \n\n“법률로 정한 기관”이란 법률에 의하여 구성되고 한쪽 체약국 정부에 의하여 수행되었을 비상업적인 기능만을 수행하는 기관을 말한다.\n\n\n\t이상의 증거로, 아래 서명자는, 그들 각자의 정부에서 정당하게 권한을 위임받아, 이 의정서에 서명하였다.\n\n\t2019년 5월 13일 싱가포르에서 동등한 정본인 한국어 및 영어로 각 2부씩 작성되었다.\n\n\n\n대한민국 정부를 대표하여  /  싱가포르공화국 정부를 대표하여",
+    "txaAgrmTextEnglNm": "PROTOCOL",
+    "txaAgrmTextEnglCntn": "\tAt the moment of signing the Agreement between the Government of the Republic of Korea and the Government of the Republic of Singapore for the elimination of double taxation with respect to taxes on income and the prevention of tax evasion and avoidance, the undersigned have agreed that the following provisions shall form an integral part of the Agreement.\n\n\n1.\tWith respect to paragraphs 1 and 2 of Article 7, \n\nit is understood that, in the case of contracts for the survey, supply, installation or construction of industrial, commercial or scientific equipment or premises, or of public works, when the enterprise has a permanent establishment, the profits of such permanent establishment shall not be determined on the basis of the total amount of the contract, but shall be determined only on the basis of that part of the contract which is effectively carried out by the permanent establishment in the State where the permanent establishment is situated. The profits related to that part of the contract which is carried out by the head office of the enterprise shall be taxable only in the State of which the enterprise is a resident.\n\n\n2.\tWith respect to Articles 10, 11 and 12, \n\nit is understood that, for the purpose of determining the beneficial owner of dividends, interest or royalties under those provisions, the Commentary to Articles 10, 11 and 12 of the OECD Model Tax Convention, as it read on 15 July 2014, shall be followed.\n\n\n3.\tWith respect to Article 22, \n\nwhere a Contracting State grants tax incentives to its nationals designed to promote economic or social development in accordance with its national policy and criteria, it shall not be construed as discrimination under this Article.\n\n\n4.\tWith respect to this Agreement, \n\nthe term “statutory body” means a body constituted by statute and performing only non-commercial functions which would otherwise be performed by the Government of a Contracting State.\n\n\n\tIn witness whereof, the undersigned, duly authorised thereto by their respective Governments, have signed this Protocol.\n\n\tDone in duplicate at Singapore this 13th day of May 2019, in the Korean, and English languages, all two texts being equally authentic.\n\n\n\nFor the Government of the Republic of Korea  /  For the Government of the Republic of Singapore"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "최초협정(1981. 2. 11)",
+    "txaAgrmTextCntn": "1979년 11월 6일 싱가포르에서 서명\n1981년 2월 11일 발효\n\n\n\n대한민국 정부와 싱가폴 공화국 정부간의 소득에 대한 조세의 이중과세회피와 탈세방지를 위한 협약 \n\n\n\t대한민국 정부와 싱가폴공화국 정부는,\n\n\t소득에 대한 조세의 이중과세 회피와 탈세방지를 위한 협약의 체결을 희망하여,\n\n\t다음과 같이 합의하였다.\n\n\n제 1 조 \n인적범위 \n\n\t이 협약은 일방 또는 양 체약국의 거주자인 인에게 적용된다.\n\n\n제 2 조 \n대상조세 \n\n\t1.\t이 협약이 적용되는 조세는 다음과 같다.\n\t\t가)\t한국에 있어서는\n\t\t\tⅰ)\t소득세\n\t\t\tⅱ)\t법인세\n\t\t\tⅲ)\t주민세\n\t\t\t(이하 \"한국의 조세\"라 한다)\n\t\t나)\t싱가폴에 있어서는\n\t\t\t소득세\n\t\t\t(이하 \"싱가폴의 조세\"라 한다)\n\n\t2.\t이 협약은 현행 조세에 추가하거나 대체하여 추후에 부과되는 실질적으로 유사한 다른 조세에 대하여도 적용된다.\n\n\t3.\t각 체약국의 세법 개정으로 인하여, 이 협약의 일반원칙에 영향을 주지 않는 범위내에서 이 협약의 조항을 수정할 것이 바람직한 경우에는 외교 공문의 교환 또는 각국의 헌법에서 정한 절차에 의한 상호 합의로써 필요한 수정을 가할 수 있다. 양 체약국의 권한있는 당국은 각국 세법의 실질적인 개정 사항을 상호 통고한다.\n\n\n제 3 조 \n용어의 정의 \n\n\t1.\t문맥에 따라 달리 해석되지 아니하는 한, 이 협약에 있어서 아래의 용어들은 각각 다음의 의미를 가진다.\n\t\t가)\t\"한국\"이라 함은 대한민국을 의미하며, 지리적인 의미로 사용하는 경우에는 대한민국이 주권적 권리를 행사할 수 있는 모든 지역을 포함한다.\n\t\t나)\t\"싱가폴\"이라 함은 싱가폴공화국을 의미한다.\n\t\t다)\t\"일방체약국\" 및 \"타방체약국\"이라 함은, 문맥에 따라 한국 또는 싱가폴을 의미한다.\n\t\t라)\t\"조세\"라 함은, 문맥에 따라 한국 또는 싱가폴의 조세를 의미한다.\n\t\t마)\t\"인\"이라 함은 개인, 법인 및 조세 목적상 실체로 취급되는 기타 인의 단체를 포함한다.\n\t\t바)\t\"법인\"이라 함은 법인격이 있는 실체 또는 조세 목적상 법인격이 있는 실체로 취급되는 기타 실체를 의미한다.\n\t\t사)\t\"일방체약국의 기업\" 및 \"타방체약국의 기업\"이라 함은 각각 일방체약국의 거주자에 의하여 경영되는 기업 및 타방체약국의 거주자에 의하여 경영되는 기업을 의미한다.\n\t\t아)\t\"국민\" 또는 \"시민\"이라 함은 다음을 의미한다.\n\t\t\tⅰ)\t일방체약국의 국적을 가진 모든 개인\n\t\t\tⅱ)\t일방체약국에서 시행되고 있는 법에 의하여 그러한 지위를 부여받은 모든 법인, 조합, 단체 및 기타 실체\n\t\t자)\t\"국제운수\"라 함은 선박 또는 항공기가 타방체약국내의 장소간에만 운행하는 경우를 제외하고, 일방체약국의 기업이 운행하는 선박 또는 항공기에 의한 운송을 의미한다.\n\t\t차)\t\"권한있는 당국\"이라 함은 한국의 경우에는 재무부장관 또는 그의 대리인을 싱가폴의 경우에는 재무부장관 또는 그의 대리인을 각각 의미한다.\n\n\t2.\t각 체약국이 이 협약을 적용함에 있어서 달리 정의되지 아니한 용어는, 문맥에 따라 달리 해석되지 아니하는 한, 이 협약의 대상이 되는 조세에 관련된 동 체약국의 법에서 가지는 의미를 가진다.\n\n\n제 4 조 \n과세상의 주소 \n\n\t1.\t이 협약의 목적상 \"일방체약국의 거주자\"라 함은 그 국가의 법에 따라 주소, 거소, 본점 또는 주사무소의 소재지, 관리장소 또는 유사한 성질의 다른 기준으로 인하여 그 국가에서 납세의무가 있는 인을 의미한다.\n\n\t2.\t제1항의 규정에 의하여 개인이 양 체약국의 거주자로 되는 경우에 그의 지위는 다음과 같이 결정된다.\n\t\t가)\t동 개인은 그가 이용할 수 있는 항구적 주거를 두고 있는 체약국의 거주자로 간주된다. 동 개인이 양 체약국에 그가 이용할 수 있는 항구적 주거를 두고 있는 경우에 그는 그와 인적 및 경제적 관계가 가장 밀접한 체약국의 거주자로 간주된다.(중대한 이해관계의 중심지)\n\t\t나)\t동 개인의 중대한 이해관계의 중심지가 있는 체약국을 결정할 수 없거나 또는 어느 체약국에도 그가 이용할 수 있는 항구적 주거를 두고 있지 아니하는 경우에는 그는 그가 상습적으로 거처를 두고 있는 체약국의 거주자로 간주된다.\n\t\t다)\t동 개인이 양 체약국내에 상습적으로 거처를 두고 있거나 또는 어느 체약국에도 상습적으로 거처를 두고 있지 아니하는 경우에는 양 체약국의 권한있는 당국이 상호 합의에 의하여 문제를 해결한다.\n\n\t3.\t제1항의 규정으로 인하여 개인 이외의 인이 양 체약국의 거주자로 되는 경우에는 그 인은 그의 관리 및 통제의 장소가 있는 체약국의 거주자로 간주된다. 의문이 있는 경우에는 양 체약국의 권한있는 당국이 상호 합의에 의하여 문제를 해결한다.\n\n\n제 5 조 \n고정사업장 \n\n\t1.\t이 협약의 목적상 \"고정사업장\"이라 함은 기업의 사업이 전적으로 또는 부분적으로 \n영위되는 사업상의 고정된 장소를 의미한다.\n\n\t2.\t\"고정사업장\"이라 함은 특히 다음의 것을 포함한다.\n\t\t가)\t권리장소\n\t\t나)\t지점\n\t\t다)\t사무소\n\t\t라)\t공장\n\t\t마)\t작업장\n\t\t바)\t광산, 유전, 채석장 또는 기타 자연자원의 채취장소\n\t\t사)\t6개월을 초과하여 존속하는 건축장 또는 건설, 설비 및 조립공사\n\n\t3.\t\"고정사업장\"은 다음의 것을 포함하지 않는 것으로 간주된다.\n\t\t가)\t기업에 속하는 재화나 상품의 저장, 전시 또는 인도의 목적만을 위한 시설의 사용\n\t\t나)\t저장, 전시 또는 인도의 목적만을 위한 기업소유의 재화나 상품 재고의 보유\n\t\t다)\t타 기업에 의한 가공의 목적만을 위한 기업 소유의 재화나 상품 재고의 보유\n\t\t라)\t기업을 위한 재화나 상품의 구입의 목적 또는 정보의 수집만을 위한 사업상의 고정된 장소의 보유\n\t\t마)\t기업을 위한 광고의 목적이나 정보의 제공, 과학적 연구 또는 예비적이거나 보조적인 성격을 가지는 유사한 활동만을 위한 사업상의 고정된 장소의 보유\n\n\t4.\t일방체약국의 기업이, 타방체약국내에 사업상의 고정된 장소를 가지고 있지 않음에도 불구하고 동 타방체약국내에서 6개월을 초과하여 건축, 설비 및 조립공사와 관련한 감독활동을 수행하는 경우에는 동 일방체약국의 기업은 동 타방체약국내에 고정사업장을 가지고 있는 것으로 간주된다.\n\n\t5.\t일방체약국에서 타방체약국의 기업을 위하여 활동하는 인(제6항이 적용되는 독립적 \n지위의 대리인은 제외)은 그 일방체약국내에 사업상의 고정된 장소를 가지고 있지 않음에도 \n불구하고, 다음의 경우에 일방체약국내의 고정사업장으로 간주된다.\n\t\t가)\t그가 그 일방체약국내에서 그 기업의 명의로 계약을 체결하기 위한 권한을 상습적으로 행사하는 경우 또는\n\t\t나)\t그가 기업을 대신하여 정규적으로 주문에 응하도록 그 기업에 속하는 재화나 상품의 재고를 그 일방체약국내에 보유하는 경우\n\n\t6.\t일방체약국의 기업이 타방체약국내에서 그들의 사업을 정상적인 방법으로 행하는 중개인, 일반 위탁매매인 또는 기타의 독립적 지위를 가진 대리인을 통하여 사업을 영위한다는 이유만으로 동 기업은 동 타방체약국내에 고정사업장을 가지고 있는 것으로 간주되지 아니한다.\n\n\t7.\t일방체약국의 거주자인 법인이 타방체약국의 거주자인 법인 또는 타방체약국에서(고정사업장을 통하거나 또는 다른 방법에 의하여) 사업을 영위하는 법인을 지배하거나 또는 그에 의하여 지배되고 있다는 사실만으로, 어느 법인이 타 법인의 고정사업장으로 되지는 아니한다.\n\n\n제 6 조 \n부동산 소득 \n\n\t1.\t부동산으로부터 발생되는 소득에 대하여는 그러한 재산이 소재하는 체약국에서 과세할 수 있다.\n\n\t2.\t\"부동산\"이라 함은 당해 재산이 소재하는 체약국의 법에 따라 정의된다. 이 용어는 어떠한 경우에도 부동산에 부속되는 재산, 농업과 임업에 사용되는 가축과 장비, 토지재산에 관한 일반법의 규정이 적용되는 권리, 부동산의 용익권 및 광상·광천과 기타 자연자원의 채취 또는 채취할 권리에 대한 댓가인 가변적 또는 고정적인 지급금에 대한 귄리를 포함한다. 선박과 항공기는 부동산으로 보지 아니한다.\n\n\t3.\t제1항의 규정은 부동산의 직접 사용, 임대 또는 기타 형태의 사용으로부터 발생한 소득에 대하여 적용된다.\n\n\t4.\t제1항 및 제3항의 규정은 기업의 부동산으로부터 발생되는 소득과 전문직업적 용역의 수행을 위하여",
+    "txaAgrmTextEnglNm": "(11 February, 1981)",
+    "txaAgrmTextEnglCntn": "Signed at Singapore 6 November, 1979\nEntered into force 11 February, 1981\n\n\n\nConvention between the Republic of Korea and the Republic of Singapore for the Avoidance of Double Taxation and the Prevention of Fiscal Evasion with respect to Taxes on Income \n\n\n\tThe Government of the Republic of Korea and the Government of the Republic of Singapore,\n\n\tDesiring to conclude a Convention for the avoidance of double taxation and the prevention of fiscal evasion with respect to taxes on income,\n\n\tHave agreed as follows:\n\n\nArticle 1\nPersonal Scope\n\n\tThis Convention shall apply to persons who are residents of one or both of the Contracting States.\n\n\nArticle 2\nTaxes Covered\n\n\t1.\tThe taxes which are the subject of this Convention are\n\t\t(a)\tin Korea:\n\t\t\t(i)\tthe income tax;\n\t\t\t(ii)\tthe corporation tax; and\n\t\t\t(iii)\tthe inhabitant tax ;\n\t\t\t\t(hereinafter referred to as \"Korean tax\") ;\n\t\t(b)\tin Singapore:\n\t\t\tthe income tax\n\t\t\t(hereinafter referred to as \"Singapore tax\").\n\n\t2.\tThis Convention shall also apply to any other taxes of a substantially similar character which are subsequently imposed in addition to, or in place of, the existing taxes.\n\n\n\t3.\tIf, by reason of changes made in the taxation law of either Contracting State, it seems desirable to amend any article of this Convention without affecting the general principles thereof, the necessary amendments may be made by mutual consent by means of an exchange of diplomatic notes or in any other manner in accordance with their constitutional procedures. The competent authorities of the Contracting States shall notify each other of any significant changes which have been made in their respective taxation laws.\n\n\nArticle 3\nGeneral Definitions\n\n\t1.\tIn this Convention, unless the context otherwise requires\n\t\t(a)\tThe term \"Korea\" means the Republic of Korea, and, when used in a geographical sense, it includes any area over which the sovereign rights of the Republic of Korea may be exercised;\n\t\t(b)\tthe term \"Singapore\" means the Republic of Singapore;\n\t\t(c)\tthe term \"a Contracting State\" and \"the other Contracting State\" means Singapore or Korea, as the context requires;\n\t\t(d)\tthe term \"tax\" means Singapore tax or Korean tax, as the context requires;\n\t\t(e)\tthe term \"person\" comprises an individual, a company and any other body of persons which is treated as an entity for tax purposes;\n\t\t(f)\tthe term \"company\" means any body corporate or any entity which is treated as a body corporate for tax purposes;\n\t\t(g)\tthe terms \"enterprise of a Contracting State\" and \"enterprise of the other Contracting State\" mean respectively an enterprise carried on by a resident of a Contracting State and an enterprise carried on by a resident of the other Contracting State; \n\t\t(h)\tThe term \"nationals or citizens\" means-.\n\t\t\t(i)\tall individuals possessing the nationality of a Contracting State;\n\t\t\t(ii)\tall legal persons, partnerships, associations and other entities deriving their status as such from the law in force in a Contracting State;\n\t\t(i)\tthe term \"international traffic\" means any transport by a ship or aircraft operated by an enterprise of a Contracting State, except when the ship or aircraft is operated solely between places in the other Contracting State;\n\t\t\t(i)\tthe term \"competent authority\" means, in the case of Korea, the Minister of Finance or his authorised representative ; and in the case of Singapore, the Minister for Finance or his authorised representative.\n\n\t2.\tAs regards the application of this Convention by either Contracting State any term not otherwise defined shall, unless the context otherwise requires, have the meaning which it has under the laws of that Contracting State relating to the taxes which are the subject of this Convention\n\n\nArticle 4\nFiscal Domicile\n\n\t1.\tFor the purposes of this Convention, the term \"resident of a Contracting State\" means any person who, under the law of that State, is liable to taxation therein by reason of his domicile, residence, place of head or main office, plac"
+   },
+   {
+    "txaAgrmTextUqnm": "의정서",
+    "txaAgrmTextNm": "개정의정서(2013.06.28)",
+    "txaAgrmTextCntn": "2010년 5월 24일 싱가포르에서 서명\n\n\n대한민국과 싱가포르공화국 간의 소득에 대한 조세의 이중과세회피와 탈세방지를 위한 협약의 개정에 관한 의정서\n\n\n\t대한민국 정부와 싱가포르공화국 정부는,\n\n\t1979년 11월 6일 싱가포르에서 서명된 대한민국 정부와 싱가포르공화국 정부 간의 소득에 대한 조세의 이중과세회피와 탈세방지를 위한 협약(이하 “협약”이라 한다)의 개정을 희망하여, \n\n\t다음과 같이 합의하였다.\n\n\n제1조\n\n\t협약 제25조를 삭제하고 이를 다음으로 대체한다.\n\n\t“1.\t양  체약국의 권한 있는 당국은 과세가 이 협약에 반하지 않는 한, 이 협약 규정 수행과 관련되거나 체약국이나 그 정치적 하부조직, 또는 지방자치단체에 의하여 부과된 모든 종류 및 명칭의 조세와 관련된  체약국 국내법의 시행 또는 강제집행에 관련될 것으로 예상되는 정보를 교환한다. 정보의 교환은 제1조 및 제2조에 의해 제한되지 아니한다. \n\n\t2.\t어느 한쪽 체약국이 제1항에 따라 제공받은 정보는 그 국내법에 의해 얻어진 정보와 같은 방식의 비밀로 취급되며,  제1항에 언급된 조세의 부과나 징수,  강제집행이나 기소, 불복신청에 대한 결정에 관계된 사람이나 당국(법원 및 행정기관 포함) 또는 그러한 사람이나 당국의 감독기관에게만 공개된다. 그러한 사람이나 당국은 해당정보를 그러한 목적을 위해서만 사용한다. 그들은 공개법정 절차 또는 사법적 결정의 경우에는 정보를 공개할 수 있다.\n\n\t3.\t어떠한 경우에도 제1항 및 제2항 규정은 어느 한쪽 체약국에 대하여 다음의 의무를 지우는 것으로 해석되지 아니한다.\n\t\t가.\t어느 한쪽 체약국이나 다른 쪽 체약국의 법률과 행정관행에 저촉되는 행정적 조치의 수행\n\t\t나.\t어느 한쪽 체약국이나 다른 쪽 체약국의 법률 하에서 또는 행정의 통상과정에서 얻어질 수 없는 정보의 제공\n\t\t다.\t교역상, 사업상, 산업상, 상업상, 전문직업상 비밀이나 거래과정을 공개하는 정보 또는 공개하는 것이 공공정책(공공질서)에 배치되는 정보의 제공\n\n\t4.\t이 조에 따라 어느 한쪽 체약국이 정보를 요청하는 경우, 다른 쪽 체약국은 요청정보가 자국의 조세목적상 필요치 않은 경우에도 해당정보 수집을 위하여 자국의 정보 수집방법을 사용한다. 전술한 문장에 포함된 의무는 제3항에 의해 제한되나, 어떠한 경우에도 그러한 제약이 어느 한쪽 체약국이 요청받은 정보가 자국 세무상 이해와 관련이 없다는 이유만으로 해당 정보의 제공을 거부할 수 있도록 허용하는 것으로 해석되지 아니한다. \n\n\t5.\t어떠한 경우에도 제3항이 은행, 기타 금융기관, 명의인 또는 대리인이나 수탁인의 자격으로 활동하는 인이 보유하는 정보라는 이유만으로 또는 어떤 인에 대한 소유지분과 관련된 정보라는 이유만으로 어느 한쪽 체약국이 해당 정보의 제공을 거부할 수 있도록 허용하는 것으로 해석되지 아니한다.”\n\n\n제2조\n\n\t한국과 싱가포르는 이 의정서의 발효를 위해 자국법상 필요한 조치가 완료되었음을 외교적 경로를 통해 상호 통보한다. 이 의정서는 그러한 상호 통보일 중 나중에 통보된 날로부터 30일 후에 발효한다.\n\n\n제3조\n\n\t이 의정서는 협약의 필수 부분을 구성하며 협약이 효력을 유지하는 한 유효하고 협약자체가 적용 가능한 한 적용된다.\n\n\n\t이상의 증거로, 아래 서명자는 그들 각자의 정부로부터 정당하게 권한을 위임받아 이 의정서에 서명하였다.\n\n\t2010년 5월 24일 싱가포르에서 정본인 영어로 2부 작성되었다. \n\n\n\n대한민국 정부를 대표하여  /  싱가포르공화국 정부를 대표하여 ",
+    "txaAgrmTextEnglNm": "PROTOCOL(2013.06.28)",
+    "txaAgrmTextEnglCntn": "Signed at Singapore May 24, 2010\n \n\nPROTOCOL AMENDING THE CONVENTION BETWEEN THE REPUBLIC OF KOREA AND THE REPUBLIC OF SINGAPORE FOR THE AVOIDANCE OF DOUBLE TAXATION AND THE PREVENTION OF FISCAL EVASION WITH RESPECT TO TAXES ON INCOME\n\n\n\tThe Government of the Republic of Korea and the Government of the Republic of Singapore,\n\n\tDesiring to amend the Convention between the Government of the Republic of Korea and the Government of the Republic of Singapore for the avoidance of double taxation and the prevention of fiscal evasion with respect to taxes on income, with Protocol, signed at Singapore on 6 November 1979 (hereinafter referred to as \"the Convention\"),\n\n\tHave agreed as follows:\n\n\nARTICLE I\n\n\tThe text of Article 25 of the Convention is deleted and replaced by the following:\n\n\t\"1.\tThe competent authorities of the Contracting States shall exchange such information as is foreseeably relevant for carrying out the provisions of this Convention or to the administration or enforcement of the domestic laws concerning taxes of every kind and description imposed on behalf of the Contracting States, or of their political subdivisions or local authorities, insofar as the taxation thereunder is not contrary to the Convention. The exchange of information is not restricted by Articles 1 and 2.\n\n\t2.\tAny information received under paragraph 1 by a Contracting State shall be treated as secret in the same manner as information obtained under the domestic laws of that State and shall be disclosed only to persons or authorities (including courts and administrative bodies) concerned with the assessment or collection of, the enforcement or prosecution in respect of, the determination of appeals in relation to the taxes referred to in paragraph 1, or the oversight of the above.\t Such persons or authorities shall use the information only for such purposes. They may disclose the information in public court proceedings or in judicial decisions.\n\n\t3.\tIn no case shall the provisions of paragraphs 1 and 2 be construed so as to impose on a Contracting State the obligation:\n\n\t\t(a)\tto carry out administrative measures at variance with the laws and administrative practice of that or of the other Contracting State;\n\t\t(b)\tto supply information which is not obtainable under the laws or in the normal course of the administration of that or of the other Contracting State;\n\t\t(c)\tto supply information which would disclose any trade, business, industrial, commercial or professional secret or trade process, or information, the disclosure of which would be contrary to public policy (ordre public).\n\n\t4.\tIf information is requested by a Contracting State in accordance with this Article, the other Contracting State shall use its information gathering measures to obtain the requested information, even though that other State may not need such information for its own tax purposes. The obligation contained in the preceding sentence is subject to the limitations of paragraph 3 but in no case shall such limitations be construed to permit a Contracting State to decline to supply information solely because it has no domestic interest in such information.\n\n\t5.\tIn no case shall the provisions of paragraph 3 be construed to permit a Contracting State to decline to supply information solely because the information is held by a bank, other financial institution, nominee or person acting in an agency or a fiduciary capacity or because it relates to ownership interests in a person.\"  \n\n\nARTICLE II\n\n    Korea and Singapore shall notify each other, through diplomatic channels, of the completion of the procedures required by their respective laws for the bringing into force of this Protocol. The Protocol shall enter into force 30 days after the date of the later of such notifications.\n\n\nARTICLE III\n\n\tThis Protocol, which shall form an integral part of the Convention, shall remain in force as long as the Convention remains in force and shall apply as long as the Convention itself is applicable.\n\n\tIN WITNESS WHEREOF, the undersigned, duly authorised thereto by their respective Governments, have signed this Protocol.\n\n\tDONE in duplicate at Singapore on this 24th day of May 2010, in the English language.\n\n\n\nFOR THE GOVERNMENT OF THE REPUBLIC OF KOREA  /  FOR THE GOVERNMENT OF THE REPUBLIC OF SINGAPORE"
+   }
+  ]
+ }
+}
