@@ -19,20 +19,24 @@ flowchart LR
   Q["AI request<br/>law, article, date, keyword"] --> V["Pick the version<br/>in force on the date"]
   V --> P["Shape the text<br/>paragraphs, provisos"]
   P --> L["Delegation links<br/>Act→Decree→Rule"]
-  Q --> S["Rulings search<br/>doc no., summary"]
+  Q --> S["Rulings search<br/>per issue, doc no., summary"]
+  Q --> Y["Base-year bundle<br/>statute, rules, rulings, changes"]
   Q --> C["Compare and judge<br/>text vs. statute"]
   V -.-> A1[("law.go.kr Open API")]
   L -.-> A1
   S -.-> A2[("taxlaw.nts.go.kr")]
+  Y -.-> A1
+  Y -.-> A2
   P --> R["Result<br/>text, in-force date, doc no., link"]
   L --> R
   S --> R
+  Y --> R
   C --> R
 ```
 
 1. **Statutes** — picks the version in force on the base date from law.go.kr and returns the text with provisos and Act → Decree → Rule links. Without a date, today is used.
-2. **Rulings** — searches the NTS system for rulings, decisions, basic rules and execution standards, with document numbers and links.
-3. **Base year** — gathers the statute and rulings for the base date of each tax type (fiscal year end, transfer date, …) and flags changes against today's text.
+2. **Rulings** — searches the NTS system for rulings, decisions, basic rules and execution standards, with document numbers and links. A question with several issues is searched issue by issue (`search_rulings_by_issue`).
+3. **Base year** — gathers the statute and rulings for the base date of each tax type (fiscal year end, transfer date, …) and flags changes against today's text. Timing rules (income recognition, VAT supply time) come first from the `timing_rules` table.
 4. **Compare** — checks statements against the statute text word by word and marks differing numbers and provisos.
 
 Judgment and conclusions stay with your AI and a professional; this server fetches the sources.
@@ -56,7 +60,7 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 }
 ```
 
-The second entry, [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp), is the companion server: it turns the statutes and rulings found here into computed amounts, limits and determinations (85 tools) and fills the statutory Excel forms. With both installed, "find the basis → compute → fill the form" runs in one conversation. The first entry alone is enough for statutes and cases.
+The second entry, [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp), is the companion server: it turns the statutes and rulings found here into computed amounts, limits and determinations (93 tools) and fills the statutory Excel forms. With both installed, "find the basis → compute → fill the form" runs in one conversation. The first entry alone is enough for statutes and cases.
 
 | Key | Used for |
 |---|---|
