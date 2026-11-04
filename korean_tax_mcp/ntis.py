@@ -134,14 +134,23 @@ def _bigrams(t):
 
 def _pooled(query, kinds, tax, n, start, end):
     """긴 쟁점 문장: 원문·핵심어 5·4·3·2개로 각각 정확도 검색해 후보를 모은 뒤, 제목·요지가 질문과 얼마나 겹치는지(글자 2-gram)로 다시 순위.
-    국세청 정확도 순위가 오래된 유사 해석을 앞세우는 문제를 줄인다(사례집 96건 기준 Recall@10 90%→95%)."""
+    국세청 정확도 순위가 오래된 유사 해석을 앞세우는 문제를 줄인다(사례집 96건 기준 Recall@10 90%→95%).
+
+    검색어마다 _search를 호출하고 예외가 나면 다음 검색어로 넘어간다. 모든 검색어가 예외로 실패하면
+    마지막 예외를 다시 던진다(서버 계층 search_tax_rulings가 이를 error 응답으로 바꾼다).
+    일부만 실패하면 성공한 검색어 결과로 계속한다. 검색은 성공했지만 결과가 없으면 빈 목록을 반환한다."""
     pool = {}
+    last_exc = None
     for v in dict.fromkeys(x for x in (query[:80], _keywords(query, 5), _keywords(query, 4), _keywords(query, 3), _keywords(query, 2)) if x):
         try: rs = _search(v, kinds, tax, "정확도", 30, start, end)
-        except Exception: continue
+        except Exception as e:
+            last_exc = e
+            continue
         for i, r in enumerate(rs):
             k = r["문서번호"] or r["id"]
             if k not in pool: pool[k] = (r, i, v == query[:80])
+    if not pool and last_exc is not None:
+        raise last_exc
     qb = _bigrams(query)
     def score(k):
         r, i, full = pool[k]; tb = _bigrams(r["제목"] + r["요지"])
