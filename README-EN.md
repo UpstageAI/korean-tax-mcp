@@ -6,7 +6,7 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 24 tools.
+> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 25 tools.
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules and treaties. [한국어](README.md)
 
@@ -80,7 +80,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 5. If two values come out (before/after apportionment, total vs. taxable part, etc.), answer only the one the question asks for.
 ```
 
-## Tools (24)
+## Tools (25)
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -89,6 +89,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 | | `article_history` | when an article changed, upcoming amendments |
 | | `article_addenda` | addenda — from when an amendment applies (effective date, application rules, transitional rules) |
 | Rulings | `search_tax_rulings` | rulings and court/tribunal decisions |
+| | `search_rulings_by_issue` | split a multi-issue question and search per issue, most relevant plus recent per issue |
 | | `get_tax_ruling` | full text of a document |
 | | `rulings_by_article` | rulings citing a given article |
 | | `basic_rules` | NTS basic rules |
