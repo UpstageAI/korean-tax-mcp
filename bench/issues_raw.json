@@ -1,0 +1,418 @@
+[
+ {
+  "cases": [
+   81,
+   66,
+   52
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   74,
+   7,
+   56
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   19,
+   6,
+   72
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   18,
+   84,
+   86
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 4,
+  "B_acc_n": 24,
+  "B_all_n": 28
+ },
+ {
+  "cases": [
+   23,
+   5,
+   42
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   8,
+   78,
+   4
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   25,
+   10,
+   92
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 18,
+  "B_acc_n": 30,
+  "B_all_n": 34
+ },
+ {
+  "cases": [
+   16,
+   77,
+   1
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   55,
+   54,
+   73
+  ],
+  "A_hits": 1,
+  "B_hits": 2,
+  "B_hits_with_recent": 2,
+  "A_n": 19,
+  "B_acc_n": 30,
+  "B_all_n": 34
+ },
+ {
+  "cases": [
+   21,
+   39,
+   53
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   17,
+   51,
+   87
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   35,
+   50,
+   44
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   15,
+   12,
+   68
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 13,
+  "B_acc_n": 23,
+  "B_all_n": 26
+ },
+ {
+  "cases": [
+   62,
+   45,
+   22
+  ],
+  "A_hits": 1,
+  "B_hits": 2,
+  "B_hits_with_recent": 2,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 35
+ },
+ {
+  "cases": [
+   32,
+   85,
+   33
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   31,
+   46,
+   59
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   61,
+   88,
+   43
+  ],
+  "A_hits": 0,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   67,
+   38,
+   95
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   13,
+   76,
+   93
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   91,
+   11,
+   82
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 35
+ },
+ {
+  "cases": [
+   28,
+   34,
+   24
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 34
+ },
+ {
+  "cases": [
+   65,
+   90,
+   64
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   40,
+   71,
+   27
+  ],
+  "A_hits": 1,
+  "B_hits": 2,
+  "B_hits_with_recent": 2,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   37,
+   36,
+   14
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   30,
+   60,
+   70
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 7,
+  "B_acc_n": 27,
+  "B_all_n": 31
+ },
+ {
+  "cases": [
+   20,
+   57,
+   3
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   48,
+   58,
+   9
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   79,
+   89,
+   69
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   83,
+   0,
+   49
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   29,
+   2,
+   75
+  ],
+  "A_hits": 1,
+  "B_hits": 2,
+  "B_hits_with_recent": 2,
+  "A_n": 1,
+  "B_acc_n": 21,
+  "B_all_n": 25
+ },
+ {
+  "cases": [
+   63,
+   47,
+   41
+  ],
+  "A_hits": 0,
+  "B_hits": 2,
+  "B_hits_with_recent": 2,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ },
+ {
+  "cases": [
+   26,
+   80,
+   94
+  ],
+  "A_hits": 1,
+  "B_hits": 3,
+  "B_hits_with_recent": 3,
+  "A_n": 30,
+  "B_acc_n": 30,
+  "B_all_n": 36
+ }
+]
