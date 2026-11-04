@@ -127,6 +127,43 @@ def search(query, kinds=("해석", "판례"), tax=None, sort="정확도", n=10, 
     return out
 
 
+def search_issues(issues, kinds=("해석", "판례"), tax=None, n_per=5, recent_years=3):
+    """쟁점마다 search(정확도)와 _search(최신·최근연도)를 따로 호출해 쟁점별로 묶는다.
+
+    모델이 나눈 쟁점 여러 개를 각각 검색해 쟁점별 결과로 반환. 쟁점 하나면 search_tax_rulings 사용.
+    반환: [{"쟁점": str, "결과": [{..., "선정": "정확도"|"최근"}]}, ...] 또는 {"쟁점": str, "결과": [], "오류": str}.
+    """
+    from datetime import date, timedelta
+
+    out = []
+    for issue in issues:
+        try:
+            acc = search(issue, kinds, tax, "정확도", n_per)
+            acc = [{**r, "선정": "정확도"} for r in acc]
+            item = {"쟁점": issue, "결과": acc}
+            if recent_years > 0:
+                try:   # 최근 문서 검색만 실패하면 정확도 결과는 살리고 따로 알린다
+                    y, m, d = (date.today() - timedelta(days=recent_years * 365)).timetuple()[:3]
+                    start = f"{y:04d}{m:02d}{d:02d}"
+                    kw = _keywords(issue, 3) or issue
+                    recent = _search(kw, kinds, tax, "최신", 2, start)
+                    seen = {r.get("문서번호") or r.get("id") for r in acc}
+                    rec = []
+                    for r in recent:
+                        key = r.get("문서번호") or r.get("id")
+                        if key and key not in seen:
+                            seen.add(key)
+                            rec.append({**r, "선정": "최근"})
+                            if len(rec) >= 2: break
+                    acc += rec
+                except Exception as e:
+                    item["최근_오류"] = f"{type(e).__name__}: {str(e)}"
+            out.append(item)
+        except Exception as e:
+            out.append({"쟁점": issue, "결과": [], "오류": f"{type(e).__name__}: {str(e)}"})
+    return out
+
+
 def _bigrams(t):
     t = re.sub(r"[^0-9A-Za-z가-힣]", "", t or "")
     return {t[i:i + 2] for i in range(len(t) - 1)}

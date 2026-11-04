@@ -99,6 +99,35 @@ def search_tax_rulings(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def search_rulings_by_issue(
+    issues: Annotated[list[str], Field(description="쟁점 문장 1~6개. 예: ['가지급금 인정이자 익금산입', '업무무관 자산 지급이자 손금불산입']")],
+    tax: Annotated[Tax | None, Field(description="세목 필터. 생략하면 전체")] = None,
+    kinds: Annotated[list[Kind] | None, Field(description="해석=질의회신·과세기준자문·사전답변, 판례=법원·조세심판·이의·심사. 생략하면 둘 다")] = None,
+    n_per: Annotated[int, Field(description="쟁점마다 종류별(해석·판례) 최대 건수 1~10 — search_tax_rulings의 n과 같은 규칙", ge=1, le=10)] = 5,
+    recent_years: Annotated[int, Field(description="최근 등록 문서 포함 연도 범위 0~10, 0이면 생략", ge=0, le=10)] = 3,
+) -> dict:
+    """Search rulings and decisions by multiple issues, separately per issue. 질문을 짧은 쟁점 문장 1~6개로 나눠 쟁점마다 해석·판례를 따로 검색한다.
+
+    언제: 질문에 쟁점이 둘 이상이거나 긴 문장일 때, 질문을 짧은 쟁점 문장 1~6개로 나눠 넘긴다(예: ['가지급금 인정이자 익금산입', '업무무관 자산 지급이자 손금불산입']). 쟁점이 하나면 search_tax_rulings.
+    반환: {'쟁점별': [{쟁점, 결과: [{선정, 구분, 문서번호, 제목, 요지, 세목, 일자, id, 링크, ...}]}, ...], '주의': ...}.
+    '선정: 정확도'는 검색 점수순, '선정: 최근'은 recent_years년 내 최근 등록 문서. 읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
+    """
+    if not issues: return {"error": "issues는 1개 이상 필요"}
+    if len(issues) > 6: return {"error": "issues는 1~6개"}
+    if tax and tax not in TAXES: return {"error": f"tax는 {TAXES} 중 하나"}
+    kinds = tuple(kinds or ["해석", "판례"])
+    if any(k not in ntis.KINDS for k in kinds): return {"error": "kinds: 해석 | 판례"}
+    try:
+        result = ntis.search_issues(issues, kinds, tax, max(1, min(int(n_per), 10)), max(0, min(int(recent_years), 10)))
+        if all("오류" in item for item in result):
+            return {"error": result[0]["오류"]}
+        return {"쟁점별": result, "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조. '선정: 최근'은 최근 등록 문서"}
+    except Exception as e:
+        return _err(e)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def get_tax_ruling(id: Annotated[str, Field(description="search_tax_rulings·rulings_by_article 결과의 id (숫자 12~20자리)")]) -> dict:
     """Get the full text of one ruling or decision. 해석·판례 1건의 본문 전문.
     언제: 검색 결과 중 인용·요약할 문서를 정한 뒤. 요지만으로 판단하지 말고 본문을 읽을 때 사용.
