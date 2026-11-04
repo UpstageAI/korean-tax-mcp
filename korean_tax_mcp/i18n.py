@@ -24,7 +24,7 @@ KEYS = {
     "법령명": "law", "제한세율": "withholding_caps", "이름": "name", "시행일": "effective", "공포일": "promulgated", "제개정": "amendment_type",
     "상태": "status", "이 조 변경": "article_change", "연혁": "history", "내용": "content", "세법": "tax_law", "소득": "income", "세율": "rates", "세율(%)": "rate_pct", "근거": "basis",
     "요건·기타": "conditions", "지분요건(%)": "ownership_pct", "기타(%)": "other_pct", "개정 문서 언급": "amending_documents", "검색어": "query", "후보수": "candidates", "id": "id", "error": "error", "번역": "translation", "판단 안내": "host_ai_instructions", "후보": "candidates", "사실관계": "facts", "우리 논리": "our_view",
-    "갈린 지점": "deciding_points", "이긴 쪽이 입증한 것": "what_winners_proved", "진 쪽에 부족했던 것": "what_losers_lacked", "안내": "guidance", "발췌 위치": "excerpts_at",
+    "갈린 지점": "deciding_points", "이긴 쪽이 입증한 것": "what_winners_proved", "진 쪽에 부족했던 것": "what_losers_lacked", "안내": "guidance", "부분 결과": "partial_result", "연결 안내": "connection_note", "발췌 위치": "excerpts_at",
     # 모의 2차(2026-11-04) #34·#35 — lang='en'인데 한국어로 남던 키
     # timing_rules
     "규칙": "rules", "시기": "timing", "예외": "exception", "관련 세목": "related_taxes", "정의": "definition",

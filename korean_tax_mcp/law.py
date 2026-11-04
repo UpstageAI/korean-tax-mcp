@@ -12,7 +12,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache, wraps
 
-from . import _mask_oc
+from . import _mask_oc, net
 
 DRF = "https://www.law.go.kr/DRF"
 CTX = ssl.create_default_context(); CTX.verify_flags &= ~ssl.VERIFY_X509_STRICT
@@ -29,18 +29,10 @@ def _oc():
 
 
 def _get(path, query):
-    """법제처 DRF API 호출. 재시도 2회(지수 백오프), 타임아웃 20초."""
+    """법제처 DRF API 호출. 연결 끊김·시간 초과만 최대 3회 시도(지수 백오프 + 지터), 요청당 12초.
+    끝내 안 되면 net.Unreachable(OC 키 없는 안내문), 시간 예산을 다 쓰면 net.BudgetExceeded."""
     u = f"{DRF}/{path}?OC={_oc()}&type=JSON&{query}"
-    last_exc = None
-    for attempt in range(3):  # 최대 2회 재시도 (총 3회 시도)
-        try:
-            with urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "korean-tax-mcp"}), context=CTX, timeout=20) as r:
-                return json.loads(r.read())
-        except Exception as e:
-            last_exc = e
-            if attempt < 2:
-                time.sleep(2 ** attempt)  # 지수 백오프: 1초, 2초
-    raise last_exc
+    return json.loads(net.request(urllib.request.Request(u, headers={"User-Agent": net.USER_AGENT}), site="law", ctx=CTX))
 
 
 # 메모리 캐시용 TTL (기본 24시간)
@@ -469,8 +461,10 @@ def links(law_name, article_no, as_of=""):
     return {"상위": mark(dedup(up), "상위"), "하위": mark(dedup(down), "하위")}
 
 
-def tiers(law, article_no, as_of=""):
-    """법령 조문 → [상위·해당·하위 단계] 원문(기준일 시행본). 법률·시행령·시행규칙 모두 지원."""
+def tiers(law, article_no, as_of="", notes=None):
+    """법령 조문 → [상위·해당·하위 단계] 원문(기준일 시행본). 법률·시행령·시행규칙 모두 지원.
+    notes(list)를 주면 연결 실패·시간 예산 초과로 못 받은 부분을 거기 적고 받은 단계만으로 계속한다
+    (못 받은 단계는 {"단계","법령","조","error"}). 주지 않으면 전과 같이 예외를 올린다."""
     norm, _ = normalize_article(article_no)
     j = jo6(norm); no, br = j[:4], j[4:]
 
@@ -481,10 +475,15 @@ def tiers(law, article_no, as_of=""):
     elif law.endswith(" 시행규칙"):
         base_law = law[:-5]
 
-    with ThreadPoolExecutor(4) as ex:
-        tier = ex.submit(_three_tier, base_law)
-        for name in (base_law, base_law + " 시행령", base_law + " 시행규칙"): ex.submit(_versions, name)
-        tier = tier.result()
+    with ThreadPoolExecutor(4) as ex:   # net.submit: 작업 스레드에도 시간 예산을 넘김
+        tier = net.submit(ex, _three_tier, base_law)
+        for name in (base_law, base_law + " 시행령", base_law + " 시행규칙"): net.submit(ex, _versions, name)
+        try:
+            tier = tier.result()
+        except (net.Unreachable, net.BudgetExceeded):
+            if notes is None: raise
+            notes.append("위임체계: 3단비교 목록(입력한 조문만 조회)")
+            tier = []
 
     # 입력이 법률이면: 법률 조문 번호(no, br)로 행 찾기
     # 입력이 시행령이면: 시행령 조문 번호(no, br)로 행 찾기
@@ -537,8 +536,16 @@ def tiers(law, article_no, as_of=""):
         steps += [("시행령", base_law + " 시행령", norm)]  # 동일한 조 번호 (fallback)
         steps += [("시행규칙", law, norm)]
 
+    def one(x):
+        try:
+            return {"단계": x[0], "법령": x[1], "조": x[2], **article(x[1], x[2], as_of)}
+        except (net.Unreachable, net.BudgetExceeded) as e:
+            if notes is None: raise
+            notes.append(f"위임체계: {x[1]} {x[2]}")
+            return {"단계": x[0], "법령": x[1], "조": x[2], "error": str(e)}
+
     with ThreadPoolExecutor(6) as ex:
-        rows = list(ex.map(lambda x: {"단계": x[0], **article(x[1], x[2], as_of)}, steps))
+        rows = [f.result() for f in [net.submit(ex, one, x) for x in steps]]
     return rows
 
 
@@ -1963,5 +1970,7 @@ def toc(law, article_no, as_of=""):
     try:
         units = _raw_units(law, ef)
         return toc_outline(units, norm)
+    except (net.Unreachable, net.BudgetExceeded):
+        raise   # 호출한 쪽이 '부분 결과'로 표시
     except Exception as e:
         return {"error": str(e)}
