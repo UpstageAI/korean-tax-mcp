@@ -27,7 +27,7 @@ KEYS = {
     "갈린 지점": "deciding_points", "이긴 쪽이 입증한 것": "what_winners_proved", "진 쪽에 부족했던 것": "what_losers_lacked", "안내": "guidance", "부분 결과": "partial_result", "연결 안내": "connection_note", "발췌 위치": "excerpts_at",
     # 모의 2차(2026-11-04) #34·#35 — lang='en'인데 한국어로 남던 키
     # timing_rules
-    "규칙": "rules", "시기": "timing", "예외": "exception", "관련 세목": "related_taxes", "정의": "definition",
+    "규칙": "rules", "시기": "timing", "예외": "exception", "예외 적용": "exception_applies_from", "관련 세목": "related_taxes", "정의": "definition",
     "확인 시행본": "verified_versions", "세목별 건수": "rules_per_tax", "구분 목록": "available_types", "기준일 주의": "as_of_warning",
     # law_article · find_article
     "원문(한국어)": "original_korean", "목차": "toc", "개요": "outline", "이 조가 속한 곳": "located_in", "같은 곳 조문": "sibling_articles",

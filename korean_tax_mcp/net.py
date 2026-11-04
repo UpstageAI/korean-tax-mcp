@@ -4,7 +4,9 @@
 - 요청당 시간 제한은 MCP 60초 제한보다 훨씬 짧게(12초).
 - 연결 끊김·시간 초과만 최대 3회 시도(지수 백오프 + 지터). 사이트가 응답한 HTTP 오류·거부는 재시도하지 않음.
 - 모두 실패하면 원시 URLError 대신 무엇이 안 됐고 다음에 무엇을 할지 적은 Unreachable.
-- 연결이 막힌 사이트는 잠시(20초) 바로 실패로 답해, 검색어 여러 개를 도는 도구가 재시도를 곱절로 쌓지 않게 한다.
+- 연결 실패 기억(20초)은 (사이트, 실패 종류)별. 연결 단계 실패(거부·DNS·경로 없음)는 그동안 시도 없이 실패로 답하고,
+  재시도를 다 써도 끊긴 경우(연결 재설정)는 그동안 재시도 없이 한 번만 시도한다 — 같은 사이트의 다른 요청이 줄줄이
+  실패하지 않게. 시간 초과(느린 응답)·시간 예산 소진은 기억하지 않고, 그 사이트 요청이 한 번이라도 성공하면 지운다.
 - budget(초): 한 도구 호출 전체의 시간 예산. 그 안의 요청은 남은 시간만큼만 기다린다.
 """
 import contextlib
@@ -24,7 +26,7 @@ USER_AGENT = f"korean-tax-mcp/{__version__} (+https://github.com/UpstageAI/korea
 TIMEOUT = 12.0          # 요청당(연결·응답 대기) 시간 제한, 초
 MAX_ATTEMPTS = 3        # 첫 시도 포함
 BACKOFF = 1.0           # 1회째 대기 ≈ 1초, 2회째 ≈ 2초 (각각 ×0.5~1.5 지터)
-COOLDOWN = 20.0         # 연결이 막힌 사이트를 바로 실패로 답하는 시간, 초
+COOLDOWN = 20.0         # 연결 실패를 기억하는 시간, 초
 MIN_LEFT = 1.0          # 예산이 이보다 적게 남으면 새 요청을 보내지 않음
 _CHUNK = 65536
 
@@ -50,7 +52,8 @@ class Unreachable(RuntimeError):
         self.site, self.kind, self.attempts, self.cached = site, kind, attempts, cached
         s = {"name": site, "subj": "이(가)", "to": "(으)로", "other": ""} | SITES.get(site, {})
         how, note = _KIND.get(kind, ("이 네트워크에서 {name}에 연결하지 못했습니다", ""))
-        tried = f"직전 {COOLDOWN:.0f}초 안에 같은 실패가 있어 다시 시도하지 않음" if cached else f"{attempts}회 시도"
+        tried = (f"직전 {COOLDOWN:.0f}초 안에 같은 실패가 있어 " + (f"{attempts}회만 시도" if attempts else "다시 시도하지 않음")
+                 if cached else f"{attempts}회 시도")
         detail = ", ".join(x for x in (note.format(t=TIMEOUT), tried) if x)
         self.short = f"{s['name']} 연결 실패({tried})"
         super().__init__(
@@ -104,25 +107,38 @@ def submit(ex, fn, *a, **k):
     return ex.submit(contextvars.copy_context().run, fn, *a, **k)
 
 
-# ── 연결이 막힌 사이트 잠시 기억 ──
+# ── 연결 실패 잠시 기억 — (사이트, 실패 종류)별 ──
 _lock = threading.Lock()
-_down = {}   # site → (until, kind)
+_down = {}   # (site, kind) → until
+_HARD = ("refused", "dns", "network")   # 연결 단계에서 바로 거절 — 기억하는 동안 시도 없이 실패
+_SOFT = ("reset",)                       # 재시도를 다 써도 끊김 — 기억하는 동안 한 번만 시도
 
 
 def reset():
     with _lock: _down.clear()
 
 
-def _blocked(site):
+def _active(site):
+    """지금 기억 중인 이 사이트의 실패 종류들."""
+    now = time.monotonic()
     with _lock:
-        v = _down.get(site)
-        if v and v[0] > time.monotonic(): return v[1]
-        _down.pop(site, None)
-    return None
+        for k in [k for k, until in _down.items() if until <= now]: del _down[k]
+        return [k[1] for k in _down if k[0] == site]
+
+
+def _blocked(site):
+    """기억 중인 실패 종류(연결 단계 실패 우선), 없으면 None."""
+    kinds = _active(site)
+    return next((k for k in kinds if k in _HARD), None) or (kinds[0] if kinds else None)
 
 
 def _trip(site, kind):
-    with _lock: _down[site] = (time.monotonic() + COOLDOWN, kind)
+    with _lock: _down[(site, kind)] = time.monotonic() + COOLDOWN
+
+
+def _clear(site):
+    with _lock:
+        for k in [k for k in _down if k[0] == site]: del _down[k]
 
 
 def _kind(e):
@@ -157,11 +173,14 @@ def request(req, *, site, ctx=None, timeout=TIMEOUT):
     """urllib Request → 응답 bytes. 연결 끊김·시간 초과만 최대 MAX_ATTEMPTS회 시도.
     다 실패하면 Unreachable, 예산을 다 쓰면 BudgetExceeded, 그 밖의 오류(HTTP 오류 등)는 그대로."""
     if not req.has_header("User-agent"): req.add_header("User-Agent", USER_AGENT)
-    k = _blocked(site)
-    if k: raise Unreachable(site, k, 0, cached=True)
+    known = _active(site)
+    hard = next((k for k in known if k in _HARD), None)
+    if hard: raise Unreachable(site, hard, 0, cached=True)
+    probe = any(k in _SOFT for k in known)          # 직전 끊김 기억 중 — 한 번만 시도(성공하면 기억을 지움)
+    tries = 1 if probe else MAX_ATTEMPTS
     timeout = min(timeout or TIMEOUT, TIMEOUT)
     kind, last, attempts, by_budget = None, None, 0, False
-    for i in range(MAX_ATTEMPTS):
+    for i in range(tries):
         left = remaining()
         if left is not None and left < MIN_LEFT:
             if kind:
@@ -171,13 +190,15 @@ def request(req, *, site, ctx=None, timeout=TIMEOUT):
         attempts += 1
         try:
             with urllib.request.urlopen(req, context=ctx, timeout=timeout if left is None else min(timeout, left)) as r:
-                return _read(r)
+                data = _read(r)
+            _clear(site)                                 # 이 사이트에 닿았으니 지난 실패 기억은 지움
+            return data
         except BudgetExceeded:
             raise
         except Exception as e:
             kind, last = _kind(e), e
             if kind is None: raise
-        if kind not in ("reset", "timeout") or i + 1 >= MAX_ATTEMPTS: break
+        if kind not in ("reset", "timeout") or i + 1 >= tries: break
         wait = BACKOFF * (2 ** i) * random.uniform(0.5, 1.5)
         left = remaining()
         if left is not None and left - wait < MIN_LEFT:
@@ -185,8 +206,9 @@ def request(req, *, site, ctx=None, timeout=TIMEOUT):
             break
         time.sleep(wait)
     # 재시도할 수 있었는데 시간 예산이 모자라 멈춘 경우는 사이트 장애가 아니라 예산 소진으로 알린다
-    if by_budget and kind in ("reset", "timeout") and attempts < MAX_ATTEMPTS:
+    if by_budget and kind in ("reset", "timeout") and attempts < tries:
         raise _over() from last
-    # 연결 단계 실패(거부·DNS·경로 없음)이거나 끝까지 다 시도해도 안 됐을 때만 사이트를 잠시 막힘으로 기억
-    if kind not in ("reset", "timeout") or attempts >= MAX_ATTEMPTS: _trip(site, kind)
-    raise Unreachable(site, kind, attempts) from last
+    # 기억하는 것: 연결 단계 실패(거부·DNS·경로 없음), 그리고 재시도를 다 써도(또는 기억 중 한 번 시도에도) 끊긴 경우.
+    # 시간 초과(느린 응답)·예산 소진은 기억하지 않는다.
+    if kind in _HARD or (kind in _SOFT and attempts >= tries): _trip(site, kind)
+    raise Unreachable(site, kind, attempts, cached=probe and kind in _SOFT) from last
