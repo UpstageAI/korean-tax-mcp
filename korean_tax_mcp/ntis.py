@@ -329,6 +329,8 @@ def treaty(country, article="", keyword="", english=False):
             haystack = f"{title} {body} {en_title}"
             if not any(term and term in haystack for term in search_terms): continue
         out.append({"조": no, "제목": title, "영문 제목": en_title, "본문": body.strip()[:6000]})
+    if keyword:   # 제목에 검색어가 있는 조문을 먼저 — '배당'이 본문에만 나오는 제5조가 제목이 '배당'인 조보다 앞서던 문제
+        out.sort(key=lambda x: 0 if any(term and (term in x["제목"] or term in x["영문 제목"]) for term in search_terms) else 1)
 
     if not out and keyword and keyword in TREATY_SYNONYMS:
         # 동의어 확장으로도 결과가 없으면 안내 제공

@@ -164,9 +164,10 @@ def requested_ho(raw):
 def ho_text(body, hang, ho):
     """본문에서 hang(예: '제2항') 안의 ho(예: '제2호') 줄과 그 아래 목(가.·나.)까지 잘라 돌려줌. 못 찾으면 ''."""
     try:
-        hn = int(re.sub(r"\D", "", hang)); hon = int(re.sub(r"\D", "", ho))
+        hn = int(re.sub(r"\D", "", hang)); hon = _ho_tuple(ho)
     except ValueError:
         return ""
+    if not hon: return ""
     lines = body.split("\n")
     mark = chr(0x2460 + hn - 1) if 1 <= hn <= 20 else None
     start = next((i for i, ln in enumerate(lines) if mark and ln.lstrip().startswith(mark)), None)
@@ -175,10 +176,10 @@ def ho_text(body, hang, ho):
     for ln in lines[start + 1:]:
         t = ln.lstrip()
         if re.match(r"^[①-⑳]", t): break                       # 다음 항
-        m = re.match(r"^(\d+)\.", t)
+        m = _HO_LINE.match(t)
         if m:
-            if out: break                                           # 다음 호
-            if int(m.group(1)) == hon: out.append(ln)
+            if out: break                                           # 다음 호(9의2 포함)
+            if (int(m.group(1)), int(m.group(2) or 0)) == hon: out.append(ln)
             continue
         if out: out.append(ln)                                      # 목·이어지는 줄
     return "\n".join(out)
@@ -203,7 +204,9 @@ def _versions(law):
         d = _get("lawSearch.do", f"target=eflaw&display=100&page={page}&nw=1,2,3&query=" + urllib.parse.quote(law))
         ls = d.get("LawSearch", {})
         rows = _list(ls.get("law"))
-        out += [v for v in rows if v.get("법령명한글") == law]
+        # 띄어쓰기만 다른 이름은 같은 법령으로 본다 — '상속세및증여세법'(2005년 이전 옛 이름)만 고르면
+        # 기준일이 2025년이어도 20050114 시행본을 돌려주던 문제(모의 2차 2026-11-04)
+        out += [v for v in rows if _name_key(v.get("법령명한글")) == _name_key(law)]
         try: total = int(ls.get("totalCnt") or 0)
         except ValueError: total = 0
         if len(rows) < 100 or page * 100 >= total or page >= 20: break
@@ -211,13 +214,50 @@ def _versions(law):
     return out
 
 
-def version(law, as_of=""):
-    """기준일(YYYYMMDD, 없으면 오늘)에 시행 중이던 연혁본 → (MST, 시행일자)."""
+def _name_key(name):
+    return re.sub(r"\s+", "", name or "")
+
+
+def version_row(law, as_of=""):
+    """기준일(YYYYMMDD, 없으면 오늘)에 시행 중이던 연혁본 행(법령명한글·법령일련번호·시행일자 …). 없으면 None."""
     day = as_of or time.strftime("%Y%m%d")
     vs = [v for v in _versions(law) if v.get("시행일자", "99999999") <= day]
-    if not vs: return None, None
-    v = max(vs, key=lambda x: x["시행일자"])
+    return max(vs, key=lambda x: x["시행일자"]) if vs else None
+
+
+def version(law, as_of=""):
+    """기준일(YYYYMMDD, 없으면 오늘)에 시행 중이던 연혁본 → (MST, 시행일자)."""
+    v = version_row(law, as_of)
+    if not v: return None, None
     return v["법령일련번호"], v["시행일자"]
+
+
+def name_notes(law, as_of=""):
+    """입력한 법령명과 실제로 고른 시행본의 정식 명칭이 다르거나, 그 이름의 현행본이 없으면(개명·폐지) 알림."""
+    out = {}
+    v = version_row(law, as_of)
+    if v and v.get("법령명한글") and v["법령명한글"] != law:
+        out["법령명 안내"] = f"'{law}'을(를) 기준일 시행본의 정식 명칭 '{v['법령명한글']}'으로 조회"
+    rows = _versions(law)
+    codes = [r.get("현행연혁코드") for r in rows]
+    if rows and all(codes) and not any(c in ("현행", "시행예정") for c in codes):
+        last = max(r.get("시행일자", "") for r in rows)
+        out["법령명 경고"] = (f"'{law}'의 마지막 시행본이 {last} — 현행본이 없음(개명·폐지 가능). "
+                            "기준일 조문이 아닐 수 있으니 현행 정식 법령명으로 다시 조회")
+    return out
+
+
+_IMG = re.compile(r"<img\b[^>]*?src=\"([^\"]+)\"[^>]*>", re.I)
+
+
+def _strip_img(body):
+    """본문의 <img …> 태그를 '[그림 N]' 표시로 바꾸고 링크 목록을 따로 돌려준다(계산식 그림 — 글자 상자는 본문에 남음)."""
+    links = []
+    def rep(m):
+        links.append(m.group(1)); return f"[그림 {len(links)}]"
+    body = _IMG.sub(rep, body)
+    body = re.sub(r"</?img\b[^>]*>", "", body, flags=re.I)
+    return body, [f"[그림 {i}] {u}" for i, u in enumerate(links, 1)]
 
 
 def _texts(o):
@@ -235,8 +275,9 @@ def _texts(o):
 
 def article(law, article_no, as_of=""):
     norm, _ = normalize_article(article_no)
-    mst, ef = version(law, as_of)
-    if not mst: return {"error": f"'{law}'를 찾지 못했거나 {as_of or '오늘'} 이전 시행본이 없음 — 정식 법령명 확인"}
+    row = version_row(law, as_of)
+    if not row: return {"error": f"'{law}'를 찾지 못했거나 {as_of or '오늘'} 이전 시행본이 없음 — 정식 법령명 확인"}
+    mst, ef = row["법령일련번호"], row["시행일자"]
     d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={ef}&JO={jo6(norm)}")
     lines = [t.strip() for t in _texts(d.get("법령", d)) if t.strip()]
     # DRF 응답 구조상 "항"→"호" 순회가 "조문내용"보다 먼저 yield될 수 있으므로
@@ -256,9 +297,13 @@ def article(law, article_no, as_of=""):
         # 머리말 라인에서 개정/신설 표시 제거 (완전 태그 + 잘린 꺾쇠)
         head = re.sub(r'<개정[^>]*>|<개정\b|<신설[^>]*>|<신설\b', '', head).strip()
         body_lines.insert(0, head)
-    body = "\n".join(body_lines)
-    return {"법령": law, "조": norm, "적용 시행일": ef, "본문": body or "조문 없음 — 조번호 확인",
-            "링크": f"https://www.law.go.kr/법령/{urllib.parse.quote(law)}/{norm}"}
+    body, imgs = _strip_img("\n".join(body_lines))
+    name = row.get("법령명한글") or law
+    out = {"법령": name, "조": norm, "적용 시행일": ef, "본문": body or "조문 없음 — 조번호 확인",
+           "링크": f"https://www.law.go.kr/법령/{urllib.parse.quote(name)}/{norm}"}
+    if imgs: out["그림"] = imgs
+    out.update(name_notes(law, as_of))
+    return out
 
 
 @lru_cache(maxsize=64)
@@ -1126,9 +1171,8 @@ def _parse_paragraphs(body):
 def _추출_호_본문(para_text, ho):
     """항 텍스트 내에서 ho(예: '제2호')에 해당하는 호 본문(호 줄 + 목·가·나 포함) 추출.
     호 줄은 줄 맨 앞 'N.' (숫자+점). 다음 호(N. 다른 숫자) 직전까지."""
-    try:
-        ho_no = int(re.sub(r"\D", "", ho))
-    except ValueError:
+    ho_no = _ho_tuple(ho)
+    if not ho_no:
         return None
     lines = para_text.split("\n")
     out = []
@@ -1140,11 +1184,11 @@ def _추출_호_본문(para_text, ho):
             continue
         if re.match(r"^[①-⑳]", t):            # 다음 항 경계
             break
-        m = re.match(r"^(\d+)\.", t)
+        m = _HO_LINE.match(t)
         if m:
             if found:
-                break                         # 다음 호 → 종료
-            if int(m.group(1)) == ho_no:
+                break                         # 다음 호(9의2 포함) → 종료
+            if (int(m.group(1)), int(m.group(2) or 0)) == ho_no:
                 found = True
                 out.append(ln)
             continue
@@ -1164,9 +1208,9 @@ def _항_내_호_목록(para_text):
             continue
         if re.match(r"^[①-⑳]", t):
             break
-        m = re.match(r"^(\d+)\.", t)
+        m = _HO_LINE.match(t)
         if m:
-            hos.append(m.group(1))
+            hos.append(m.group(1) + (f"의{m.group(2)}" if m.group(2) else ""))
     return hos
 
 
@@ -1354,8 +1398,8 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
                     _seen.add((c["항"], c["호"]))
             if _extra:
                 def _ho_key(h):
-                    m1 = re.search(r"\d+", h["항"] or ""); m2 = re.search(r"\d+", h["호"] or "")
-                    return (int(m1.group()) if m1 else 0, int(m2.group()) if m2 else 0)
+                    m1 = re.search(r"\d+", h["항"] or "")
+                    return (int(m1.group()) if m1 else 0, _ho_tuple(h["호"] or "") or (0, 0))
                 km = sorted(km + _extra, key=_ho_key)
             # 조 머리말: 본문 첫 줄에서 개정 표시(<개정 …>, 미완결 "<개정") 제거.
             first_line = body.split("\n")[0].strip() if body else ""
@@ -1371,11 +1415,14 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
                 match_locs.append(loc)
                 if disp_항 not in 항_groups:
                     항_groups[disp_항] = {"항_머리말": hit.get("항_머리말", ""), "호들": []}
+                if not 호_l:
+                    # 호 없는 항은 호_본문이 곧 항 전체 — 머리말을 따로 또 붙이면 같은 항이 두 번 나온다(모의 2차 #66)
+                    항_groups[disp_항]["항_머리말"] = ""
                 # 호 본문: 호 번호가 있으면 호 번호 접두사 유지(t5c #4), 없으면 그대로
                 body_hit = hit["호_본문"]
                 if 호_l:
-                    ho_no = re.search(r"\d+", 호_l).group()  # "제18호" → "18"
-                    body_hit = f"{ho_no}. {body_hit}"
+                    n, b = _ho_tuple(호_l)  # "제18호" → 18, "제9호의2" → 9의2
+                    body_hit = f"{n}{'의' + str(b) if b else ''}. {body_hit}"
                 항_groups[disp_항]["호들"].append(body_hit)
             chunks = []
             for 항_l in sorted(항_groups.keys(), key=lambda x: int(re.search(r"\d+", x).group()) if re.search(r"\d+", x) else 0):
@@ -1422,6 +1469,11 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
             a["읽기 주의"] = notes_list
             if more:
                 a["읽기 주의 더 있음"] = more
+
+    # 그림 링크는 돌려준 본문에 [그림 N] 표시가 남은 것만
+    if a.get("그림"):
+        a["그림"] = [g for g in a["그림"] if g.split("]")[0] + "]" in a.get("본문", "")]
+        if not a["그림"]: del a["그림"]
 
     return a
 
@@ -1477,14 +1529,28 @@ def _build_truncated_body(jo_head, body, paragraphs, limit):
 
 # ── law_article 키워드 필터: 호·목 단위 (SPEC t5b) ──────────────────────────────
 
-_HO_HOL = re.compile(r"제(\d+)호")          # 제1호, 제2호 …
-_HO_NUM = re.compile(r"^\s*(\d{1,2})[\.\)]")   # 1. …, 2) … (chunk 시작 위치의 숫자+닷/괄호, 호 번호는 1~2자리)
+_HO_HOL = re.compile(r"제(\d+)호(?:의(\d+))?")          # 제1호, 제9호의2 …
+_HO_NUM = re.compile(r"^\s*(\d{1,2})(?:의(\d+))?[\.\)]")   # 1. …, 2) …, 9의2. (호 번호는 1~2자리, 가지 번호 '의N')
 _MOK = re.compile(r"(?:^|\s)[가-힣]\.|\([가-힣]+\)")  # (가), (나) …, 가. 나. … (문장 말미 "다." 오인 방지)
 
 # 항 블록 내 호 마커 탐색용: 줄 시작(\n 뒤) 위치의 호 마커만 인식.
 # 항 머리말 내 "제1호에 해당하는" 같은 문장 내 제N호를 호 마커로 오인하지 않도록,
 # 호 마커는 반드시 \n 뒤에 있는 것으로 제한 (블록 시작 위치 제외).
-_HO_MARKER_IN_BLOCK = re.compile(r"\n\s*(?:제\d+호|\d{1,2}[\.\)])")
+# '9의2.'처럼 가지 번호가 붙은 호도 호 경계다 — 빠지면 9의2호 문장이 9호에 묶여 '제9호'로 표시됐다(모의 2차 #65·#67).
+_HO_MARKER_IN_BLOCK = re.compile(r"\n\s*(?:제\d+호(?:의\d+)?|\d{1,2}(?:의\d+)?[\.\)])")
+
+
+def _ho_label(no, branch=None):
+    return f"제{int(no)}호" + (f"의{int(branch)}" if branch else "")
+
+
+def _ho_tuple(s):
+    """'제9호의2'·'9의2'·'제9호'·'9' → (9, 2)·(9, 0). 못 읽으면 None."""
+    m = re.search(r"(\d+)\s*(?:호)?\s*(?:의\s*(\d+))?", s or "")
+    return (int(m.group(1)), int(m.group(2) or 0)) if m else None
+
+
+_HO_LINE = re.compile(r"^(\d+)(?:의(\d+))?\.")   # 줄 맨 앞 호 표시: '9.'·'9의2.'
 
 
 def _호_목_분할(body):
@@ -1539,9 +1605,9 @@ def _항_블록(block, 항_norm):
         gm = _HO_HOL.match(ho_marker)
         gn = _HO_NUM.match(ho_marker)
         if gm:
-            ho_label = f"제{gm.group(1)}호"
+            ho_label = _ho_label(gm.group(1), gm.group(2))
         elif gn:
-            ho_label = f"제{gn.group(1)}호"
+            ho_label = _ho_label(gn.group(1), gn.group(2))
         else:
             ho_label = None
         # 호 내용 시작 위치: 매치 끝 위치 (호 마커 직후)
