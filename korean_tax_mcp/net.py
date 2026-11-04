@@ -111,7 +111,7 @@ def submit(ex, fn, *a, **k):
 _lock = threading.Lock()
 _down = {}   # (site, kind) → until
 _HARD = ("refused", "dns", "network")   # 연결 단계에서 바로 거절 — 기억하는 동안 시도 없이 실패
-_SOFT = ("reset",)                       # 재시도를 다 써도 끊김 — 기억하는 동안 한 번만 시도
+_SOFT = ("reset", "timeout")                     # 재시도를 다 써도 끊김 — 기억하는 동안 한 번만 시도
 
 
 def reset():

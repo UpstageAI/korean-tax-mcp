@@ -282,16 +282,16 @@ def test_connection_level_failures_still_short_circuit(fake, exc, word):
     assert word in str(e.value) and "직전 20초 안에 같은 실패가 있어 다시 시도하지 않음" in str(e.value)
 
 
-def test_timeouts_never_trip(fake):
-    """느린 응답(시간 초과)은 사이트 막힘으로 기억하지 않는다 — 끝까지 다 시도해 실패해도."""
+def test_repeated_timeouts_allow_single_quick_attempt(fake):
+    """끝까지 다 시도해도 시간 초과면 끊김처럼 기억 — 다음 요청은 한 번만 시도해 매 호출 ~39초 대기가 쌓이지 않음."""
     calls = fake(lambda req, n: socket.timeout("timed out"))
     with pytest.raises(net.Unreachable):
         _get("000100")
-    assert len(calls) == 3 and net._blocked("law") is None and not net._down
-    calls.clear()
-    with pytest.raises(net.Unreachable):
-        _get("000200")
     assert len(calls) == 3
+    calls.clear()
+    with pytest.raises(net.Unreachable) as e:
+        _get("000200")
+    assert len(calls) == 1 and "직전 20초 안에 같은 실패" in str(e.value)
 
 
 def test_single_slow_response_then_success_no_trip(fake):
