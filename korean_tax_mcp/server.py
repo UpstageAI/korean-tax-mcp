@@ -223,10 +223,17 @@ def casebook_search(
 ) -> dict:
     """Search the NTS 2025 Tax Interpretation Casebook (96 curated cases). 국세청 「2025 세법해석 사례집」 쟁점 검색.
     언제: 국세청이 대표 사례로 고른 해석을 빠르게 볼 때(오프라인, 즉시). 최신·전체 해석은 search_tax_rulings.
-    반환: {결과: [{문서번호, 회신일, 분야, 쟁점, 답변요지, 쪽, 점수, 인용}]}. 읽기 전용, 외부 호출 없음.
+    반환: {결과: [{문서번호, 회신일, 분야, 쟁점, 답변요지, 쪽, 점수, 인용}], 안내?, 사례집에 없는 말?}. 검색어 낱말 절반 이상(드문 말일수록 무겁게)이 든 사례만 — 없으면 0건과 안내.
+    읽기 전용, 외부 호출 없음.
     """
     if area and area not in casebook.AREAS: return {"error": f"area는 {casebook.AREAS} 중 하나"}
-    return {"결과": casebook.search(query, area, max(1, min(int(k), 10)))}
+    out = {"결과": casebook.search(query, area, max(1, min(int(k), 10)))}
+    _, absent = casebook.coverage_weights(query)
+    if absent: out["사례집에 없는 말"] = absent
+    if not out["결과"]:
+        out["안내"] = (f"사례집 {len(casebook._load()[0])}건 중 검색어와 맞는 사례 없음(관련 없는 사례는 내지 않음). "
+                     "최신·전체 해석은 search_tax_rulings(query) 또는 search_rulings_by_issue로 찾기")
+    return out
 
 
 RESP_MAX_CHARS = int(os.environ.get("KTM_RESP_MAX_CHARS", 20000))
@@ -536,12 +543,18 @@ def verify_citations(
 ) -> dict:
     """Check that cited rulings, decisions and statute articles actually exist. 인용 검증 — 초안의 문서번호·조문이 실제로 있는지 확인.
     언제: AI나 사람이 쓴 초안을 내보내기 전. 지어낸 문서번호·없는 조문을 걸러낸다.
-    반환: {문서번호: [{인용, 결과(확인/국세청 DB 미확인/조회 실패), 문서번호, 제목, 일자, 링크, 비슷한 번호}], 조문: [{인용, 결과, 적용 시행일}], 요약, 주의}.
+    읽는 형식: 해석 번호(서면-2024-법규소득-2019 등), 판결문 표준 인용('대법원 2002. 9. 24. 선고 2001두489 판결', '88누3123'처럼 두 자리 연도 포함), 조심·국심 번호, 조문 인용의 항·호('제25조 제4항 제2호' — 그 항·호까지 확인).
+    반환: {문서번호: [{인용, 결과(확인/국세청 DB 미확인/조회 실패), 문서번호, 제목, 일자, 링크, 비슷한 번호}], 조문: [{인용, 결과(확인/조문 없음/항 없음/호 없음/미검증…), 적용 시행일}], 형식 미인식?: [{인용, 결과, 이유}], 요약, 주의}.
+    번호를 못 읽은 판결 언급·법령명 없는 조문('같은 법 제5조')은 '형식 미인식'으로 세어 요약의 '확인 안 된 것'에 넣는다.
     '확인'은 존재만 뜻함 — 내용 일치는 get_tax_ruling·law_article 본문으로 확인. 읽기 전용. 조문 확인은 LAW_OC 필요.
     """
     ef = re.sub(r"\D", "", as_of or "")
     if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
-    try: return cite.verify(text[:20000], ef)
+    try:
+        r = cite.verify(text[:20000], ef)
+        if len(text) > 20000:
+            r["생략"] = (r.get("생략", "") + " " if r.get("생략") else "") + f"2만 자를 넘는 뒷부분({len(text) - 20000:,}자)은 검증 안 함 — 나눠서 다시 검증"
+        return r
     except Exception as e: return _err(e)
 
 
@@ -599,28 +612,37 @@ def search_local_documents(
     except Exception as e: return {"error": str(e)}
 
 
+_TIMING_TAX_EN = {"corporate": "법인", "income": "소득", "VAT": "부가", "capital_gains": "양도", "inheritance_gift": "상증",
+                  "basic": "국기", "real_estate": "종부"}
+TimingTax = Literal["법인", "부가", "소득", "양도", "상증", "국기", "국징", "조특", "국조", "종부",
+                    "corporate", "income", "VAT", "capital_gains", "inheritance_gift", "basic", "real_estate"]
+_INCOME_EN = {"dividends": "배당", "interest": "이자", "royalties": "사용료"}
+
+
 @mcp.tool(annotations=RO)
 @bilingual
 def timing_rules(
-    tax: Annotated[Tax | None, Field(description="세목 필터. '법인'·'소득'·'부가'·'양도'·'상증'·'국기'·'종부' 중 하나. 생략하면 공통 규칙과 세목별 건수")] = None,
-    kind: Annotated[str, Field(description="구분 필터. 예: '손익 귀속', '재화 공급시기', '용역 공급시기', '공급시기 특례', '근로소득 수입시기', '납세의무 성립'")] = "",
+    tax: Annotated[TimingTax | None, Field(description="세목 필터. '법인'·'소득'·'부가'·'양도'·'상증'·'국기'·'종부' 중 하나(영어 'corporate'·'income'·'VAT'·'capital_gains'·'inheritance_gift'·'basic'·'real_estate'도 받음). 생략하면 공통 규칙과 세목별 건수")] = None,
+    kind: Annotated[str, Field(description="구분 필터(띄어쓰기 무시). 예: '손익 귀속', '재화 공급시기', '용역 공급시기', '공급시기 특례', '근로소득 수입시기', '납세의무 성립'")] = "",
     keyword: Annotated[str, Field(description="항목·시기·예외 중 어디에든 포함된 글자 필터 (선택)")] = "",
+    as_of: Annotated[str, Field(description="사안 기준일 YYYYMMDD(선택). 표는 현행 조문만 정리 — 기준일이 표의 확인 시행본보다 앞이면 '기준일 주의'로 알림")] = "",
 ) -> dict:
     """Timing rules table — tax liability establishment, profit/loss attribution business year, income receipt timing, VAT supply timing, with statutory basis.
 
     시기 규칙표 — 납세의무 성립·손익 귀속사업연도·소득별 수입시기·부가 공급시기를 조문 근거와 함께.
     언제: 사실관계의 날짜가 어느 사업연도·과세기간·공급시기에 속하는지 정할 때(예: 12월 인도·1월 대금, 선발급 세금계산서, 인정상여 귀속).
-    반환: {규칙: [{세목, 구분, 항목, 시기, 예외?(있으면), 근거}], 확인 시행본, 주의}. tax를 주면 세목 키 포함, tax 없이 부르면 공통 규칙과 세목별 건수.
+    반환: {규칙: [{세목, 구분, 항목, 시기, 예외?(있으면), 근거}], 확인 시행본, 주의, 안내?, 구분 목록?, 기준일 주의?}. tax를 주면 세목 키 포함, tax 없이 부르면 공통 규칙과 세목별 건수.
+    현행 조문 기준 표(지난 해 규칙 없음). 맞는 규칙이 없거나(0건) 세목 고유 규칙이 없으면(양도·상증·국기·종부) '안내'에 볼 조문을 알려 줌 — law_article로 확인.
     읽기 전용. data/timing_rules.json 기반, 외부 호출 없음.
     """
-    return _timing_rules_data.lookup(tax, kind or None, keyword)
+    return _timing_rules_data.lookup(_TIMING_TAX_EN.get(tax, tax), kind or None, keyword, as_of)
 
 
 @mcp.tool(annotations=RO)
 @bilingual
 def treaty_withholding_rates(
     country: Annotated[str, Field(description="체약국 이름(한글). 예: '미국', '중국', '일본', '싱가포르'")],
-    income: Annotated[Literal["배당", "이자", "사용료"] | None, Field(description="소득 종류. 생략하면 셋 다")] = None,
+    income: Annotated[Literal["배당", "이자", "사용료", "dividends", "interest", "royalties"] | None, Field(description="소득 종류(영어 dividends·interest·royalties도 받음). 생략하면 셋 다")] = None,
 ) -> dict:
     """Treaty withholding tax caps on dividends, interest and royalties for a country, with the clause text. 조세조약 원천징수 제한세율(배당·이자·사용료).
     언제: "미국 법인에 배당하면 몇 %?" 같은 질문. 세율과 지분 요건을 조약 원문에서 뽑고 근거 조항((a)·(b)…)을 함께 준다. 조문 전체는 tax_treaty.
@@ -628,7 +650,7 @@ def treaty_withholding_rates(
     자동 추출이라 개정 의정서·교환각서가 조문을 바꿨으면 '개정 문서 언급'에 표시 — 적용 전 확인. 지방소득세 등 국내법은 별도.
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
-    try: return ntis.withholding_rates(country, income)
+    try: return ntis.withholding_rates(country, _INCOME_EN.get(income, income))
     except Exception as e: return _err(e)
 
 

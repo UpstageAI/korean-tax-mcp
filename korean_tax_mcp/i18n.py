@@ -25,7 +25,38 @@ KEYS = {
     "상태": "status", "이 조 변경": "article_change", "연혁": "history", "내용": "content", "세법": "tax_law", "소득": "income", "세율": "rates", "세율(%)": "rate_pct", "근거": "basis",
     "요건·기타": "conditions", "지분요건(%)": "ownership_pct", "기타(%)": "other_pct", "개정 문서 언급": "amending_documents", "검색어": "query", "후보수": "candidates", "id": "id", "error": "error", "번역": "translation", "판단 안내": "host_ai_instructions", "후보": "candidates", "사실관계": "facts", "우리 논리": "our_view",
     "갈린 지점": "deciding_points", "이긴 쪽이 입증한 것": "what_winners_proved", "진 쪽에 부족했던 것": "what_losers_lacked", "안내": "guidance", "발췌 위치": "excerpts_at",
+    # 모의 2차(2026-11-04) #34·#35 — lang='en'인데 한국어로 남던 키
+    # timing_rules
+    "규칙": "rules", "시기": "timing", "예외": "exception", "관련 세목": "related_taxes", "정의": "definition",
+    "확인 시행본": "verified_versions", "세목별 건수": "rules_per_tax", "구분 목록": "available_types", "기준일 주의": "as_of_warning",
+    # law_article · find_article
+    "원문(한국어)": "original_korean", "목차": "toc", "개요": "outline", "이 조가 속한 곳": "located_in", "같은 곳 조문": "sibling_articles",
+    "연결": "links", "상위": "upper", "하위": "lower", "참고(공식표만)": "reference_official_table_only", "항": "paragraph", "구절": "phrase",
+    "확인": "evidence", "다음 단계": "next_step", "적용 기준일": "as_of_date", "기준일 안내": "as_of_note", "다시 조회": "retry_with",
+    "설명": "explanation", "최근 개정": "recent_amendment", "요청 항": "requested_paragraph", "요청 위치": "requested_location",
+    "요청 호": "requested_item", "반환 범위": "scope", "항 목록": "paragraph_list", "항 번호": "paragraph_no", "첫 문장": "first_sentence",
+    "길이": "length", "잘린 항": "truncated_paragraph", "생략된 항": "omitted_paragraphs", "읽기 주의": "reading_notes", "종류": "kind",
+    "원문": "original_text", "위치": "location", "읽기 주의 더 있음": "more_reading_notes", "일치_위치": "match_locations",
+    "일치 없음": "no_match", "항_호_목록": "paragraph_item_list", "앞30자": "first_30_chars", "그림": "images",
+    "법령명 안내": "law_name_note", "법령명 경고": "law_name_warning", "일치 문장": "matching_sentences", "관련 부칙": "related_addenda",
+    "부칙": "addenda",
+    # verify_citations · casebook_search
+    "형식 미인식": "unrecognized", "생략": "omitted", "사례집에 없는 말": "terms_not_in_casebook",
+    # residency_check
+    "입력": "input", "법리": "legal_principle", "1단계(소득세법)": "stage1_income_tax_act", "주소 판정": "domicile_judgment",
+    "주소 근거 조문": "domicile_article", "주소 판단 근거": "domicile_reason", "거소 판정": "residence_judgment",
+    "국내 체류일수": "days_in_korea", "거소 근거 조문": "residence_article", "거소 판단 근거": "residence_reason",
+    "파견 특례(§3) 적용": "dispatch_special_rule", "파견 특례 근거": "dispatch_reason", "1단계 종합": "stage1_result",
+    "1단계 종합 근거": "stage1_reason", "2단계(이중거주자)": "stage2_dual_residence", "이중거주자 여부": "dual_resident",
+    "판단 근거": "reason", "증명책임": "burden_of_proof", "3단계(조세조약 tie-break)": "stage3_treaty_tie_break",
+    "조세조약 체결 여부": "treaty_status", "tie-break 적용": "tie_break_applied", "결정 단계": "deciding_step",
+    "최종 거주지국": "residence_country", "3단계 근거": "stage3_reason", "조세조약 조문·원문": "treaty_article_text",
+    "최종 판정": "final_outcome", "최종 판정 근거": "final_reason", "유사 판례 top3": "similar_cases_top3", "법원": "court",
+    "사건번호": "case_no", "선고일": "decision_date", "사건명": "case_name", "결론": "conclusion", "판결요지": "holding",
+    "비고": "remarks", "판단이 갈리는 지점·추가 확인 사항": "open_points",
 }
+# 키가 데이터(법령 조문명·세목)인 표 — 영어 결과에선 [{이름, 값}] 목록으로 바꿔 키를 영어로 둔다
+DATA_MAPS = {"확인 시행본": ("provision", "effective_date"), "세목별 건수": ("tax", "count")}
 VALUES = {
     "질의회신": "NTS reply", "사전답변": "advance ruling", "과세기준자문": "tax base advisory", "판례": "court decision",
     "심판청구": "Tax Tribunal decision", "이의신청": "objection decision", "심사청구": "NTS review decision", "판례·결정": "decision",
@@ -39,6 +70,22 @@ VALUES = {
     "상속증여세": "inheritance & gift tax", "법인": "corporate tax", "부가": "VAT", "소득": "income tax", "양도": "capital gains tax",
     "상증": "inheritance & gift tax", "국기": "Framework Act on National Taxes", "국조": "international tax", "종부": "comprehensive real estate tax",
     "국징": "national tax collection", "조특": "tax incentives", "국세기본": "basic national tax", "국제조세": "international tax", "조세특례": "tax incentives",
+    # timing_rules 구분·세목
+    "공통": "common", "납세의무 성립": "tax liability established", "손익 귀속": "income/expense attribution",
+    "재화 공급시기": "time of supply (goods)", "용역 공급시기": "time of supply (services)", "공급시기 특례": "time of supply (special rules)",
+    "사업소득 수입시기": "receipt timing (business income)", "배당소득 수입시기": "receipt timing (dividend income)",
+    "이자소득 수입시기": "receipt timing (interest income)", "기타소득 수입시기": "receipt timing (other income)",
+    "근로소득 수입시기": "receipt timing (employment income)", "연금소득 수입시기": "receipt timing (pension income)",
+    "퇴직소득 수입시기": "receipt timing (retirement income)", "동업기업 소득 수입시기": "receipt timing (partnership income)",
+    "귀속연도": "attribution year",
+    # verify_citations 결과
+    "형식 미인식": "format not recognized", "항 없음": "paragraph not found", "호 없음": "item not found",
+    # law_article 연결 근거
+    "원문인용": "quoted in text", "공식표": "official table",
+    # residency_check 라벨
+    "적용": "applied", "미적용": "not applied", "체결(조회 성공)": "treaty in force (looked up)",
+    "체결 전제(오프라인 mock)": "treaty assumed (offline mock)", "미체결/확인 필요": "no treaty / to be confirmed",
+    "(해당 없음)": "(n/a)", "(조약 정보 없음)": "(no treaty information)",
 }
 PATTERNS = [
     (r"^다른 시행본\((\d+)\)이나 이 조 본문 동일$", r"different version (\1), same article text"),
@@ -61,7 +108,15 @@ def _val(v):
 
 
 def localize(obj):
-    if isinstance(obj, dict): return {KEYS.get(k, k): localize(v) for k, v in obj.items()}
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if k in DATA_MAPS and isinstance(v, dict):
+                a, b = DATA_MAPS[k]
+                out[KEYS.get(k, k)] = [{a: localize(x), b: localize(y)} for x, y in v.items()]
+            else:
+                out[KEYS.get(k, k)] = localize(v)
+        return out
     if isinstance(obj, list): return [localize(v) for v in obj]
     if isinstance(obj, str): return _val(obj)
     return obj

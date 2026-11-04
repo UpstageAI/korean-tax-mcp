@@ -35,7 +35,7 @@ def _split_sentences(text: str) -> list[tuple[str, str]]:
         return []
 
     # 항 표시(①~⑳), 호 표시(N.), 목 표시(가.)를 먼저 떼어 내서 기억
-    marker_re = re.compile(r"^([①-⑳]\s*|(\d+)\.\s*|(?:[가-하])\.\s*)")
+    marker_re = re.compile(r"^([①-⑳]\s*|(\d+)(?:의\d+)?\.\s*|(?:[가-하])\.\s*)")
     markers: list[tuple[int, str]] = []  # (시작 위치, 표시 문자열)
 
     result = []
@@ -173,21 +173,29 @@ def _find_paragraph_ho(text: str, sentence: str) -> str:
     if not hang_no:
         # 항 표시 없으면 호 표시만 찾기
         for i in range(sentence_line_idx, -1, -1):
-            hm = re.match(r"^(\d+)\.\s", lines[i].lstrip())
+            hm = _HO.match(lines[i].lstrip())
             if hm:
-                return f"제{hm.group(1)}호"
+                return _ho(hm)
         return "본문"
 
-    # 항 표시 이후에 문장보다 앞선 호 표시 찾기
-    ho_no = None
+    # 항 표시 이후에 문장보다 앞선 호 표시 찾기('9의2.'도 호 — 빠지면 9의2호 단서가 '제9호'로 표시됐다)
+    ho = None
     for i in range(hang_line_idx + 1, sentence_line_idx + 1):
-        hm = re.match(r"^(\d+)\.\s", lines[i].lstrip())
+        hm = _HO.match(lines[i].lstrip())
         if hm:
-            ho_no = hm.group(1)
+            ho = _ho(hm)
 
-    if ho_no:
-        return f"제{hang_no}항 제{ho_no}호"
+    if ho:
+        return f"제{hang_no}항 {ho}"
     return f"제{hang_no}항"
+
+
+_HO = re.compile(r"^(\d+)(?:의(\d+))?\.\s")
+
+
+def _ho(m):
+    """'9.' → '제9호', '9의2.' → '제9호의2'(법령 인용 표기)."""
+    return f"제{m.group(1)}호" + (f"의{m.group(2)}" if m.group(2) else "")
 
 
 def _classify_sentence(sentence: str, body: str, pos_info: str) -> list[dict]:
