@@ -103,7 +103,7 @@ def search_rulings_by_issue(
     issues: Annotated[list[str], Field(description="쟁점 문장 1~6개. 예: ['가지급금 인정이자 익금산입', '업무무관 자산 지급이자 손금불산입']")],
     tax: Annotated[Tax | None, Field(description="세목 필터. 생략하면 전체")] = None,
     kinds: Annotated[list[Kind] | None, Field(description="해석=질의회신·과세기준자문·사전답변, 판례=법원·조세심판·이의·심사. 생략하면 둘 다")] = None,
-    n_per: Annotated[int, Field(description="쟁점당 최대 건수 1~10", ge=1, le=10)] = 5,
+    n_per: Annotated[int, Field(description="쟁점마다 종류별(해석·판례) 최대 건수 1~10 — search_tax_rulings의 n과 같은 규칙", ge=1, le=10)] = 5,
     recent_years: Annotated[int, Field(description="최근 등록 문서 포함 연도 범위 0~10, 0이면 생략", ge=0, le=10)] = 3,
 ) -> dict:
     """Search rulings and decisions by multiple issues, separately per issue. 질문을 짧은 쟁점 문장 1~6개로 나눠 쟁점마다 해석·판례를 따로 검색한다.
