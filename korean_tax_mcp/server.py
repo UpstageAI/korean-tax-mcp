@@ -257,8 +257,8 @@ def law_article(
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 사실관계에 사업연도·귀속연도·과세기간이 있으면 그 기간 말일을 넣는다(생략하면 오늘 시행본). 거래처·거래일처럼 특정 날짜가 필요하면 그 날짜")] = "",
     with_delegation: Annotated[bool, Field(description="True면 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단)")] = False,
     with_rules: Annotated[bool, Field(description="True면 그 조의 기본통칙 전문과 집행기준 항목도 함께")] = False,
-    keyword: Annotated[str, Field(description="키워드가 들어간 항(①②…/제1항…)만 반환. 긴 조문(4,000자 초과)에서 항 번호 모를 때 사용")] = "",
-    paragraph: Annotated[str, Field(description="원하는 항만 지정. '①'·'1'·'제1항'·'②' 등. 호 지정: '②2호'·'제2항 제2호', 여러 호: '①5호,6호'·'제1항 제5호~제6호'(항을 빼면 제1항의 호로 봄), 여러 항: '2,3'·'②,③'·'제2항, 제3항'. 그 항·호만 반환")] = "",
+    keyword: Annotated[str, Field(description="키워드가 들어간 항만 반환. 긴 조문(4,000자 초과)에서 항 번호 모를 때 사용")] = "",
+    paragraph: Annotated[str, Field(description="원하는 항만 지정. '1'·'제1항'·'2' 등. 호 지정: '제2항 제2호', 여러 호: '제1항 제5호,제6호'·'제1항 제5호~제6호'(항을 빼면 제1항의 호로 봄), 여러 항: '2,3'·'제2항, 제3항'. 그 항·호만 반환")] = "",
 ) -> dict:
     """Get statute text as in force on a date, with optional Act → Decree → Rule chain. 조문 원문(기준일 시행본)과 3단 위임.
 
@@ -678,7 +678,7 @@ def treaty_withholding_rates(
     언제: "미국 법인에 배당하면 몇 %?" 같은 질문. 세율과 지분 요건을 조약 원문에서 뽑고 근거 조항((a)·(b)…)을 함께 준다. 조문 전체는 tax_treaty.
     반환: {국가, 발효일(현행 협정), 최초 협정 발효일?, 제한세율: [{소득, 조문, 세율: [{세율(%), 근거}], 요건·기타: [{지분요건(%), 근거}], 개정 문서 언급, 주의}], 지방소득세: {대상조세 포함, 근거, 안내}, 주의, 링크}.
     자동 추출이라 개정 의정서·교환각서가 조문을 바꿨으면 '개정 문서 언급'에 표시 — 적용 전 확인.
-    지방소득세: 대상조세에 한국 지방소득세(주민세)가 있는 조약은 제한세율이 법인세+지방소득세 합계 상한(법인세법 제98조의7①2호), 없으면 지방소득세는 따로(1호).
+    지방소득세: 대상조세에 한국 지방소득세(주민세)가 있는 조약은 제한세율이 법인세+지방소득세 합계 상한(법인세법 제98조의7제1항제2호), 없으면 지방소득세는 따로(제1항제1호).
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
     try: return ntis.withholding_rates(country, _INCOME_EN.get(income, income))
@@ -756,7 +756,7 @@ def verify_statement(
     law_name: Annotated[str, Field(description="정식 법령명. 예: '국세징수법', '소득세법', '법인세법', '국세기본법'")],
     article: Annotated[str, Field(description="조문 번호. '제112조' 또는 '제21조' 형식")],
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
-    paragraph: Annotated[str, Field(description="특정 항만 대조. '②'·'제2항'·'2' 등. 주면 그 항·하위 단위만 대조")] = "",
+    paragraph: Annotated[str, Field(description="특정 항만 대조. '제2항'·'2' 등. 주면 그 항·하위 단위만 대조")] = "",
 ) -> dict:
     """진술·주장을 조문 원문과 글자 수준에서 대조해 모순 신호(숫자·양태·반대말·시점)와 단서 누락을 돌려준다.
 
@@ -839,7 +839,7 @@ def _split_options(text):
 @mcp.tool(annotations=RO)
 @bilingual
 def judge_options(
-    statements: Annotated[list[str] | list[dict] | str, Field(description="보기·진술 문장들. 문자열 리스트(id는 ①②③④⑤ 순서), {'id','text'} 리스트(id 그대로), 또는 ①~⑤·ㄱ~ㄹ 번호가 든 문장 하나(자동 분리)")],
+    statements: Annotated[list[str] | list[dict] | str, Field(description="보기·진술 문장들. 문자열 리스트(id는 보기 번호 순서(원문자 1~5번)), {'id','text'} 리스트(id 그대로), 또는 1~5번·ㄱ~ㄹ 번호가 든 문장 하나(자동 분리)")],
     law_name: Annotated[str, Field(description=LAW)],
     articles: Annotated[list[str], Field(description="대조할 조문 1~5개. '제112조'·'제28조의2' 형식")],
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
@@ -848,7 +848,7 @@ def judge_options(
     """보기·주장 여러 개를 조문 1~5개와 한 번에 글자 대조해 보기마다 가장 맞는 조와 판정을 표로 돌려준다.
 
     언제: 여러 보기(객관식 보기·고객 진술·주장 문장)를 특정 조문(1~5개)과 한 번에 대조할 때. 보기마다 verify_statement를 따로 부르지 않고 한 번 호출로 처리.
-    입력: statements(문자열 리스트 → id ①②③④⑤ 순서, 5개 초과 시 1,2,3… / {'id','text'} 리스트 → id 그대로),
+    입력: statements(문자열 리스트 → id 보기 번호 순서(원문자 1~5번), 5개 초과 시 1,2,3… / {'id','text'} 리스트 → id 그대로),
            law_name(정식 법령명), articles('제112조' 등 1~5개), as_of(기준일, 생략 시 오늘), also_decree(기본 False — True면 각 조의 하위 위임 조문 중 law.links에서 원문인용이 확인된 것 최대 3개도 후보 조에 추가).
     처리: law.version → law._full_units로 각 조 단위 수집 → claims.judge(보기마다 모든 후보 조에 compare 실행, 겹침 최대 조 채택, 동률이면 신호 있는 쪽).
     반환: {법령, 시행본, 후보조(실제 대조한 조 목록), 보기별:[{id, 조, 판정, 근거:{위치,원문}, 대조, 단서, 겹침, 사유?}],
@@ -950,17 +950,17 @@ def residency_check(
     domestic_stay_days: Annotated[int | None, Field(description="직전연도(판정 연도-1) 국내 체류일수. 직접 입력값. entry_dates를 제공하면 자동 계산이 우선.")] = None,
     entry_dates: Annotated[list[str] | None, Field(description="입국 날짜 목록(YYYY-MM-DD). 제공 시 입국 다음날~출국일로 체류일수 자동 계산.")] = None,
     exit_dates: Annotated[list[str] | None, Field(description="출국 날짜 목록(YYYY-MM-DD). entry_dates와 1:1 대응.")] = None,
-    temporary_exit_days: Annotated[int, Field(description="관광·질병 치료 등 명백히 일시적인 출국 기간 합계(일). 시행령 §4②에 따라 국내 거소로 간주.")] = 0,
+    temporary_exit_days: Annotated[int, Field(description="관광·질병 치료 등 명백히 일시적인 출국 기간 합계(일). 시행령 제4조제2항에 따라 국내 거소로 간주.")] = 0,
     temporary_exit_reason: Annotated[str, Field(description="일시적 출국 사유 (예: '관광 5일, 치료 3일').")] = "",
     family_in_korea: Annotated[bool, Field(description="국내에 생계를 같이하는 가족이 있는지 여부.")] = False,
     family_desc: Annotated[str, Field(description="국내 가족 상황 설명 (예: '배우자·자녀 2명 서울 거주, 자녀 국내 학교 재학').")] = "",
     domestic_assets: Annotated[bool, Field(description="국내 부동산·예금·사업용 자산 등 국내 소재 자산이 있는지 여부.")] = False,
     asset_desc: Annotated[str, Field(description="국내 자산 요약 (예: '서울 아파트 자가(부부 공동명의), 국내 증권사 주식, 성남 상가 임대').")] = "",
-    job_needs_183_days: Annotated[bool, Field(description="국내 183일 이상 거주를 통상 필요로 하는 직업인지 여부 (시행령 §2③1).")] = False,
+    job_needs_183_days: Annotated[bool, Field(description="국내 183일 이상 거주를 통상 필요로 하는 직업인지 여부 (시행령 제2조제3항제1호).")] = False,
     domestic_business_activity: Annotated[bool, Field(description="국내 사업·경영 활동, 국내 사업자등록, 국내 근로소득 등 국내 경제활동 유무.")] = False,
     economic_activity_desc: Annotated[str, Field(description="경제활동 요약 (예: '국내 A건설 자문·임원 근로소득, 국내 C컨설팅 사업, 국내 B법인 배당').")] = "",
     foreign_nationality: Annotated[bool, Field(description="외국 국적이 있는지 여부.")] = False,
-    foreign_permanent_residency: Annotated[bool, Field(description="외국 영주권 또는 그에 준하는 장기체류자격을 얻었는지 여부 (시행령 §2④).")] = False,
+    foreign_permanent_residency: Annotated[bool, Field(description="외국 영주권 또는 그에 준하는 장기체류자격을 얻었는지 여부 (시행령 제2조제4항).")] = False,
     foreign_nationality_desc: Annotated[str, Field(description="외국 국적·영주권 상세 (예: '미국 국적, 2015년 미국 영주권 취득').")] = "",
     dispatched_by_korean_company: Annotated[bool, Field(description="내국법인(100% 출자 현지법인 포함) 파견 여부 (시행령 §3 특례 적용 대상).")] = False,
     local_hire_not_dispatch: Annotated[bool, Field(description="해외 현지법인에 '파견'이 아니라 퇴직 후 현지 채용된 경우 (§3 미적용, 대법원 2010두15056 구조).")] = False,
@@ -984,7 +984,7 @@ def residency_check(
     반환: {입력, 법리, 1단계(소득세법), 2단계(이중거주자), 3단계(조세조약 tie-break), 최종 판정, 유사 판례 top3, 판단이 갈리는 지점·추가 확인 사항, 주의}.
     읽기 전용, 외부 호출 없음(tax_treaty는 선택 호출, 실패 시 mock 안내 첨부).
 
-    판단 순서: (1) 소득세법 §1의2·시행령 §2(①③④)·§3·§4 → 주소/거소/파견 특례 → 거주자·비거주자·판단 보류
+    판단 순서: (1) 소득세법 §1의2·시행령 제2조(제1항·제3항·제4항)·§3·§4 → 주소/거소/파견 특례 → 거주자·비거주자·판단 보류
     (2) 이중거주자 여부 (증명책임: 납세의무자, 대법원 2006두3964)
     (3) 조세조약 tie-break (항구적 주거 → 중대한 이해관계 중심지 → 일상적 거소 → 국적 → 상호합의)
     - 상대국이 주어지면 tax_treaty(country, keyword='거주자')로 조약 거주자 조문 번호·tie-break 원문 일부를 첨부한다.
