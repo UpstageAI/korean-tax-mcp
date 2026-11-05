@@ -1357,7 +1357,7 @@ def test_law_article_long_body_no_args_returns_paragraph_list(monkeypatch):
 
     r = _call("law_article", {"law_name": "국세기본법", "article": "제99조"})
     assert "error" not in r
-    assert r.get("반환 범위") == "항 목록"
+    assert "항 목록" in r.get("반환 범위", ""), r.get("반환 범위")
     assert "항 목록" in r, "항 목록 필드 누락"
     assert "안내" in r, "안내 필드 누락"
     assert "keyword 또는 paragraph로 필요한 항만 조회하세요" in r.get("안내", ""), "안내 문구 불일치"
@@ -1366,7 +1366,7 @@ def test_law_article_long_body_no_args_returns_paragraph_list(monkeypatch):
 
 
 def test_law_article_keyword_not_found_in_long_body(monkeypatch):
-    """keyword가 본문에 없는 긴 조문 → 앞 2,000자 + 안내."""
+    """keyword가 본문에 없는 긴 조문 → 항 단위로 자른 본문(4,000자 이하) + 생략 표시."""
     from korean_tax_mcp import law
     monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
 
@@ -1395,9 +1395,9 @@ def test_law_article_keyword_not_found_in_long_body(monkeypatch):
     r = _call("law_article", {"law_name": "소득세법 시행령", "article": "제155조", "keyword": "존재하지않는단어"})
     assert "error" not in r
     # t5b: keyword 일치 없음 → 반환 범위 "일치 없음", 항_호_목록 포함
-    assert r.get("반환 범위") == "일치 없음", f"반환 범위 예상 '일치 없음', 실제: {r.get('반환 범위')!r}"
+    assert r.get("반환 범위", "").startswith("일치 없음"), f"반환 범위 예상 '일치 없음 …', 실제: {r.get('반환 범위')!r}"
     assert "항_호_목록" in r, "일치 없음 시 항_호_목록 필드 필요"
-    assert len(r.get("본문", "")) <= 2000
+    assert len(r.get("본문", "")) <= 4000
 
 
 def test_find_article_smoke_real_network(monkeypatch):
@@ -1619,7 +1619,7 @@ def test_law_article_keyword_일치없음_항호목록(monkeypatch):
     from korean_tax_mcp import law
     a = law._article_body_with_scope("국세징수법", "제41조", None, "20240101", None, "존재하지않는키워드XYZ")
     assert "error" not in a
-    assert a["반환 범위"] == "일치 없음", f"반환 범위 예상 '일치 없음', 실제: {a['반환 범위']!r}"
+    assert a["반환 범위"].startswith("일치 없음"), f"반환 범위 예상 '일치 없음 …', 실제: {a['반환 범위']!r}"
     assert "일치 없음" in a, "일치 없음 필드 누락"
     assert "항_호_목록" in a, "항_호_목록 필드 누락"
     ho_list = a["항_호_목록"]
@@ -1628,8 +1628,8 @@ def test_law_article_keyword_일치없음_항호목록(monkeypatch):
     for entry in ho_list:
         assert "위치" in entry and "앞30자" in entry, f"항_호_목록 항목 누락: {entry}"
         assert len(entry["앞30자"]) <= 30, f"앞30자 초과: {entry['앞30자']!r}"
-    # 본문은 앞 2000자 (전체 아님, 전체는 아니지만 일부 포함)
-    assert len(a["본문"]) <= 2000, f"본문 2000자 초과: {len(a['본문'])}"
+    # 4,000자 이하 조문은 본문 전체(말없이 자르지 않음)
+    assert a["본문"].strip() == _BODY_HO_ONLY.strip() or len(a["본문"]) >= len(_BODY_HO_ONLY.strip()) - 20, len(a["본문"])
 
 
 def test_law_article_keyword_일치없음_항호목록_항구조(monkeypatch):
@@ -1637,7 +1637,7 @@ def test_law_article_keyword_일치없음_항호목록_항구조(monkeypatch):
     _law_article_mock_body(monkeypatch, _BODY_PARAGRAPH_HO, law_name="법인세법")
     from korean_tax_mcp import law
     a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", None, "없는키워드")
-    assert a["반환 범위"] == "일치 없음"
+    assert a["반환 범위"].startswith("일치 없음")
     ho_list = a["항_호_목록"]
     # 항 라벨(제1항, 제2항, 제3항)이 목록에 포함되어야 함
     locs = [e["위치"] for e in ho_list]
@@ -1664,7 +1664,7 @@ def test_law_article_no_keyword_long_body_항목록(monkeypatch):
     from korean_tax_mcp import law
     a = law._article_body_with_scope("법인세법", "제52조", None, "20240101", None, None)
     assert "error" not in a
-    assert a["반환 범위"] == "항 목록", f"반환 범위 예상 '항 목록', 실제: {a['반환 범위']!r}"
+    assert "항 목록" in a["반환 범위"], f"반환 범위 예상 '… 항 목록', 실제: {a['반환 범위']!r}"
     assert "항 목록" in a, "항 목록 필드 누락"
     assert "안내" in a, "안내 필드 누락"
 

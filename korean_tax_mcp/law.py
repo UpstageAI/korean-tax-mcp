@@ -1388,8 +1388,18 @@ def _paragraphs_matching_keyword(body, kw):
     return sorted(set(matched), key=lambda x: int(re.search(r"\d+", x).group()))
 
 
+def _항_범위(raw_paragraphs, suffix="전문"):
+    """포함된 항 범위 문자열. 하나뿐이면 '제N항 전문', 여러 개면 '제N항~제M항 전문'.
+    생략 항 표시에도 같은 방식으로 쓴다( suffix='생략' )."""
+    first = raw_paragraphs[0][0]
+    last = raw_paragraphs[-1][0]
+    if first == last:
+        return f"{first} {suffix}"
+    return f"{first}~{last} {suffix}"
+
+
 def _apply_long_article_logic(a, body, limit, prefix=""):
-    """조문이 limit자 초과일 때 항 단위 절단, 생략된 항 표시, 반환 범위 '항 목록'을 a에 반영한다.
+    """조문이 limit자 초과일 때 항 단위 절단, 생략된 항 표시, 반환 범위를 돌려준 내용대로 a에 반영한다.
 
     짧은 조문은 아무 역할도 하지 않는다.
     prefix: paragraph를 못 찾은 경우 안내 앞에 붙일 문구.
@@ -1411,7 +1421,39 @@ def _apply_long_article_logic(a, body, limit, prefix=""):
         a["안내"] = prefix + base + f" 생략된 항: {omitted_str}"
     else:
         a["안내"] = prefix + base
-    a["반환 범위"] = "항 목록"
+
+    # 반환 범위: 실제로 돌려준 항·본문 범위
+    if not raw_paragraphs:
+        # 항 기호 없는 긴 본문: 잘라낸 앞부분 글자 수 + 항 목록
+        a["반환 범위"] = f"앞 {len(truncated):,}자(전체 {len(body):,}자) + 항 목록"
+    else:
+        # 항 기호 있음: 포함된 항 범위 + (잘린 항) + (생략된 항) + 항 목록
+        if omitted:
+            first_omitted = omitted[0]
+            omitted_idx = next(i for i, (hn, _) in enumerate(raw_paragraphs) if hn == first_omitted)
+
+        if cut_hang:
+            cut_idx = next(i for i, (hn, _) in enumerate(raw_paragraphs) if hn == cut_hang)
+            if cut_idx == 0:
+                included = f"{raw_paragraphs[0][0]} 일부(잘림)"
+            else:
+                included = _항_범위(raw_paragraphs[:cut_idx])
+        elif omitted:
+            if omitted_idx >= 0:
+                included = _항_범위(raw_paragraphs[:omitted_idx])
+            else:
+                included = ""
+        else:
+            included = _항_범위(raw_paragraphs)
+
+        parts = [included] if included else []
+        if omitted:
+            parts.append(_항_범위(raw_paragraphs[omitted_idx:], suffix="생략"))
+        parts.append("항 목록")
+        if len(parts) > 1:
+            a["반환 범위"] = " — ".join(parts[:-1]) + " + " + parts[-1]
+        else:
+            a["반환 범위"] = parts[0]
 
 
 def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, keyword):
@@ -1526,8 +1568,13 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
                 ho_list.append({"위치": "전체", "앞30자": body[:30]})
             a["일치 없음"] = f"'{keyword}'가 포함된 항·호·목이 확인되지 않음"
             a["항_호_목록"] = ho_list
-            a["본문"] = body[:2000]
-            a["반환 범위"] = "일치 없음"
+            if len(body) <= 4000:
+                a["본문"] = body
+                a["반환 범위"] = "일치 없음 — 전체"
+            else:
+                prefix = f"'{keyword}'가 든 항·호·목이 없음. "
+                _apply_long_article_logic(a, body, 4000, prefix=prefix)
+                a["반환 범위"] = "일치 없음 — " + a["반환 범위"]
     elif not paragraph and len(body) > 4000:
         _apply_long_article_logic(a, body, 4000)
     else:
