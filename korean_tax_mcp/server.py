@@ -34,6 +34,29 @@ mcp = MCPServer(
                  "계산 도구(korean-tax-calc-mcp) 결과가 직접 계산이나 기억과 다르면 바로 어느 쪽을 고르지 말고, 두 값을 가르는 조문을 law_article로 열어 요건을 사실관계에 하나씩 대조한다. "
                  "도구가 틀렸다는 조문 근거를 찾지 못하면 도구 값을 따르고, 다른 값을 쓸 때는 그 조문 번호를 밝힌다.")
 
+# 모르는 인자는 무시하지 않고 오류로 돌려준다. 기준일을 date로 넣으면 그동안 조용히 오늘 시행본이 나왔다(2026-11-08).
+_ARG_HINT = {"date": "as_of", "기준일": "as_of", "base_date": "as_of", "effective_date": "as_of", "law": "law_name",
+             "법령": "law_name", "법령명": "law_name", "조문": "article", "query": "keyword"}
+_call_tool_orig = mcp.call_tool
+
+
+async def _call_tool_strict(name, arguments, context=None):
+    tool = mcp._tool_manager.get_tool(name)
+    if tool is not None and isinstance(arguments, dict):
+        allowed = set((tool.parameters or {}).get("properties", {}))
+        unknown = [k for k in arguments if k not in allowed]
+        if unknown:
+            from mcp.server.mcpserver.exceptions import ToolError
+            tips = [f"{k} → {_ARG_HINT[k]}" for k in unknown if _ARG_HINT.get(k) in allowed]
+            raise ToolError(f"{name}: 모르는 인자 {', '.join(unknown)} — 계산하지 않음."
+                            + (f" 이 이름을 쓰세요: {'; '.join(tips)}." if tips else "")
+                            + f" 쓸 수 있는 인자: {', '.join(sorted(allowed))}"
+                            + (" (기준일은 as_of, YYYYMMDD)" if "as_of" in allowed else ""))
+    return await _call_tool_orig(name, arguments, context)
+
+
+mcp.call_tool = _call_tool_strict
+
 TAXES = tuple(ntis.TAX_CODES)
 RO = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
 Tax = Literal["법인", "부가", "소득", "양도", "상증", "국기", "국징", "조특", "국조", "종부"]
