@@ -1514,7 +1514,8 @@ def _article_body_with_scope(law_name, norm, hang_from_input, ef, paragraph, key
                         a["본문"] = para_text
                         a["반환 범위"] = hang
                         hos = _항_내_호_목록(para_text)
-                        a["안내"] = f"제{re.sub(r'\D', '', ho)}호가 없음. 호 목록: {', '.join(hos)}"
+                        ho_num = re.sub(r"\D", "", ho)
+                        a["안내"] = f"제{ho_num}호가 없음. 호 목록: {', '.join(hos)}"
                         handled = True
 
                 # P2: 숫자 하나(항 번호)인데 제N항 없고 제1항 제N호 있음 → 폴백
