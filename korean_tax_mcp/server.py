@@ -21,7 +21,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import _mask_oc, casebook, cite, i18n, law, localdocs, net, ntis, outcome, residency, solar, timeline
+from . import _mask_oc, casebook, cite, claims, i18n, law, localdocs, net, ntis, outcome, residency, solar, timeline
 from . import timing_rules as _timing_rules_data
 
 mcp = MCPServer(
@@ -829,7 +829,6 @@ def verify_statement(
                     filtered = [u for u in filtered if _match(u, 항_c, 호_n)]
         if not filtered:
             return {"error": f"{norm} 조문 단위를 {ef} 시행본에서 찾지 못함"}
-        from . import claims
         r = claims.compare(statement, filtered)
         r["법령"] = law_name
         r["조"] = norm
@@ -938,7 +937,6 @@ def judge_options(
         if not units_map:
             return {"error": f"대조할 조 단위가 없음 — {ef} 시행본에서 찾지 못한 조: {missing}"}
 
-        from . import claims
         r = claims.judge(stmts, units_map)
         if "error" in r: return r
         r["법령"] = law_name
