@@ -7,7 +7,6 @@ AI에 맡기면 자주 틀리는 시점 판단을 코드로 고정한다.
 - 해석 시점: 해석·판례 등록일에 시행되던 조문이 기준일 조문과 같은지 표시(같은 시행본이면 '같음', 본문이 바뀌었으면 '개정 후')
 """
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 from . import law, net, ntis
@@ -62,7 +61,7 @@ def _norm(t): return re.sub(r"\s+", "", t or "")
 
 def research(law_name, article, period, tax=None, n=8, event=None, registered=None):
     day, why = base_date(period, tax, event, registered)
-    today = time.strftime("%Y%m%d")
+    today = law.today()
     out = {"기준일": day, "기준일 근거": why, "법령": law_name, "조": article}
     with ThreadPoolExecutor(4) as ex:   # net.submit: 작업 스레드에도 시간 예산을 넘김
         f_rules = net.submit(ex, ntis.basic_rules, law_name, article)
