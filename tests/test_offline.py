@@ -2,7 +2,7 @@
 import asyncio, json
 import urllib.parse
 import pytest
-from korean_tax_mcp import casebook, law, ntis
+from korean_tax_mcp import casebook, law, net, ntis
 from korean_tax_mcp.server import mcp
 
 
@@ -15,9 +15,9 @@ def _clear_law_caches():
             f = getattr(law, name)
             (f.clear if hasattr(f, "clear") else f.cache_clear)()
         law._FIND_CACHE.clear()
-    clear()
+    clear(); net.reset()   # 앞 테스트의 연결 실패 기억(20초)이 뒤 테스트의 가짜 응답을 가로막지 않게
     yield
-    clear()
+    clear(); net.reset()
 
 
 def _call(name, args):
@@ -567,11 +567,28 @@ def test_residency_tools_registered():
     assert RESIDENCY_TOOLS[1] in names, f"residency_report 누락: {sorted(names)}"
 
 
+_FAKE_TREATIES = {"미국": "19791020"}   # 체결국 → 발효일. 그 밖의 나라는 실제처럼 '찾지 못함' 오류
+
+
+def _fake_treaty(country, article="", keyword="", english=False):
+    """ntis.treaty의 오프라인 고정 응답 — 실제 반환 모양(조문 [{조, 제목, 영문 제목, 본문}], 발효일, 링크)만 맞춘다."""
+    if country not in _FAKE_TREATIES:
+        return {"error": f"조약 체결국에서 '{country}'를 찾지 못함", "체결국": sorted(_FAKE_TREATIES)}
+    arts = [{"조": "제3조", "제목": "과세상의 주소", "영문 제목": "Article 3 Fiscal Domicile",
+             "본문": "(1) 이 협약에서 '일방체약국의 거주자'라 함은 그 체약국의 법에 따라 주소·거소 등으로 그 국가에서 납세의무가 있는 자를 말한다. "
+                     "(2) 개인이 양 체약국의 거주자인 경우 (a) 항구적 주거 (b) 중대한 이해관계의 중심지 (c) 일상적 거소 (d) 국민 (e) 상호합의 순으로 결정한다."}]
+    if keyword: arts = [a for a in arts if keyword in a["제목"] or keyword in a["본문"]]
+    return {"국가": country, "발효일": _FAKE_TREATIES[country], "조문": arts,
+            "링크": "https://taxlaw.nts.go.kr/st/USESTC002M.do?txaAgrmBscId=US1"}
+
+
 def _residency_check(**kwargs):
-    """residency_check 도구 호출 헬퍼."""
+    """residency_check 도구 호출 헬퍼. 조세조약 조회는 오프라인 고정 응답(_fake_treaty)."""
     args = dict(kwargs)
     args.setdefault("lang", "ko")
-    return _call("residency_check", args)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(ntis, "treaty", _fake_treaty)
+        return _call("residency_check", args)
 
 
 # ── 시나리오 A (김OO): 국내 생활기반 강함 → 1단계 거주자 ────────────────────
@@ -1484,53 +1501,24 @@ def _law_article_mock_body(monkeypatch, body, law_name="국세징수법"):
     """law._get이 고정된 본문을 반환하도록 mock. OC 키 설정 포함.
 
     law_name: lawSearch.do 응답에 반환할 법령명 (article() 내부 version() 호출과 일치시켜야 함).
+    urlopen이 아니라 law._get을 바꾼다 — net의 연결 실패 기억(20초)·재시도를 거치지 않아 네트워크가 막혀도 같은 답.
     """
     from korean_tax_mcp import law
-    import urllib.request, json
 
     monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
 
-    class _MockResp:
-        def __init__(self, data): self._data = data
-        def __enter__(self): return self
-        def __exit__(self, *args): pass
-        def read(self): return self._data
-
-    def mock_urlopen(req, context=None, timeout=None):
-        url = req.full_url
-        if "lawSearch.do" in url:
-            return _MockResp(json.dumps(
-                {"LawSearch": {"law": [{"법령명한글": law_name, "법령일련번호": "1", "시행일자": "20240101"}]}}
-            ).encode())
-        return _MockResp(json.dumps({"법령": {"Law": [{"본문내용": body}]}}).encode())
+    def mock_get(path, query):
+        if "lawSearch.do" in path:
+            return {"LawSearch": {"law": [{"법령명한글": law_name, "법령일련번호": "1", "시행일자": "20240101"}]}}
+        return {"법령": {"Law": [{"본문내용": body}]}}
 
     law._versions.clear()
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(law, "_get", mock_get)
 
 
 def _t5c_mock_law_setup(monkeypatch, body):
     """SPEC t5c 테스트용 law._get mock 설정. OC 키 + 고정 본문."""
-    from korean_tax_mcp import law
-    import urllib.request, json
-
-    monkeypatch.setenv("LAW_OC", "test-oc-key-12345")
-
-    class _MockResp:
-        def __init__(self, data): self._data = data
-        def __enter__(self): return self
-        def __exit__(self, *args): pass
-        def read(self): return self._data
-
-    def mock_urlopen(req, context=None, timeout=None):
-        url = req.full_url
-        if "lawSearch.do" in url:
-            return _MockResp(json.dumps(
-                {"LawSearch": {"law": [{"법령명한글": "국세징수법", "법령일련번호": "1", "시행일자": "20240101"}]}}
-            ).encode())
-        return _MockResp(json.dumps({"법령": {"Law": [{"본문내용": body}]}}).encode())
-
-    law._versions.clear()
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    _law_article_mock_body(monkeypatch, body, law_name="국세징수법")
 
 
 @pytest.fixture
