@@ -122,8 +122,6 @@ def search_tax_rulings(
         if note is not None:
             try:
                 t = tribunal.search(query, n, local_only=True)
-                results = [dict(r) for r in results]
-                results.extend(t["결과"])
                 return {"결과": results, "조세심판원 결정례": t["결과"],
                         "지방세 안내": note,
                         "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조"}
@@ -177,16 +175,11 @@ def search_rulings_by_issue(
         if note is not None:
             try:
                 t = tribunal.search(combined_query, n_per * len(issues), local_only=True)
-                tt = [dict(x) for x in t["결과"]]
-                # 쟁점별 결과에 조세심판원 결정례 추가 (중복 id 제거)
-                t_ids: set[str] = set()
-                for x in tt:
-                    if x.get("id") and x["id"] not in t_ids:
-                        t_ids.add(x["id"])
-                    else:
+                tt, t_ids = [], set()
+                for x in t["결과"]:                               # 중복 id 제거, 기존 쟁점별 결과는 그대로
+                    if x.get("id") in t_ids:
                         continue
-                    for item in result:
-                        item["결과"] = list(item.get("결과", [])) + [x]
+                    t_ids.add(x.get("id")); tt.append(x)
                 return {"쟁점별": result, "조세심판원 결정례": tt,
                         "지방세 안내": note,
                         "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조. '선정: 최근'은 최근 등록 문서"}
