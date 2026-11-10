@@ -43,6 +43,7 @@ KEYS = {
     "법령명 안내": "law_name_note", "법령명 경고": "law_name_warning", "일치 문장": "matching_sentences", "관련 부칙": "related_addenda",
     "부칙": "addenda",
     # tax_treaty · treaty_withholding_rates — 현행 협정 발효일·지방소득세
+    "발령일": "promulgated_date", "소관": "jurisdiction",
     "서명일": "signed", "최초 협정 발효일": "original_treaty_in_force", "발효일 주의": "in_force_note",
     "관련 문서": "related_documents", "종전 협정 문서": "superseded_treaty_documents",
     "지방소득세": "local_income_tax", "대상조세 포함": "covered_by_treaty",

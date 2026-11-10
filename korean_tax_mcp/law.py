@@ -815,11 +815,11 @@ def _sentences_with_keywords(text, kw_words, max_chars=200):
     """키워드 단어가 모두 들어간 문장 1~2개(각 200자 이내)."""
     if not text or not kw_words:
         return []
-    parts = re.split(r"([。\。\n]+)", text)
+    parts = re.split(r"([。\。\n.]+)", text)
     sents = []
     buf = ""
     for p in parts:
-        if p in ("。", "。", "\n", ""):
+        if p in ("。", "。", "\n", ".", ""):
             if buf.strip():
                 sents.append(buf.strip())
             buf = ""
