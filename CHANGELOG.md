@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.13 (2026-11-10)
+
+보완 Claude(뼈대 Solar Pro 4). 조회 결과는 바뀌지 않음(오프라인 248·라이브 39 테스트).
+
+- 기준일(as_of) 정규화를 `law.as_of_or_today` 한 곳으로 — 9곳에 복제돼 있던 규칙이 조금씩 달랐다(`addenda`·`version_row`는 "2025-03-01"의 하이픈을 안 떼고 비교, 일부는 빈 값 기본값 없음). 이제 모든 도구가 YYYYMMDD·YYYY-MM-DD·YYYY.MM.DD를 같게 읽고, 비면 오늘(KST). 잘못된 값 오류문 통일.
+- 항 번호 ①↔N 변환을 `law.hang_circled`/`hang_num`(①~⑳) 한 곳으로 — 5파일 6곳 정의 통합.
+- `history`·`cite.verify`·`outcome.compare`·`timeline.research`의 스레드 호출을 `net.submit`으로 — 시간 예산(contextvars)이 작업 스레드에 전파되지 않아 예산 초과 뒤에도 요청이 이어지던 문제.
+- `find_article`·`history`가 망 장애(`net.Unreachable`·`BudgetExceeded`)를 삼키고 "법령을 찾지 못함 — law_name 확인"/"확인 불가"로 오진하던 것을 수정 — 이제 다른 도구처럼 "법제처가 응답하지 않았습니다" 안내.
+- "오늘"이 로컬 시간 → KST. 한국 PC에선 같고, UTC 서버에선 KST 00~09시 날짜가 맞게 됨.
+- 테스트: `tests/test_asof_hang.py` 8건, `tests/test_robust_timeouts.py` 4건.
+
 ## 0.12.12 (2026-11-10)
 
 보완 Claude(뼈대 Solar Pro 4).
