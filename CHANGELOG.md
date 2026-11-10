@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.15 (2026-11-10)
+
+뼈대 Solar Pro 4, 보완 Claude.
+
+- claims.py: 괄호 안 제외·포함·한정 단서(단위 원문 부분 문자열)를 가상 단위로 확장해 compare·judge가 대조 단위로 사용. 정의 괄호('이하 … 라 한다'·'이하 같다'·'말한다')는 제외. 중첩은 바깥 묶음만.
+- claims.py·server.py: compare·judge 판정 '판단 필요'인 진술/보기에 find_article 키워드 기반 '다음 단계' 안내 추가, judge 요약에 '다른 조문 확인' 목록 추가.
+- tribunal.py·localtax.py·server.py: 조세심판원 재결례(법제처 특별행정 재결례 target=ttSpecialDecc) 검색·상세 도구 2개 추가. search_tax_rulings·search_rulings_by_issue 결과에 지방세 질의면 조세심판원 결정례와 지방세 안내를 덧붙임.
+
 ## 0.12.14 (2026-11-10)
 
 보완 Claude(뼈대 Solar Pro 4). 조회 결과는 바뀌지 않음(오프라인 250·망 차단 250·라이브 39 테스트).

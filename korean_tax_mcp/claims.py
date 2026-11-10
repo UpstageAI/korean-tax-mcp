@@ -11,6 +11,8 @@ from __future__ import annotations
 import math
 import re
 
+from . import reading
+
 Unit = tuple[str, str, str, str]          # (조, 항, 호, 원문) — law._full_units 형식
 
 # ── 문장·n-gram ────────────────────────────────────────────────────────────────
@@ -51,8 +53,57 @@ def _parent(units: list[Unit], i: int) -> int | None:
 
 def _location(u: Unit) -> str:
     jo, hang, ho, _ = u
+    if ho == "(괄호)":
+        return _paren_location(u)
     parts = [jo] + ([hang] if hang else []) + ([ho.rstrip(".") + "호"] if ho else [])
     return " ".join(parts)
+
+
+def _paren_location(u: Unit) -> str:
+    """괄호 단서 가상 단위의 위치: '제52조 ① 괄호 단서' / '제52조 괄호 단서'."""
+    jo, hang, _ho, _ = u
+    base = jo + (" " + hang if hang else "")
+    return base + " 괄호 단서"
+
+
+# ── 괄호 단서 단위 확장 ────────────────────────────────────────────────────────
+_PROVISO_KW = re.compile(r"제외|포함|한정|해당하는 경우|경우만|경우는|경우에는")
+_DEF_PAREN_RE = re.compile(r"이하\s+.*?(?:이|라)\s*한다$|이하\s*같다$|\s*말한다$")
+
+
+def expand_paren_units(units: list[Unit]) -> list[Unit]:
+    """각 단위의 원문에서 괄호 안 제외·포함·한정 단서를 가상 단위로 추가.
+
+    - reading._find_parenthesized로 짝 맞는 괄호 묶음을 찾고, nested면 바깥 묶음만.
+    - 괄호 안이 정의 괄호('이하 … (이|라) 한다'·'이하 같다'·'말한다'로 끝)이면 제외.
+    - 괄호 안에 제외·포함·한정 단서 키워드가 있으면 그 단위 바로 뒤에 가상 단위 추가.
+    - 가상 단위: (조, 항, ho+'(괄호)', 괄호 묶음 원문). 괄호 묶음 원문은 시행본 원문의
+      부분 문자열(지어내지 않음). 근거·신호·구절 대조도 그 글을 씀.
+    - 중첩 괄호는 바깥 묶음만. 한 단위에 괄호 단서가 여럿이면 각각 별도 단위로.
+    """
+    out: list[Unit] = []
+    for u in units:
+        out.append(u)
+        text = u[3]
+        seen: set[tuple[int, int]] = set()
+        for m in re.finditer(r"\(", text):
+            pair = reading._find_parenthesized(text, m.start())
+            if pair is None:
+                continue
+            s, e = pair
+            if (s, e) in seen:
+                continue
+            seen.add((s, e))
+            inner = text[s:e]                      # 괄호 묶음 원문(시행본 부분 문자열)
+            content = text[s + 1:e - 1]           # 괄호 안 내용
+            if _DEF_PAREN_RE.search(content):
+                continue
+            if not _PROVISO_KW.search(content):
+                continue
+            jo, hang, ho, _ = u
+            new_ho = f"{ho}(괄호)" if ho else "(괄호)"
+            out.append((jo, hang, new_ho, inner))
+    return out
 
 
 # ── 숫자 ───────────────────────────────────────────────────────────────────────
@@ -313,26 +364,58 @@ def _phrase_diffs(stmt: str, ref_sentence: str, limit: int = 4) -> list[dict]:
     return out
 
 
+def _next_step_keyword(statement: str) -> str:
+    """진술의 내용어 어절 중 길이 2 이상·숫자 아님·_REF_ONLY 아님 → 중복 없이 최대 4개 공백 결합."""
+    toks = _toks(statement)
+    kw: list[str] = []
+    seen: set[str] = set()
+    for n, _s, _e in toks:
+        if len(n) < 2 or n.isdigit() or _REF_ONLY.match(n):
+            continue
+        if n not in seen:
+            seen.add(n)
+            kw.append(n)
+        if len(kw) >= 4:
+            break
+    return " ".join(kw)
+
+
+_NEXT_STEP_GUIDE = (
+    "준 조문에 없는 내용일 수 있음 — find_article(keyword, law_name 생략 → 주요 세법 전부)로 "
+    "다른 법령(특례·감면은 조세특례제한법, 절차·기한은 국세기본법, 위임은 시행령)의 조문을 찾은 뒤 "
+    "law_article로 원문 확인"
+)
+
+
 def compare(statement: str, units: list[Unit]) -> dict:
     """진술과 한 조의 단위 목록을 대조.
 
     반환 {"판정", "근거": {"위치", "원문"}, "대조": [{"종류", "진술", "조문", "위치"}], "단서": [...], "겹침"}
     - 근거 원문·대조의 조문 문구·단서는 모두 시행본 원문의 부분 문자열
     - 판정: 신호 있으면 '모순', 없고 겹침 ≥ 0.5 '차이 없음', 아니면 '판단 필요'
+    - 괄호 안 제외·포함·한정 단서를 가상 단위로 확장 후 대조(expand_paren_units).
+    - 판정 '판단 필요'면 '다음 단계' 안내 추가.
     """
     if not units:
         return {"error": "조문 단위가 없음"}
+    units_orig = list(units)
+    units = expand_paren_units(units_orig)          # 먼저 확장 → virt_map은 결과로 재구성
     sents = _sentences(statement)
     contexts = [_context(units, i) for i in range(len(units))]
     ctx_grams = [set(_grams(c)) for c in contexts]
     n = len(units)
-    df: dict[str, int] = {}
-    for gs in ctx_grams:
+
+    # ── 원본 단위 기준 IDF (expand_paren_units 이후 n 증가로 IDF가 바뀌는 것을 방지) ──
+    n_orig = len(units_orig)
+    contexts_orig = [_context(units_orig, i) for i in range(n_orig)]
+    ctx_grams_orig = [set(_grams(c)) for c in contexts_orig]
+    df_orig: dict[str, int] = {}
+    for gs in ctx_grams_orig:
         for g in gs:
-            df[g] = df.get(g, 0) + 1
+            df_orig[g] = df_orig.get(g, 0) + 1
 
     def idf(g: str) -> float:
-        return math.log(n / df[g]) + 1.0 if g in df else math.log(n) + 2.0   # 어느 단위에도 없는 말은 가장 무겁게(불일치 벌점)
+        return math.log(n_orig / df_orig[g]) + 1.0 if g in df_orig else math.log(n_orig) + 2.0
 
     def overlap(sent: str, i: int) -> float:
         topic = (_TOPIC.match(sent).group(1) if _TOPIC.match(sent) else "")
@@ -343,22 +426,24 @@ def compare(statement: str, units: list[Unit]) -> dict:
         den = sum(w[g] * idf(g) for g in w) or 1.0
         return num / den
 
-    # 어느 항을 근거로 삼을지는 숫자를 빼고, 드문 두 글자 낱말(예: '문화', '전통')을 함께 본다 —
-    # 숫자가 틀린 진술일수록 숫자가 같은 엉뚱한 항으로 끌려가는 것을 막는다(Claude 2026-10-28).
+    # ── 앵커: 희귀 기준은 원본 단위 df2·n_orig, bi·overlap은 각 단위 자신의 확장 컨텍스트 기준 ──
     def _bi(text: str) -> set[str]:
         t = re.sub(r"\d", "", _STRIP.sub("", text))
         return {t[j:j + 2] for j in range(len(t) - 1)}
-    ctx_bi = [_bi(c) for c in contexts]
-    df2: dict[str, int] = {}
-    for gs in ctx_bi:
+    ctx_bi_orig = [_bi(c) for c in contexts_orig]       # 희귀 판단용 df2 원천(확장 가상 단위 영향 없음)
+    df2_orig: dict[str, int] = {}
+    for gs in ctx_bi_orig:
         for g in gs:
-            df2[g] = df2.get(g, 0) + 1
+            df2_orig[g] = df2_orig.get(g, 0) + 1
+    ctx_bi = [_bi(c) for c in contexts]                 # anchor에서 bi 참조용
 
     def anchor(sent: str, i: int) -> float:
         sb = _bi(sent)
-        rare = {g for g in sb if g in df2 and df2[g] <= max(1, n // 4)}   # 이 조에서 드문 낱말만
-        bonus = sum(math.log(n / df2[g]) + 1.0 for g in rare if g in ctx_bi[i]) / (sum(math.log(n / df2[g]) + 1.0 for g in rare) or 1.0)
-        return overlap(sent, i) + 0.6 * bonus
+        rare = {g for g in sb if g in df2_orig and df2_orig[g] <= max(1, n_orig // 4)}
+        bi = ctx_bi[i]
+        bonus = sum(math.log(n_orig / df2_orig[g]) + 1.0 for g in rare if g in bi) / (sum(math.log(n_orig / df2_orig[g]) + 1.0 for g in rare) or 1.0)
+        ov = overlap(sent, i)
+        return ov + 0.6 * bonus
 
     best = [max(range(n), key=lambda i: anchor(s, i)) for s in sents]
     signals: list[dict] = []
@@ -402,6 +487,7 @@ def compare(statement: str, units: list[Unit]) -> dict:
         out["안내"] = "숫자·양태 신호는 없지만 진술과 원문 구절이 다름 — '대조'의 진술·조문 구절을 비교해 같은 뜻인지 판단"
     if verdict == "판단 필요":
         out["안내"] = "이 조에서 진술과 겹치는 단위가 적음 — find_article·search로 다른 조문 확인"
+        out["다음 단계"] = {"도구": "find_article", "keyword": _next_step_keyword(statement), "안내": _NEXT_STEP_GUIDE}
     return out
 
 
@@ -449,6 +535,10 @@ def judge(statements: list[dict], article_units: dict[str, list[Unit]]) -> dict:
                      "대조": best_result.get("대조", []),
                      "단서": best_result.get("단서", []),
                      "겹침": best_overlap}
+        if best_result["판정"] == "판단 필요":
+            res["다음 단계"] = {"도구": "find_article",
+                                "keyword": _next_step_keyword(stmt["text"]),
+                                "안내": _NEXT_STEP_GUIDE}
         units_here = dict(jo_candidates)[best_jo]
         all_texts = [u[3] for u in units_here]
         ref_text = (best_result.get("근거") or {}).get("원문", "")
@@ -471,7 +561,11 @@ def judge(statements: list[dict], article_units: dict[str, list[Unit]]) -> dict:
         results.append(res)
 
     summary = {"모순": [], "구절 다름": [], "차이 없음": [], "판단 필요": []}
+    other_law: list[str] = []
     for res in results:
         summary[res["판정"]].append(res["id"])
+        if res["판정"] == "판단 필요":
+            other_law.append(res["id"])
+    summary["다른 조문 확인"] = other_law
     return {"보기별": results, "요약": summary,
             "주의": "글자 대조 결과 — 법적 판단은 원문으로 확인. '판단 필요'는 준 조문과 겹침이 낮은 보기(다른 조문일 수 있음)"}
