@@ -6,7 +6,7 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-from . import ntis
+from . import net, ntis
 
 WIN, PART, LOSE, OTHER = "납세자 승(인용·취소)", "일부 인용", "납세자 패(기각)", "각하·기타"
 
@@ -104,7 +104,7 @@ def compare(issue, tax=None, n=16, limit=600):
     """쟁점 → {납세자 승: [...], 일부 인용: [...], 납세자 패: [...], 각하·기타: [...], 집계}"""
     rows = ntis.search(issue, ("판례",), tax, "정확도", 30)
     rows = rows[:n]
-    with ThreadPoolExecutor(4) as ex: done = list(ex.map(lambda r: analyze(r, limit), rows))
+    with ThreadPoolExecutor(4) as ex: done = [f.result() for f in [net.submit(ex, analyze, r, limit) for r in rows]]   # 시간 예산 전파
     out = {WIN: [], PART: [], LOSE: [], OTHER: []}
     for x in done: out[x["결과"]].append(x)
     return {"쟁점": issue, "집계": {k: len(v) for k, v in out.items()}, **out}

@@ -91,7 +91,7 @@ def _laws(text):
 
 def _hang_no(h):
     if not h: return None
-    if h[0] in "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳": return f"제{ord(h[0]) - 0x2460 + 1}항"
+    if law.hang_num(h): return f"제{law.hang_num(h)}항"
     return h
 
 
@@ -157,14 +157,14 @@ def verify(text, as_of=""):
     for s in dict.fromkeys(unknown_jo):
         unparsed.append({"인용": s, "결과": "형식 미인식", "이유": "법령명이 없거나 줄임말('같은 법'·'영' 등)이라 조문을 특정하지 못함 — 정식 법령명을 붙여 다시 검증"})
 
-    with ThreadPoolExecutor(4) as ex:
-        d = list(ex.map(_check_doc, docs[:MAX]))
+    with ThreadPoolExecutor(4) as ex:   # net.submit: 작업 스레드에도 시간 예산을 넘김
+        d = [f.result() for f in [net.submit(ex, _check_doc, x) for x in docs[:MAX]]]
         # 같은 법령·같은 조는 한 번만 받는다 — 연혁 목록(법령마다 여러 쪽)을 인용마다 동시에 다시 받던 문제
         names = list(dict.fromkeys(r[0].strip() for r in laws[:MAX]))
-        try: list(ex.map(law._versions, names))
+        try: [f.result() for f in [net.submit(ex, law._versions, x) for x in names]]
         except Exception: pass   # 오류는 아래 조문 조회에서 인용별로 보고
         uniq = list(dict.fromkeys((r[0], r[1]) for r in laws[:MAX]))
-        got = dict(zip(uniq, ex.map(lambda x: _fetch(x[0], x[1], as_of), uniq)))
+        got = dict(zip(uniq, [f.result() for f in [net.submit(ex, _fetch, x[0], x[1], as_of) for x in uniq]]))
     l = [_check_law(r, got[(r[0], r[1])]) for r in laws[:MAX]]
 
     items = d + l + unparsed

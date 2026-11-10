@@ -10,7 +10,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from . import law, ntis
+from . import law, net, ntis
 
 
 EVENTS = {   # 세목별 기준일 — 납세의무 성립·적용 법령을 가르는 날
@@ -64,10 +64,10 @@ def research(law_name, article, period, tax=None, n=8, event=None, registered=No
     day, why = base_date(period, tax, event, registered)
     today = time.strftime("%Y%m%d")
     out = {"기준일": day, "기준일 근거": why, "법령": law_name, "조": article}
-    with ThreadPoolExecutor(4) as ex:
-        f_rules = ex.submit(ntis.basic_rules, law_name, article)
-        f_std = ex.submit(ntis.exec_standards, law_name, article)
-        f_rul = ex.submit(ntis.search, law_name.split()[0], ("해석", "판례"), tax, "최신", n, "", "", article, law_name)
+    with ThreadPoolExecutor(4) as ex:   # net.submit: 작업 스레드에도 시간 예산을 넘김
+        f_rules = net.submit(ex, ntis.basic_rules, law_name, article)
+        f_std = net.submit(ex, ntis.exec_standards, law_name, article)
+        f_rul = net.submit(ex, ntis.search, law_name.split()[0], ("해석", "판례"), tax, "최신", n, "", "", article, law_name)
         try:
             tiers = law.tiers(law_name, article, day)
             now = law.article(law_name, article, today)

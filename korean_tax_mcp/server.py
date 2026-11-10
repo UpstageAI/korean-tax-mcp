@@ -303,8 +303,9 @@ except ValueError: LAW_ARTICLE_BUDGET = 45.0
 
 
 def _law_article(law_name, article, as_of, with_delegation, with_rules, keyword, paragraph):
-    ef = re.sub(r"\D", "", as_of or "")
-    if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
+    given = bool(re.sub(r"\D", "", as_of or ""))   # 기준일을 받았는지 — 없으면 오늘 기준이라는 안내를 붙인다
+    try: ef = law.as_of_or_today(as_of)
+    except ValueError as e: return {"error": str(e)}
     partial = []   # 시간 예산·연결 문제로 못 받은 항목
     try:
         norm, hang = law.normalize_article(article)
@@ -381,15 +382,12 @@ def _law_article(law_name, article, as_of, with_delegation, with_rules, keyword,
     out["다음 단계"] = "찾는 내용이 이 조에 없으면 목차에서 조를 골라 law_article로 바로 조회\n" \
                        "보기 여러 개를 한 번에 대조: judge_options(statements, law_name, articles) / 한 문장: verify_statement(statement, law_name, article, as_of)"
 
-    # 적용 기준일 — as_of가 있으면 그 날짜, 없으면 오늘을 사람이 읽는 형식으로
-    if ef:
-        y, m, d = ef[:4], ef[4:6], ef[6:8]
-        out["적용 기준일"] = f"{y}년 {int(m)}월 {int(d)}일"
-    else:
-        today = time.strptime(time.strftime("%Y%m%d"), "%Y%m%d")
-        out["적용 기준일"] = f"{today.tm_year}년 {today.tm_mon}월 {today.tm_mday}일"
+    # 적용 기준일 — as_of가 있으면 그 날짜, 없으면 오늘(KST)을 사람이 읽는 형식으로
+    y, m, d = ef[:4], ef[4:6], ef[6:8]
+    out["적용 기준일"] = f"{y}년 {int(m)}월 {int(d)}일"
 
-    if not ef:
+    if not given:
+        today = time.strptime(ef, "%Y%m%d")
         out["기준일 안내"] = "오늘 기준 조문입니다. 지난 사업연도처럼 지난 기간의 사안이면 그 연도에 시행 중이던 조문으로 다시 확인해야 합니다."
         prev_year = today.tm_year - 1
         out["다시 조회"] = {"as_of": f"{prev_year}1231", "설명": "사업연도·귀속연도 말일을 넣어 다시 호출"}
@@ -438,11 +436,10 @@ def find_article(
         return {"error": "keyword 필요"}
     if n < 1 or n > 20:
         return {"error": "n은 1~20"}
-    ef = re.sub(r"\D", "", as_of or "")
-    if ef and len(ef) != 8:
-        return {"error": "as_of는 YYYYMMDD 또는 YYYY-MM-DD"}
+    try: ef = law.as_of_or_today(as_of)
+    except ValueError as e: return {"error": str(e)}
     try:
-        return law.find_article(keyword, law_name, as_of or "", n)
+        return law.find_article(keyword, law_name, ef, n)
     except Exception as e:
         return _err(e)
 
@@ -601,8 +598,8 @@ def verify_citations(
     번호를 못 읽은 판결 언급·법령명 없는 조문('같은 법 제5조')은 '형식 미인식'으로 세어 요약의 '확인 안 된 것'에 넣는다.
     '확인'은 존재만 뜻함 — 내용 일치는 get_tax_ruling·law_article 본문으로 확인. 읽기 전용. 조문 확인은 LAW_OC 필요.
     """
-    ef = re.sub(r"\D", "", as_of or "")
-    if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
+    try: ef = law.as_of_or_today(as_of)
+    except ValueError as e: return {"error": str(e)}
     try:
         r = cite.verify(text[:20000], ef)
         if len(text) > 20000:
@@ -788,9 +785,8 @@ def verify_statement(
     - 판정: 숫자·양태·반대말·시점 신호 하나라도 있으면 '모순', 신호는 없지만 진술과 원문 구절이 다르면 '구절 다름'(대조에 진술·조문 구절을 원문 그대로 — 같은 뜻인지는 직접 판단), 다른 구절도 없고 겹침 0.5 이상 '차이 없음', 겹침 0.5 미만 '판단 필요'.
     읽기 전용. 법제처 API 필요(LAW_OC). 조문 문구는 시행본 원문 그대로 — 지어내지 않는다.
     """
-    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
-    if ef and len(ef) != 8:
-        return {"error": "as_of는 YYYYMMDD"}
+    try: ef = law.as_of_or_today(as_of)
+    except ValueError as e: return {"error": str(e)}
     try:
         norm, hang = law.normalize_article(article)
         units = law._full_units(law_name, ef)
@@ -798,13 +794,11 @@ def verify_statement(
         if paragraph:
             pn = law._normalize_paragraph_spec(paragraph)
             if pn:
-                _hang_to_circled = {str(i): chr(0x2460 + i - 1) for i in range(1, 21)}  # "1"→"①", …, "20"→"⑳"
-
                 def _circled(항):
                     """'제2항' → '②'. 해석 불가면 None."""
                     if not 항: return None
                     m = re.match(r"제(\d+)항", 항)
-                    return _hang_to_circled.get(m.group(1)) if m else None
+                    return law.hang_circled(int(m.group(1))) if m else None
 
                 def _ho_num(호):
                     """'제2호' → '2'. 없으면 None."""
@@ -842,9 +836,6 @@ def verify_statement(
     except Exception as e: return _err(e)
 
 
-_CIRC = {1: "①", 2: "②", 3: "③", 4: "④", 5: "⑤"}
-
-
 def _split_options(text):
     """보기 번호(①~⑤, ㄱ.~ㅁ., 1.~5.)가 든 문장 하나를 [{"id","text"}]로 분리. 번호가 없으면 문장 하나로."""
     parts = re.split(r"(?=[①②③④⑤])|(?=(?:^|\s)[ㄱㄴㄷㄹㅁ]\.\s)|(?=(?:^|\s)[1-5]\.\s)", text.strip())
@@ -854,7 +845,7 @@ def _split_options(text):
         if not p: continue
         m = re.match(r"^([①②③④⑤]|[ㄱㄴㄷㄹㅁ]\.|[1-5]\.)\s*(.*)$", p, re.S)
         if m: out.append({"id": m.group(1).rstrip("."), "text": m.group(2).strip()})
-        else: out.append({"id": _CIRC.get(len(out) + 1, str(len(out) + 1)), "text": p})
+        else: out.append({"id": law.hang_circled(len(out) + 1) if len(out) < 5 else str(len(out) + 1), "text": p})
     return out
 
 
@@ -883,14 +874,14 @@ def judge_options(
     if isinstance(statements, str):                       # ①②③④⑤ / ㄱ.ㄴ.ㄷ.ㄹ. / 1. 2. 로 이어 붙인 문장 하나 → 분리 (보기를 통째로 넘긴 경우)
         statements = _split_options(statements)
     if not articles or len(articles) > 5: return {"error": "articles는 1~5개"}
-    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
-    if ef and len(ef) != 8: return {"error": "as_of는 YYYYMMDD"}
+    try: ef = law.as_of_or_today(as_of)
+    except ValueError as e: return {"error": str(e)}
 
     # 보기를 {'id','text'} 형태로 정리 — 문자열 또는 {'text', 'id'?} dict만 허용, 그 외는 계산하지 않고 안내 (CodeSolar PR #11)
     bad = [i for i, s in enumerate(statements)
            if not (isinstance(s, str) and s.strip()) and not (isinstance(s, dict) and isinstance(s.get("text"), str) and s["text"].strip())]
     if bad: return {"error": f"statements 항목 {bad}: 문자열 또는 {{'id': 보기번호, 'text': 문장}} 형식이어야 함"}
-    ids = [f"{_CIRC[i]}" if i <= 5 else str(i) for i in range(1, len(statements) + 1)]
+    ids = [law.hang_circled(i) if i <= 5 else str(i) for i in range(1, len(statements) + 1)]
     stmts = [{"id": (s.get("id") or ids[i]) if isinstance(s, dict) else ids[i], "text": s["text"] if isinstance(s, dict) else s}
              for i, s in enumerate(statements)]
     stmts = [{"id": str(s["id"]), "text": s["text"]} for s in stmts]

@@ -233,3 +233,57 @@ def test_budget_cut_retry_reports_budget_not_unreachable(monkeypatch, sleeps):
         with pytest.raises(net.BudgetExceeded):
             net.request(req, site="nts")
     assert not net._blocked("nts")                 # 사이트를 막힘으로 기록하지 않음
+
+
+# ── PR-B: 스레드 풀 호출에도 시간 예산이 전파되고, find_article이 망 장애를 '법령을 찾지 못함'으로 덮지 않음 ──
+
+def _drf_versions(monkeypatch, slow_body=None):
+    """연혁 2건, 조문 본문은 slow_body(초)만큼 자고 돌려줌."""
+    def get(path, query):
+        if path == "lawSearch.do":
+            return {"LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": str(i), "시행일자": f"202{i}0101"} for i in (1, 2)]}}
+        if slow_body: _REAL_SLEEP(slow_body)
+        return {"법령": {"조문": [{"조문내용": "제52조(부당행위계산) 본문"}]}}
+    monkeypatch.setattr(law, "_get", get)
+
+
+def test_history_propagates_budget_to_worker_threads(monkeypatch):
+    """history()의 본문 조회는 작업 스레드에서 돈다 — net.budget 안이면 예산 소진을 BudgetExceeded로 올리고 '확인 불가'로 삼키지 않음."""
+    from korean_tax_mcp import net
+    def get(path, query):
+        if path == "lawSearch.do":
+            return {"LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": str(i), "시행일자": f"202{i}0101"} for i in (1, 2)]}}
+        _REAL_SLEEP(0.15)
+        if net.expired(): raise net._over()        # net.request가 예산을 확인하는 지점과 같은 동작
+        return {"법령": {"조문": [{"조문내용": "본문"}]}}
+    monkeypatch.setattr(law, "_get", get)
+    with net.budget(0.1):
+        with pytest.raises(net.BudgetExceeded):
+            law.history("법인세법", "제52조")
+
+
+def test_history_still_swallows_parse_errors(monkeypatch):
+    _drf_versions(monkeypatch)
+    real = law._get
+    monkeypatch.setattr(law, "_get", lambda p, q: (_ for _ in ()).throw(KeyError("x")) if p == "lawService.do" and "MST=1" in q else real(p, q))
+    r = law.history("법인세법", "제52조")
+    assert [x["이 조 변경"] for x in r["연혁"]] == ["확인 불가", "기준"], r
+
+
+def test_history_raises_unreachable(monkeypatch):
+    from korean_tax_mcp import net
+    real_rows = lambda: {"LawSearch": {"law": [{"법령명한글": "법인세법", "법령일련번호": "1", "시행일자": "20210101"}]}}
+    monkeypatch.setattr(law, "_get", lambda p, q: real_rows() if p == "lawSearch.do" else (_ for _ in ()).throw(net.Unreachable("law", "reset", 3)))
+    with pytest.raises(net.Unreachable):
+        law.history("법인세법", "제52조")
+
+
+def test_find_article_reports_network_failure_not_law_name(monkeypatch):
+    """법제처가 안 될 때 find_article은 '법령을 찾지 못함 — law_name 확인'이 아니라 서버의 연결 실패 안내문을 돌려준다."""
+    from korean_tax_mcp import net
+    law._versions.clear(); law._FIND_CACHE.clear()
+    monkeypatch.setattr(law, "_get", lambda p, q: (_ for _ in ()).throw(net.Unreachable("law", "reset", 3)))
+    r = server.find_article("압류금지 생계비계좌", "국세징수법")
+    assert "law_name 확인" not in r["error"], r
+    assert r["error"] == server._err(net.Unreachable("law", "reset", 3))["error"]
+    assert "법제처" in r["error"] and "잠시 후 다시 시도" in r["error"], r

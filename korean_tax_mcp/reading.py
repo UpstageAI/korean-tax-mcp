@@ -7,6 +7,8 @@
 import re
 from typing import Optional
 
+from . import law
+
 
 def _clean_body(body: str) -> str:
     """표시 태그 제거. <개정 …>, <신설 …>, <전문개정 …>, <타법개정 …>."""
@@ -165,8 +167,7 @@ def _find_paragraph_ho(text: str, sentence: str) -> str:
     for i in range(sentence_line_idx, -1, -1):
         hm = re.search(r"[①-⑳]", lines[i])
         if hm:
-            circled = hm.group(0)
-            hang_no = str(ord(circled) - 0x2460 + 1)
+            hang_no = str(law.hang_num(hm.group(0)))
             hang_line_idx = i
             break
 
