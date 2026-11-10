@@ -53,7 +53,7 @@ def _parent(units: list[Unit], i: int) -> int | None:
 
 def _location(u: Unit) -> str:
     jo, hang, ho, _ = u
-    if ho == "(괄호)":
+    if ho.endswith("(괄호)"):
         return _paren_location(u)
     parts = [jo] + ([hang] if hang else []) + ([ho.rstrip(".") + "호"] if ho else [])
     return " ".join(parts)
@@ -61,8 +61,11 @@ def _location(u: Unit) -> str:
 
 def _paren_location(u: Unit) -> str:
     """괄호 단서 가상 단위의 위치: '제52조 ① 괄호 단서' / '제52조 괄호 단서'."""
-    jo, hang, _ho, _ = u
+    jo, hang, ho, _ = u
     base = jo + (" " + hang if hang else "")
+    ho_num = ho[:-len("(괄호)")].rstrip(".")
+    if ho_num:
+        base += " " + ho_num + "호"
     return base + " 괄호 단서"
 
 
@@ -94,8 +97,8 @@ def expand_paren_units(units: list[Unit]) -> list[Unit]:
             if (s, e) in seen:
                 continue
             seen.add((s, e))
-            inner = text[s:e]                      # 괄호 묶음 원문(시행본 부분 문자열)
-            content = text[s + 1:e - 1]           # 괄호 안 내용
+            content = text[s + 1:e - 1]           # 괄호 안 내용(바깥 괄호 제외 — 시행본 원문의 부분 문자열, _toks가 괄호 안을 버리지 않게)
+            inner = content
             if _DEF_PAREN_RE.search(content):
                 continue
             if not _PROVISO_KW.search(content):
@@ -198,6 +201,19 @@ def _best_sentence(stmt: str, context: str) -> str:
     return max(cs, key=lambda c: len(sg & set(_grams(c))) / max(len(sg), 1))
 
 
+_CLAUSE_SPLIT = re.compile(r"(?<=하되),\s*|(?<=되),\s*|(?<=며),\s*|(?<=고),\s*")
+
+
+def _best_clause(stmt: str, sentence: str) -> str:
+    """문장이 '…하되, …' '…하며, …'처럼 절 둘 이상이면 진술 3-gram과 가장 겹치는 절. 절이 하나면 문장 그대로.
+    괄호 단서 '(A는 제외하되, B는 포함한다)'를 통째로 보면 A·B 반대말이 둘 다 들어 있어 신호가 사라지는 문제 (Claude 2026-11-10)."""
+    parts = [c.strip() for c in _CLAUSE_SPLIT.split(sentence) if c and c.strip()]
+    if len(parts) < 2:
+        return sentence
+    sg = set(_grams(stmt))
+    return max(parts, key=lambda c: len(sg & set(_grams(c))) / max(len(sg), 1))
+
+
 def _lead(text: str, phrase: str, width: int = 14) -> set[str]:
     """phrase 바로 앞 문구의 두 글자 묶음(숫자 대조 상대 고르기용)."""
     i = text.find(phrase)
@@ -219,10 +235,11 @@ def _signals(stmt: str, context: str) -> list[dict]:
             pick = max(same, key=lambda n: len(sp_ & _lead(context, n[2])))
             out.append({"종류": "숫자", "진술": phrase, "조문": pick[2]})
     # 양태: 가장 겹치는 조문 문장과 비교, 같은 어간일 때만
-    cs = _best_sentence(stmt, context)
+    cs = _best_clause(stmt, _best_sentence(stmt, context))   # '…제외하되, …포함한다'처럼 절이 둘이면 진술과 닮은 절만 (Claude 2026-11-10)
     sm, sp = _modality(stmt)
     lm, lp = _modality(cs)
-    if sm != lm and _same_stem(stmt, cs):
+    connective = re.search(r"(하되|되|며|고)\s*$", cs.rstrip(" ."))    # '…제외하되,' 같은 이음절은 양태가 정해지지 않음
+    if sm != lm and _same_stem(stmt, cs) and not connective:
         out.append({"종류": "양태", "진술": sp, "조문": lp})
     # 반대말: 진술에 A, 조문 문장에 B (양방향)
     for a, b in _ANTONYMS:
@@ -445,7 +462,19 @@ def compare(statement: str, units: list[Unit]) -> dict:
         ov = overlap(sent, i)
         return ov + 0.6 * bonus
 
-    best = [max(range(n), key=lambda i: anchor(s, i)) for s in sents]
+    def own_overlap(sent: str, i: int) -> float:
+        """단위 자기 원문(문맥 머리글 제외)이 진술 3-gram을 얼마나 덮는지 — 같은 항의 호·괄호 단서 사이 구분용."""
+        og = set(_grams(units[i][3]))
+        gs = set(_grams(sent))
+        return sum(1 for g in gs if g in og) / (len(og) or 1)          # 정밀도: 짧고 꼭 맞는 단위(괄호 단서·호)가 긴 머리글을 이긴다
+
+    def stem_bonus(sent: str, i: int) -> float:
+        """진술의 서술어 어간(예: '제외'·'포함')이 단위 원문에 있으면 가점 — 괄호 단서처럼 짧은 단위가
+        긴 머리글과 같은 문맥을 공유할 때 서술어가 든 쪽을 고른다(Claude 2026-11-10)."""
+        st = _drop_n(_stem(sent))
+        return 0.3 if len(st) >= 2 and st in units[i][3] else 0.0
+
+    best = [max(range(n), key=lambda i: (anchor(s, i) + stem_bonus(s, i), own_overlap(s, i))) for s in sents]
     signals: list[dict] = []
     for s, bi in zip(sents, best):
         for sig in _signals(s, contexts[bi]):
@@ -475,9 +504,10 @@ def compare(statement: str, units: list[Unit]) -> dict:
                     continue
                 d["위치"] = _location(units[loc_i])
                 diffs.append(d)
+    stem_hit = stem_bonus(sents[0], ref_i) > 0
     if signals:
         verdict = "모순"
-    elif overlap_val >= 0.5:
+    elif overlap_val >= 0.5 or (stem_hit and overlap_val >= 0.4):
         verdict = "구절 다름" if diffs else "차이 없음"
     else:
         verdict = "판단 필요"
