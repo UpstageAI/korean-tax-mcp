@@ -34,7 +34,7 @@ flowchart LR
   C --> R
 ```
 
-1. **Statutes** — picks the version in force on the base date from law.go.kr and returns the text with provisos and Act → Decree → Rule links. Without a date, today is used.
+1. **Statutes** — picks the version in force on the base date from law.go.kr and returns the text with provisos and Act → Decree → Rule links. Without a date, today is used. Names not found among statutes (administrative rules such as the Foreign Exchange Transactions Regulations or NTS notices) fall back to the current text (no history).
 2. **Rulings** — searches the NTS system for rulings, decisions, basic rules and execution standards, with document numbers and links. A question with several issues is searched issue by issue (`search_rulings_by_issue`).
 3. **Base year** — gathers the statute and rulings for the base date of each tax type (fiscal year end, transfer date, …) and flags changes against today's text. Timing rules (income recognition, VAT supply time) come first from the `timing_rules` table.
 4. **Compare** — checks statements against the statute text word by word and marks differing numbers and provisos.

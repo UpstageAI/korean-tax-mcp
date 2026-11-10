@@ -13,7 +13,6 @@ import os
 import re
 import ssl
 import time
-import urllib.parse
 import urllib.request
 
 from typing import Annotated, Literal
@@ -546,7 +545,8 @@ def find_article(
             for art_label, art_body in admrul.split_articles(content):
                 title_m = re.search(r"\(([^()]*)\)", art_label)
                 title = title_m.group(1) if title_m else ""
-                sents = law._sentences_with_keywords(art_body, kw_words)
+                # 행정규칙 본문은 줄바꿈이 없어 개정 이력 태그를 떼고 항(①)·호(1.)·문장 끝(…다.) 앞뒤에서 나눔 — 법령용 분할기(줄 단위)는 손대지 않음
+                sents = law._sentences_with_keywords(_admrul_lines(art_body), kw_words)
                 if sents:
                     rows.append({"법령": adm["행정규칙명"], "조": art_label, "제목": title,
                                  "적용 시행일": adm["시행일자"], "일치 문장": sents[:2]})
@@ -555,6 +555,15 @@ def find_article(
                 result["주의"] = (result.get("주의", "") + " / 행정규칙(고시·훈령)에도 있음").strip(" /")
                 return result
     return result
+
+
+def _admrul_lines(body):
+    """행정규칙 조 본문(줄바꿈 없음)을 문장 단위로: <…개정> 이력 태그 제거 → 항 기호(①…) 앞, 호 번호(1. ) 앞, 종결어미+마침표 뒤에서 줄바꿈."""
+    t = re.sub(r"<[^<>]{0,80}(?:개정|신설|삭제|제정)>", " ", body)
+    t = re.sub(r"\s*([①-⑳])", r"\n\1", t)
+    t = re.sub(r"(?<![\d.])\s*(\d{1,2})\.\s(?=\S)", r"\n\1. ", t)
+    t = re.sub(r"([다음함됨임])\.\s*", r"\1.\n", t)
+    return t
 
 
 def _solar(prompt):
