@@ -21,7 +21,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import _mask_oc, casebook, cite, claims, i18n, law, localdocs, net, ntis, outcome, residency, solar, timeline
+from . import _mask_oc, casebook, cite, claims, i18n, law, localdocs, localtax, net, ntis, outcome, residency, solar, timeline, tribunal
 from . import timing_rules as _timing_rules_data
 
 mcp = MCPServer(
@@ -117,8 +117,22 @@ def search_tax_rulings(
     if any(k not in ntis.KINDS for k in kinds): return {"error": "kinds: 해석 | 판례"}
     if sort not in ("최신", "정확도"): return {"error": "sort: 최신 | 정확도"}
     try:
-        return {"결과": ntis.search(query, kinds, tax, sort, max(1, min(int(n), 30)), re.sub(r"\D", "", since), re.sub(r"\D", "", until)),
-                "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조"}
+        results = ntis.search(query, kinds, tax, sort, max(1, min(int(n), 30)), re.sub(r"\D", "", since), re.sub(r"\D", "", until))
+        note = localtax.local_tax_note(query, results)
+        if note is not None:
+            try:
+                t = tribunal.search(query, n, local_only=True)
+                results = [dict(r) for r in results]
+                results.extend(t["결과"])
+                return {"결과": results, "조세심판원 결정례": t["결과"],
+                        "지방세 안내": note,
+                        "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조"}
+            except Exception as e:
+                return {"결과": results, "조세심판원 결정례": [],
+                        "조세심판원 오류": str(e),
+                        "지방세 안내": note,
+                        "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조"}
+        return {"결과": results, "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조"}
     except Exception as e:
         return _err(e)
 
@@ -147,7 +161,80 @@ def search_rulings_by_issue(
         result = ntis.search_issues(issues, kinds, tax, max(1, min(int(n_per), 10)), max(0, min(int(recent_years), 10)))
         if all("오류" in item for item in result):
             return {"error": result[0]["오류"]}
+        # 쟁점별 결과를 평평하게 합쳐 중복 id 제거 + localtax note 확인
+        combined_query = " ".join(issues)
+        flat: list[dict] = []
+        seen_ids: set[str] = set()
+        for item in result:
+            for r in item.get("결과", []):
+                rid = r.get("id", "")
+                if rid and rid in seen_ids:
+                    continue
+                if rid:
+                    seen_ids.add(rid)
+                flat.append(r)
+        note = localtax.local_tax_note(combined_query, flat)
+        if note is not None:
+            try:
+                t = tribunal.search(combined_query, n_per * len(issues), local_only=True)
+                tt = [dict(x) for x in t["결과"]]
+                # 쟁점별 결과에 조세심판원 결정례 추가 (중복 id 제거)
+                t_ids: set[str] = set()
+                for x in tt:
+                    if x.get("id") and x["id"] not in t_ids:
+                        t_ids.add(x["id"])
+                    else:
+                        continue
+                    for item in result:
+                        item["결과"] = list(item.get("결과", [])) + [x]
+                return {"쟁점별": result, "조세심판원 결정례": tt,
+                        "지방세 안내": note,
+                        "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조. '선정: 최근'은 최근 등록 문서"}
+            except Exception as e:
+                return {"쟁점별": result, "조세심판원 결정례": [],
+                        "조세심판원 오류": str(e), "지방세 안내": note,
+                        "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조. '선정: 최근'은 최근 등록 문서"}
         return {"쟁점별": result, "주의": "해석·판례는 회신·선고 당시 법 기준 — 적용 연도 조문과 대조. '선정: 최근'은 최근 등록 문서"}
+    except Exception as e:
+        return _err(e)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def search_tribunal_decisions(
+    query: Annotated[str, Field(description="쟁점 키워드. 예: '대도시 법인 설립 5년 이내 부동산 취득 취득세 중과', '등록세 중과'")],
+    n: Annotated[int, Field(description="결과 수 1~30", ge=1, le=30)] = 10,
+    local_only: Annotated[bool, Field(description="True면 지방세(청구번호에 '지'가 들어간 조심) 결정례만")] = False,
+    sort: Annotated[Literal["최신", "정확도"], Field(description="최신=의결일자 내림차순(기본), 정확도=검색 점수순")] = "최신",
+) -> dict:
+    """조세심판원 재결례(법제처 특별행정심판재결례) — 국세·지방세. 언제: 취득세·재산세 등 지방세 쟁점의 결정례, 또는 조세심판원 결정만 모아 볼 때. 지방세는 local_only=True. 반환: {결과: [{구분, 문서번호, 제목, 일자, id, 링크, 지방세}], 전체건수, 출처, 주의}. 본문은 get_tribunal_decision(id). 읽기 전용. 법제처 DRF(target=ttSpecialDecc) — LAW_OC 필요.
+    """
+    if n < 1 or n > 30:
+        return {"error": "n은 1~30"}
+    if sort not in ("최신", "정확도"):
+        return {"error": "sort: 최신 | 정확도"}
+    try:
+        t = tribunal.search(query, n, sort=sort, local_only=local_only)
+        return {"결과": t["결과"], "전체건수": t["전체건수"],
+                "출처": "법제처 특별행정심판재결례(ttSpecialDecc) — 재결청 조세심판원",
+                "주의": "재결례는 결정 당시 법 기준 — 적용 연도 조문과 대조. 본문은 get_tribunal_decision(id)"}
+    except Exception as e:
+        return _err(e)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def get_tribunal_decision(
+    id: Annotated[str, Field(description="search_tribunal_decisions 결과의 id ('tt:2098157' 또는 '2098157')")],
+) -> dict:
+    """조세심판원 재결례 1건의 본문 전문. 문서번호·주문·재결요지·이유·관련법령·참조결정.
+    언제: 검색 결과 중 인용·요약할 재결례를 정한 뒤. 요지만으로 판단하지 말고 본문을 읽을 때 사용.
+    반환: {구분, 문서번호, 제목, 일자, 세목, 주문, 요지, 본문, 관련법령, 참조결정, id, 링크, 출처}.
+    읽기 전용. 법제처 DRF target=ttSpecialDecc — LAW_OC 필요.
+    """
+    try:
+        d = tribunal.detail(id)
+        return {**d, "출처": "법제처 특별행정심판재결례(ttSpecialDecc) — 재결청 조세심판원"}
     except Exception as e:
         return _err(e)
 
