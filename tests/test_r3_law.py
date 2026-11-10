@@ -166,6 +166,7 @@ def fake(monkeypatch, tmp_path):
     for f in (law._versions.clear, law._three_tier.cache_clear, law._raw_units.cache_clear,
               law._full_units.cache_clear, law._phrase_defs.cache_clear, ntis.laws.cache_clear):
         f()
+    law.clear_caches()
     net.reset()
     calls, box = [], {}
 

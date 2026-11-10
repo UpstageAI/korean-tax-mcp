@@ -27,6 +27,7 @@ def _clear_law_caches():
             f = getattr(law, name)
             (f.clear if hasattr(f, "clear") else f.cache_clear)()
         law._FIND_CACHE.clear()
+        law.clear_caches()
     clear()
     yield
     clear()

@@ -34,11 +34,12 @@ def drf(monkeypatch):
         f = getattr(law, name)
         (f.clear if hasattr(f, "clear") else f.cache_clear)()
     law._FIND_CACHE.clear()
+    law.clear_caches()
     monkeypatch.setattr(law, "_get", _drf)
     monkeypatch.setattr(law, "toc", lambda *a, **k: {})
     monkeypatch.setattr(law, "links", lambda *a, **k: {"상위": [], "하위": []})
     yield
-    law._versions.clear(); law._full_units.cache_clear(); law._FIND_CACHE.clear()
+    law._versions.clear(); law._full_units.cache_clear(); law._FIND_CACHE.clear(); law.clear_caches()
 
 
 def _call(name, args):
