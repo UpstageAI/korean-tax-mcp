@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.14 (2026-11-10)
+
+보완 Claude(뼈대 Solar Pro 4). 조회 결과는 바뀌지 않음(오프라인 250·망 차단 250·라이브 39 테스트).
+
+- 시행본 전문(eflaw) 다운로드를 (법령, 시행일)당 1회로 — 같은 전문을 `_raw_units`·`_full_units`·`_fetch_law_articles`가 따로 받아 세 캐시에 넣던 것을 `_eflaw` 캐시 하나로. law_article → find_article → verify_citations 같은 조합에서 법제처 호출 8회 → 6회(중복 0). 조문(JO) 응답도 `_jo` 캐시.
+- `_ttl_cache`에 잠금 — 4스레드 동시 조회 때 같은 키는 한 스레드만 받고 나머지는 기다림(종전엔 각자 다운로드, 만료 순간 `list.remove` 경합 가능). `_three_tier`도 TTL 캐시로(종전 영구).
+- `law.clear_caches()` 추가. 기존 캐시 이름은 그대로 비울 수 있음.
+- 테스트: "오프라인" 스위트가 실제로는 법제처·NTIS에 닿고 있었음(`urlopen`을 바꾸는 가짜 응답이 `net`의 "직전 실패 기억"에 가려짐, 거주자 판정은 조약 조회가 디스크 캐시로만 통과). `law._get`·`ntis.treaty` 위에서 고정 응답을 주도록 고쳐 망을 막아도 전부 통과. `KTM_BLOCK_NET=1`이면 망을 끊는 conftest 추가, CI에 `test-offline` 잡.
+
 ## 0.12.13 (2026-11-10)
 
 보완 Claude(뼈대 Solar Pro 4). 조회 결과는 바뀌지 않음(오프라인 248·라이브 39 테스트).
