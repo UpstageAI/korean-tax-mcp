@@ -23,3 +23,18 @@ jobs:
         run: python -m pip install ruff && ruff check . --select E9,F821
       - name: Test
         run: python -m pytest -q tests
+
+  test-offline:
+    # 네트워크를 막고(KTM_BLOCK_NET=1 — urlopen이 연결 거부) 같은 스위트를 돈다. 가짜 응답 없이 법제처·국세청에 가는 테스트를 잡는다.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - name: Test (offline)
+        run: python -m pytest -q tests
+        env:
+          KTM_BLOCK_NET: "1"
