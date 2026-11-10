@@ -598,10 +598,10 @@ def article_en(law, article_no):
 def history(law, article_no, last=8):
     """조문의 연혁: 최근 시행본들(시행예정 포함)에서 이 조 본문이 바뀐 시점."""
     norm, _ = normalize_article(article_no)
-    today = today()
+    day = today()
     allv = sorted({v["시행일자"]: v for v in _versions(law)}.values(), key=lambda x: x["시행일자"])
-    past = [v for v in allv if v["시행일자"] <= today]
-    future = [v for v in allv if v["시행일자"] > today]
+    past = [v for v in allv if v["시행일자"] <= day]
+    future = [v for v in allv if v["시행일자"] > day]
     vs = past[-last:] + future      # 시행 예정본이 많아도 지난 시행본 last개는 항상 비교
     if not vs: return {"error": f"'{law}' 연혁을 찾지 못함 — 정식 법령명 확인"}
     jo = jo6(norm)
@@ -618,7 +618,7 @@ def history(law, article_no, last=8):
     rows, prev = [], None
     for v, b in zip(vs, bodies):
         changed = None if b is None or prev is None else (b != prev)
-        상태 = "시행예정" if v["시행일자"] > today else ("현행" if past and v["시행일자"] == past[-1]["시행일자"] else "연혁")
+        상태 = "시행예정" if v["시행일자"] > day else ("현행" if past and v["시행일자"] == past[-1]["시행일자"] else "연혁")
         rows.append({"시행일": v["시행일자"], "공포일": v.get("공포일자", ""), "제개정": v.get("제개정구분명", ""),
                      "상태": 상태, "이 조 변경": "확인 불가" if b is None else ("기준" if prev is None else ("바뀜" if changed else "그대로"))})
         if b is not None: prev = b
