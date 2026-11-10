@@ -10,6 +10,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
 
 from . import _mask_oc, net
@@ -77,6 +78,18 @@ def _ttl_cache(maxsize=128, ttl=_CACHE_TTL):
 def _list(x): return x if isinstance(x, list) else ([x] if x else [])
 
 
+# ── 항 번호 ①~⑳ ↔ 1~20 (U+2460~U+2473) — 법제처 본문·인용·보기 번호가 모두 이 원문자를 쓴다 ──
+def hang_circled(n):
+    """1 → '①', …, 20 → '⑳'. 범위 밖이면 None."""
+    return chr(0x2460 + n - 1) if 1 <= n <= 20 else None
+
+
+def hang_num(s):
+    """'①' → 1, …, '⑳' → 20. 원문자가 아니면 None(첫 글자만 본다)."""
+    if not s or not (0x2460 <= ord(s[0]) <= 0x2473): return None
+    return ord(s[0]) - 0x2460 + 1
+
+
 _ARTICLE_RE = re.compile(
     r"(?:제\s*)?\d+\s*조\s*(?:의\s*\d+)?"
     r"|"
@@ -108,12 +121,6 @@ def normalize_article(raw):
     # §/Art./영문 접두사 제거 (공백 포함)
     s2 = re.sub(r"^\s*(?:§|Art\.|Article)\s*", "", s)
 
-    # circled number(①~⑩) → 숫자. 항·호 감지와 base 분리 전에 처리
-    _CIRCLED = {chr(0x2460 + i): str(i + 1) for i in range(10)}  # ①→'1', …, ⑩→'10'
-
-    def _circled_replace(m):
-        return _CIRCLED.get(m.group(0), m.group(0))
-
     # 조 번호는 맨 앞 '제N조(의M)'·'N의M'·'N-M'만 읽고, 뒤에 오는 항·호 숫자는 조 번호에 섞지 않는다
     # ('제17조 제2항 제2호'가 제172조로 읽히던 문제)
     m = re.match(r"\s*(?:제\s*)?(\d+)\s*(?:조)?\s*(?:(?:의|-|_)\s*(\d+))?", s2)
@@ -128,7 +135,7 @@ def normalize_article(raw):
     c = re.search(r"[①-⑳]", rest)
     h = re.search(r"(?:제\s*)?(\d+)\s*항", rest)
     if c:
-        hang_info = f"제{_CIRCLED.get(c.group(0), ord(c.group(0)) - 0x2460 + 1)}항"
+        hang_info = f"제{hang_num(c.group(0))}항"
     elif h:
         hang_info = f"제{h.group(1)}항"
     else:
@@ -161,7 +168,7 @@ def ho_text(body, hang, ho):
         return ""
     if not hon: return ""
     lines = body.split("\n")
-    mark = chr(0x2460 + hn - 1) if 1 <= hn <= 20 else None
+    mark = hang_circled(hn)
     start = next((i for i, ln in enumerate(lines) if mark and ln.lstrip().startswith(mark)), None)
     if start is None: return ""
     out = []
@@ -210,9 +217,26 @@ def _name_key(name):
     return re.sub(r"\s+", "", name or "")
 
 
+KST = timezone(timedelta(hours=9))
+
+
+def today():
+    """오늘(한국 표준시) YYYYMMDD — 법령 시행일은 한국 날짜 기준."""
+    return datetime.now(KST).strftime("%Y%m%d")
+
+
+def as_of_or_today(raw=None):
+    """기준일 정규화 — '2025-03-01'·'2025.03.01'·'20250301' → '20250301'. 비면 오늘(KST).
+    숫자만 남겨 8자리가 아니면 ValueError(어떤 입력이 잘못됐는지 적음)."""
+    ef = re.sub(r"\D", "", str(raw or ""))
+    if not ef: return today()
+    if len(ef) != 8: raise ValueError(f"as_of는 YYYYMMDD 또는 YYYY-MM-DD — '{raw}'은(는) 날짜로 읽을 수 없음")
+    return ef
+
+
 def version_row(law, as_of=""):
     """기준일(YYYYMMDD, 없으면 오늘)에 시행 중이던 연혁본 행(법령명한글·법령일련번호·시행일자 …). 없으면 None."""
-    day = as_of or time.strftime("%Y%m%d")
+    day = as_of_or_today(as_of)
     vs = [v for v in _versions(law) if v.get("시행일자", "99999999") <= day]
     return max(vs, key=lambda x: x["시행일자"]) if vs else None
 
@@ -380,8 +404,8 @@ def links(law_name, article_no, as_of=""):
         base_law = law_name[:-5]
         tier_type = "시행규칙"
 
-    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
-    if len(ef) != 8: ef = time.strftime("%Y%m%d")
+    try: ef = as_of_or_today(as_of)
+    except ValueError: ef = today()   # 잘못된 기준일은 오늘로(호출자가 먼저 검증함)
 
     up, down = [], []
 
@@ -585,9 +609,12 @@ def history(law, article_no, last=8):
         try:
             d = _get("lawService.do", f"target=eflaw&MST={v['법령일련번호']}&efYd={v['시행일자']}&JO={jo}")
             return re.sub(r"\s+", "", "".join(_texts(d.get("법령", d))))
+        except (net.Unreachable, net.BudgetExceeded):
+            raise                      # 망 장애·시간 예산 소진은 '확인 불가'로 덮지 않고 그대로 올림
         except Exception:
             return None
-    with ThreadPoolExecutor(6) as ex: bodies = list(ex.map(body, vs))
+    with ThreadPoolExecutor(6) as ex:   # net.submit: 작업 스레드에도 시간 예산을 넘김
+        bodies = [f.result() for f in [net.submit(ex, body, v) for v in vs]]
     rows, prev = [], None
     for v, b in zip(vs, bodies):
         changed = None if b is None or prev is None else (b != prev)
@@ -614,7 +641,7 @@ def addenda(law, article_no=None, promulgated=None, since=None, n=8, as_of=None)
     """부칙(시행일·적용례·경과조치) 조회.
     article_no: 이 조를 언급한 부칙 줄만. promulgated: 그 공포일(YYYYMMDD) 부칙 전체(일반 적용례 포함).
     since: 이 날짜(YYYYMMDD) 이후 공포 부칙만. as_of: 부칙 목록을 가져올 시행본 기준일(기본 오늘)."""
-    ef = as_of or time.strftime("%Y%m%d")
+    ef = as_of_or_today(as_of)
     _, units = _fetch_law_articles_with_addenda(law, ef)
     if not units:
         return {"error": f"'{law}' 부칙을 찾지 못함 — 정식 법령명 확인"}
@@ -829,9 +856,8 @@ def find_article(keyword, law_name=None, as_of="", n=5):
         return {"error": "keyword 필요"}
     if n < 1:
         n = 1
-    ef = re.sub(r"\D", "", as_of or "") or time.strftime("%Y%m%d")
-    if len(ef) != 8:
-        return {"error": "as_of는 YYYYMMDD 또는 YYYY-MM-DD"}
+    try: ef = as_of_or_today(as_of)
+    except ValueError as e: return {"error": str(e)}
 
     target_laws = list(_DEFAULT_LAWS) if law_name is None else ([law_name] if isinstance(law_name, str) else list(law_name))
 
@@ -848,6 +874,8 @@ def find_article(keyword, law_name=None, as_of="", n=5):
         except NoKey:
             no_key_raised = True
             continue
+        except (net.Unreachable, net.BudgetExceeded):
+            raise                      # 법제처 장애를 '법령을 찾지 못함'으로 잘못 진단하지 않게 그대로 올림
         except Exception:
             continue
         if mst:
@@ -859,6 +887,8 @@ def find_article(keyword, law_name=None, as_of="", n=5):
         except NoKey:
             no_key_raised = True
             continue
+        except (net.Unreachable, net.BudgetExceeded):
+            raise
         except Exception:
             continue
 
@@ -994,13 +1024,10 @@ def find_article(keyword, law_name=None, as_of="", n=5):
 
 # ── law_article용 항(paragraph) 파싱 헬퍼 ─────────────────────────────────────
 
-_HANG_CIRCLED = {chr(0x2460 + i): str(i + 1) for i in range(20)}  # ①→1, ②→2, …, ⑳→20
-
-
 def _항_번호_파싱(s):
     """'①'·'1'·'제1항'·'2항' → '제N항'. N=1~20만 유효, 아니면 None."""
-    if s in _HANG_CIRCLED:
-        return f"제{_HANG_CIRCLED[s]}항"
+    if len(s) == 1 and hang_num(s):
+        return f"제{hang_num(s)}항"
     m = re.match(r"^제(\d+)항", s)
     if m and 1 <= int(m.group(1)) <= 20:
         return f"제{m.group(1)}항"
@@ -1055,8 +1082,7 @@ def _normalize_paragraph_spec(spec):
     # P1 우선: 원문자 + 호 패턴 ("②2호", "②제2호")
     m = re.match(r"^([①-⑳])(.*)$", s)
     if m:
-        circled = m.group(1)
-        hang = f"제{_HANG_CIRCLED[circled]}항"
+        hang = f"제{hang_num(m.group(1))}항"
         ho = _호_문자열_파싱(m.group(2).strip())
         if ho:
             return hang, ho, None
@@ -1099,7 +1125,7 @@ def _호_목록_파싱(spec):
     m = re.match(r"^([①-⑳])\s*(.*)$", s) or re.match(r"^제?\s*(\d+)\s*항\s*(.*)$", s)
     if m:
         g = m.group(1)
-        hang = f"제{_HANG_CIRCLED[g]}항" if g in _HANG_CIRCLED else f"제{int(g)}항"
+        hang = f"제{hang_num(g) or int(g)}항"
         rest = m.group(2)
     items, marked = [], False
     for part in re.split(r"\s*(?:,|ㆍ|·|、|/|및)\s*", rest.strip()):
@@ -1178,7 +1204,7 @@ def _호_목록_본문(body, paragraph, spec):
 def _호_뒤_파싱(전체_입력, 항_번호):
     """항 번호 뒤의 호 부분을 추출. '②2호'·'제2항 제2호' 등에서 '제N호' 반환."""
     # 1. 입력이 원문자(①~⑳)로 시작하면 그 원문자 뒤 추출
-    if 전체_입력 and 전체_입력[0] in _HANG_CIRCLED:
+    if 전체_입력 and hang_num(전체_입력):
         m = re.match(rf"^{re.escape(전체_입력[0])}(.*)$", 전체_입력)
         if m:
             return _호_문자열_파싱(m.group(1).strip())
@@ -1213,8 +1239,7 @@ def _split_paragraphs(body):
     for i, ln in enumerate(lines):
         m = _PARA_START.match(ln)
         if m:
-            circled = m.group(1)
-            no = _HANG_CIRCLED.get(circled)
+            no = hang_num(m.group(1))
             if no:
                 if current_no is not None:
                     paragraphs.append((current_no, current_start))
