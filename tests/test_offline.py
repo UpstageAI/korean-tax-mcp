@@ -15,6 +15,7 @@ def _clear_law_caches():
             f = getattr(law, name)
             (f.clear if hasattr(f, "clear") else f.cache_clear)()
         law._FIND_CACHE.clear()
+        law.clear_caches()
     clear(); net.reset()   # 앞 테스트의 연결 실패 기억(20초)이 뒤 테스트의 가짜 응답을 가로막지 않게
     yield
     clear(); net.reset()

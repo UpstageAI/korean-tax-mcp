@@ -6,6 +6,7 @@ import json
 import os
 import re
 import ssl
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -41,35 +42,41 @@ _CACHE_TTL = int(os.environ.get("KTM_CACHE_TTL", 86400))
 
 
 def _ttl_cache(maxsize=128, ttl=_CACHE_TTL):
-    """TTL 기반 메모리 캐시 데코레이터. 날짜가 바뀌면 시행본 재조회."""
+    """TTL 기반 메모리 캐시 데코레이터. 날짜가 바뀌면 시행본 재조회.
+    여러 스레드(net.submit)가 함께 써도 안전 — 캐시 갱신은 잠금 안에서, 같은 키는 한 스레드만 조회하고 나머지는 그 결과를 받는다.
+    clear()와 cache_clear()(lru_cache와 같은 이름) 둘 다 비운다."""
 
     def decorator(func):
         cache = {}
         order = []
+        lock = threading.Lock()
+        inflight = {}   # key → 그 키를 지금 조회 중인 스레드가 잡은 잠금
 
         @wraps(func)
         def wrapper(*args, **kwargs):
             key = (args, frozenset(kwargs.items()))
-            now = time.time()
-            if key in cache:
-                val, expiry = cache[key]
-                if now < expiry:
-                    return val
-                del cache[key]
-                order.remove(key)
-            result = func(*args, **kwargs)
-            cache[key] = (result, now + ttl)
-            order.append(key)
-            if len(order) > maxsize:
-                old = order.pop(0)
-                cache.pop(old, None)
+            with lock:
+                hit = cache.get(key)
+                if hit and time.time() < hit[1]: return hit[0]
+                key_lock = inflight.setdefault(key, threading.Lock())
+            with key_lock:                      # 같은 키를 동시에 부르면 한 번만 조회
+                with lock:
+                    hit = cache.get(key)
+                    if hit and time.time() < hit[1]: return hit[0]
+                result = func(*args, **kwargs)
+                with lock:
+                    if key in cache: order.remove(key)
+                    cache[key] = (result, time.time() + ttl)
+                    order.append(key)
+                    while len(order) > maxsize: cache.pop(order.pop(0), None)
+                    inflight.pop(key, None)
             return result
 
         def clear():
-            cache.clear()
-            order.clear()
+            with lock:
+                cache.clear(); order.clear(); inflight.clear()
 
-        wrapper.clear = clear
+        wrapper.clear = wrapper.cache_clear = clear
         return wrapper
 
     return decorator
@@ -294,7 +301,7 @@ def article(law, article_no, as_of=""):
     row = version_row(law, as_of)
     if not row: return {"error": f"'{law}'를 찾지 못했거나 {as_of or '오늘'} 이전 시행본이 없음 — 정식 법령명 확인"}
     mst, ef = row["법령일련번호"], row["시행일자"]
-    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={ef}&JO={jo6(norm)}")
+    d = _jo(mst, ef, jo6(norm))
     lines = [t.strip() for t in _texts(d.get("법령", d)) if t.strip()]
     # DRF 응답 구조상 "항"→"호" 순회가 "조문내용"보다 먼저 yield될 수 있으므로
     # 조 제목 라인(제N조(...) 형태)과 편·장·절·관 제목을 명시적으로 분리한다.
@@ -322,7 +329,33 @@ def article(law, article_no, as_of=""):
     return out
 
 
-@lru_cache(maxsize=64)
+@_ttl_cache(maxsize=256)
+def _jo(mst, ef, jo):
+    """시행본의 조 하나(lawService eflaw JO) 응답 — law_article·verify_citations·article_history가 같은 조를 다시 받지 않게."""
+    return _get("lawService.do", f"target=eflaw&MST={mst}&efYd={ef}&JO={jo}")
+
+
+@_ttl_cache(maxsize=32)
+def _eflaw(mst, ef):
+    """시행본 전문(lawService eflaw — 조문단위·부칙단위) 1회 다운로드 → '법령' 객체.
+    _raw_units·_full_units·_fetch_law_articles가 모두 여기서 나눠 쓴다(전에는 각자 받아 같은 전문을 최대 3번 내려받았음)."""
+    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={ef}")
+    return d.get("법령", d)
+
+
+def _law_payload(law, ef):
+    """(법령, 기준일) → 그 시행본 전문('법령' 객체). 시행본이 없으면 None. 다운로드·TTL·잠금은 _eflaw."""
+    mst, vef = version(law, ef)
+    return _eflaw(mst, vef) if mst else None
+
+
+def _units(law, ef):
+    """전문의 조문단위 목록(전문=장·절 머리 포함). 시행본이 없으면 []."""
+    p = _law_payload(law, ef)
+    return [u for u in _list(p.get("조문", {}).get("조문단위")) if isinstance(u, dict)] if p else []
+
+
+@_ttl_cache(maxsize=64)
 def _three_tier(law):
     mst, _ = version(law)
     if not mst: return []
@@ -333,23 +366,17 @@ def _three_tier(law):
 def _jo_str(no, br): return f"제{int(no)}조" + (f"의{int(br)}" if br and br != "00" else "")
 
 
-@lru_cache(maxsize=32)
+@_ttl_cache(maxsize=32)
 def _raw_units(law, ef):
-    """법령 전체 조문단위 원본 목록(전문=장·절 머리 포함) — 목차용 (Claude 10-15)"""
-    mst, vef = version(law, ef)
-    if not mst: return []
-    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={vef}")
-    return [u for u in _list(d.get("법령", d).get("조문", {}).get("조문단위")) if isinstance(u, dict)]
+    """법령 전체 조문단위 원본 목록(전문=장·절 머리 포함) — 목차용 (Claude 10-15). 전문은 _law_payload에서."""
+    return _units(law, ef)
 
 
-@lru_cache(maxsize=32)
+@_ttl_cache(maxsize=32)
 def _full_units(law, ef):
-    """법령 전체(1회 요청) → [(조, 항, 호, 단위 원문)] 문서 순서. 50조 제한 없음 (Claude 10-12)"""
-    mst, vef = version(law, ef)
-    if not mst: return []
-    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={vef}")
+    """법령 전체 → [(조, 항, 호, 단위 원문)] 문서 순서. 50조 제한 없음 (Claude 10-12). 전문은 _law_payload에서."""
     out = []
-    for u in _list(d.get("법령", d).get("조문", {}).get("조문단위")):
+    for u in _units(law, ef):
         if u.get("조문여부") != "조문": continue
         jo = _jo_str(u.get("조문번호", "0"), u.get("조문가지번호") or "00")
         for t in _texts({"조문내용": u.get("조문내용")}): out.append((jo, "", "", t))
@@ -370,7 +397,7 @@ def _full_units(law, ef):
 _DEF_RE = re.compile(r"(?:법|영)\s*(제\d+조(?:의\d+)?)((?:제\d+항)?)(?:제\d+호(?:의\d+)?)?(?:[가-하]목)?[^\"\u201c]{0,40}?에서\s*[\"\u201c]([^\"\u201d]{2,40})[\"\u201d]\s*(?:이)?란")
 
 
-@lru_cache(maxsize=32)
+@_ttl_cache(maxsize=32)
 def _phrase_defs(lower_law, ef):
     """하위 법령(시행령→'법', 시행규칙→'영' 인용)에서 상위 조의 위임 구절을 정의한 곳 목록"""
     cite = "법" if lower_law.endswith("시행령") else "영"
@@ -607,7 +634,7 @@ def history(law, article_no, last=8):
     jo = jo6(norm)
     def body(v):
         try:
-            d = _get("lawService.do", f"target=eflaw&MST={v['법령일련번호']}&efYd={v['시행일자']}&JO={jo}")
+            d = _jo(v["법령일련번호"], v["시행일자"], jo)
             return re.sub(r"\s+", "", "".join(_texts(d.get("법령", d))))
         except (net.Unreachable, net.BudgetExceeded):
             raise                      # 망 장애·시간 예산 소진은 '확인 불가'로 덮지 않고 그대로 올림
@@ -690,7 +717,7 @@ def _find_cache_key(law, ef):
 def _fetch_law_articles(law, ef):
     """한 법령의 조문 전부(제목+본문)를 조문단위 기반으로 조회해 캐시.
 
-    lawService.do 한 번으로 받은 '법령.조문.조문단위'를 순회하며
+    _eflaw로 받은(캐시) '법령.조문.조문단위'를 순회하며
     조문여부=='조문'인 단위만 쓴다. '전문'(장·절·관 머리)과 삭제 조문은 버린다.
     같은 응답의 '법령.부칙.부칙단위'도 함께 파싱해 캐시에 저장한다.
     캐시 항목은 {"articles": [...], "addenda": [...], "expiry": ...} 형태.
@@ -702,8 +729,7 @@ def _fetch_law_articles(law, ef):
     if not mst:
         _FIND_CACHE[key] = {"articles": [], "addenda": [], "expiry": time.time() + _FIND_CACHE_TTL}
         return []
-    d = _get("lawService.do", f"target=eflaw&MST={mst}&efYd={actual_ef}")
-    law_obj = d.get("법령", d)
+    law_obj = _eflaw(mst, actual_ef)   # 전문 다운로드는 _raw_units·_full_units와 같은 캐시에서 1회
     units = [u for u in _list(law_obj.get("조문", {}).get("조문단위")) if isinstance(u, dict)]
     addenda_units = [u for u in _list(law_obj.get("부칙", {}).get("부칙단위")) if isinstance(u, dict)]
 
@@ -771,6 +797,14 @@ def _fetch_law_articles_with_addenda(law, ef):
     if cached:
         return cached["articles"], cached["addenda"]
     return [], []
+
+
+def clear_caches():
+    """메모리 캐시 전부 비움 — 연혁·3단비교·전문(_eflaw)·조(_jo)·파생 목록·find_article 조문·영문 연혁.
+    가짜 응답으로 도는 테스트가 테스트마다 부른다(이름으로 하나씩 비우던 곳은 그대로 두어도 됨)."""
+    for f in (_versions, _three_tier, _jo, _eflaw, _raw_units, _full_units, _phrase_defs, _en_versions):
+        (f.clear if hasattr(f, "clear") else f.cache_clear)()
+    _FIND_CACHE.clear()
 
 
 def _kw_split(kw):
