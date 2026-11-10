@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from .models import (
-    AddrJudgment, DualStatus, ResidenceJudgment, Stage1Overall,
+    AddrJudgment, DualStatus, ResidenceJudgment, ResidencyInput, Stage1Overall,
     TreatyOutcome, TreatyStage,
 )
 
