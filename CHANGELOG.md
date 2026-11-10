@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.16 (2026-11-10)
+
+뼈대 Solar Pro 4, 보완 Claude.
+
+- admrul.py: 행정규칙(고시·훈령·예규) target=admrul 조회 모듈 신설. split_articles(하이픈 조 제9-5조 등)·normalize·search(lawSearch 정확한 이름 우선, 없으면 최단 포함 행)·article(lawService → split → 해당 조).
+- server.py: law_article에 "찾지 못했거나 … 시행본이 없음" 오류 시 admrul.article 폴백(구분 키로 행정규칙 표시, as_of 있으면 주의에 현행본 안내 추가). find_article에 law_name 주어지고 법령에 없으면 admrul.search→전 조문 키워드 탐색 폴백([{법령, 조, 제목, 적용 시행일, 일치 문장}]). 도구 설명에 "행정규칙은 법령에 없을 때 자동 폴백, 현행본만" 한 줄 추가.
+- i18n.py: 구분(type, 기존)·발령일(promulgated_date)·소관(jurisdiction) 영문 키.
+- pyproject.toml·server.json·__init__.py 버전 0.12.16.
+
 ## 0.12.15 (2026-11-10)
 
 뼈대 Solar Pro 4, 보완 Claude(괄호 단서 단위는 바깥 괄호를 뺀 안쪽 글로(어절 추출이 괄호 안을 버리던 문제), 서술어 어간이 든 단위 가점·정밀도 동점 처리로 긴 머리글 대신 괄호 단서를 고르게, "…하되, …" 두 절 문장은 진술과 닮은 절만 양태·반대말 대조, 이음절(하되·며) 끝 절은 양태 신호 제외, 호 괄호 위치 표기 "제52조 ① 2호 괄호 단서", 조세심판원 결정례는 기존 결과에 섞지 않고 별도 키로만).
