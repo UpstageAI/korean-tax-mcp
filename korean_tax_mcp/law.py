@@ -598,7 +598,7 @@ def article_en(law, article_no):
 def history(law, article_no, last=8):
     """조문의 연혁: 최근 시행본들(시행예정 포함)에서 이 조 본문이 바뀐 시점."""
     norm, _ = normalize_article(article_no)
-    today = time.strftime("%Y%m%d")
+    today = today()
     allv = sorted({v["시행일자"]: v for v in _versions(law)}.values(), key=lambda x: x["시행일자"])
     past = [v for v in allv if v["시행일자"] <= today]
     future = [v for v in allv if v["시행일자"] > today]
