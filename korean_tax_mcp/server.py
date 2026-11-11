@@ -369,7 +369,7 @@ def law_article(
     언제: 세액·요건 판단처럼 사실 발생 시점의 법령이 필요할 때. 해석·판례는 회신 당시 법 기준이므로 이 도구로 적용 연도 조문과 대조.
     조문 번호를 모르면 find_article로 먼저 찾는다. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록과 안내 반환.
     결과의 '연결'에 상위·하위 조문 위치가 있으니 그 조를 law_article로 이어서 조회.
-    행정규칙(외국환거래규정·국세청 고시 등)은 법령에 없을 때 자동 폴백, 현행본만.
+    행정규칙(외국환거래규정·국세청 고시 등)은 법령에 없을 때 자동 폴백 — as_of를 주면 그 날짜에 시행 중이던 연혁본(법제처 등록분)과 부칙, 생략하면 현행본.
     반환: {법령, 조, 적용 시행일, 적용 기준일, 본문, 링크, 반환 범위, 연결, 읽기 주의(돌려준 본문의 단서·우선·제외 구절 원문, 최대 3개), 기준일 안내?, 최근 개정?, 다시 조회?} 또는 {위임체계: [{단계, 법령, 조, 적용 시행일, 본문}]} (+ 기본통칙·집행기준).
     읽기 전용. 법제처 공식 API — 환경변수 LAW_OC(무료) 필요, 없으면 발급 안내 오류.
     전체 시간 예산 약 45초 — 넘으면 받은 부분(본문 등)만 돌려주고 '부분 결과'에 빠진 항목을 적는다.
@@ -421,11 +421,15 @@ def _law_article(law_name, article, as_of, with_delegation, with_rules, keyword,
         return _err(e)
     # 법령 조회가 "찾지 못했거나 … 시행본이 없음"이면 행정규칙(고시·훈령) 폴백
     if out.get("error") and "찾지 못했거나" in out["error"]:
-        adm = admrul.article(law_name, article)
+        try:
+            adm = admrul.article(law_name, article, as_of=ef if given else None)   # 기준일을 받았으면 그 날짜에 시행 중이던 연혁본
+        except Exception as e:
+            return _err(e)
         if "error" not in adm:
-            if as_of:
-                adm.setdefault("주의", "행정규칙은 현행본만 조회(연혁·as_of 미지원) — 개정 잦음")
-                adm["주의"] += " / 행정규칙은 as_of를 적용하지 않음(현행본)"
+            if given and "기준일" not in adm:
+                adm["주의"] = adm.get("주의", "") + " / 이름이 정확히 일치하는 연혁을 찾지 못해 현행본으로 답함(as_of 미적용)"
+            out = adm
+        elif "당시 시행본 없음" in adm["error"]:
             out = adm
         else:
             out["error"] = out["error"] + " / 행정규칙(고시·훈령)에도 없음"
@@ -535,14 +539,18 @@ def find_article(
         return _err(e)
     # 행정규칙(고시·훈령) 폴백: law_name이 주어졌고 법령에 없음 → 행정규칙 전 조문 키워드 탐색
     if law_name and result.get("error") and ("찾지 못함" in result["error"] or "일치하는 조문 없음" in result["error"]):
-        adm = admrul.search(law_name)
+        adm = None
+        if re.sub(r"\D", "", as_of or ""):            # 기준일을 받았으면 그 날짜에 시행 중이던 연혁본에서 찾음
+            adm, _next, _n = admrul.version_as_of(law_name, ef)
+        if adm is None:
+            adm = admrul.search(law_name)
         if adm:
             seq = adm["행정규칙일련번호"]
             svc = law._get("lawService.do", f"target=admrul&ID={seq}")
             content = svc.get("AdmRulService", {}).get("조문내용", "")
             kw_words = law._kw_split(keyword)
             rows = []
-            for art_label, art_body in admrul.split_articles(content):
+            for art_label, art_body in admrul.articles_of(content):
                 title_m = re.search(r"\(([^()]*)\)", art_label)
                 title = title_m.group(1) if title_m else ""
                 # 행정규칙 본문은 줄바꿈이 없어 개정 이력 태그를 떼고 항(①)·호(1.)·문장 끝(…다.) 앞뒤에서 나눔 — 법령용 분할기(줄 단위)는 손대지 않음
