@@ -67,3 +67,19 @@ def test_law_article_fallback_applies_as_of(monkeypatch):
     assert r.get("적용 시행일") == "20161005" and r.get("기준일") == "20171231", r
     r2 = fn(NAME, "제9-5조")
     assert r2.get("적용 시행일") == "20261102", r2
+
+
+def test_as_of_is_normalized(monkeypatch):
+    """'2017-12-31'처럼 구분자가 있어도 같은 판을 고른다(문자열 비교가 깨지지 않게)."""
+    monkeypatch.setattr(law, "_get", _fake_get)
+    v, nxt, n = admrul.version_as_of(NAME, "2017-12-31")
+    assert v["시행일자"] == "20161005" and nxt == "20191008" and n == 3
+    assert admrul.article(NAME, "제9-5조", as_of="2019.12.31")["적용 시행일"] == "20191008"
+
+def test_find_article_before_first_version_does_not_use_current(monkeypatch):
+    monkeypatch.setattr(law, "_get", _fake_get)
+    fn = getattr(server.find_article, "fn", server.find_article)
+    r = fn("사후보고", law_name=NAME, as_of="20100101")
+    assert "당시 시행본 없음" in r.get("error", "") and not r.get("결과"), r
+    ok = fn("사후보고", law_name=NAME, as_of="20171231")
+    assert ok.get("결과") and ok["결과"][0]["적용 시행일"] == "20161005", ok

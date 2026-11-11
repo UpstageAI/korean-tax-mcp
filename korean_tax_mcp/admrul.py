@@ -168,6 +168,7 @@ def version_as_of(name, as_of):
 
     반환: (그 판 | None, 다음 판의 시행일자 | None, 전체 판 수). 그 날짜에 시행 중인 판이 없으면 판 자리에 None.
     """
+    as_of = law.as_of_or_today(as_of)                 # '2016-12-31'·'2016.12.31' → '20161231'(형식이 틀리면 ValueError)
     vs = versions(name)
     past = [v for v in vs if (v.get("시행일자") or "") <= as_of]
     if not past:
@@ -185,6 +186,7 @@ def article(name, article_no, as_of=None):
     """
     next_ef = None
     if as_of:
+        as_of = law.as_of_or_today(as_of)
         info, next_ef, n_versions = version_as_of(name, as_of)
         if info is None and n_versions:
             return {

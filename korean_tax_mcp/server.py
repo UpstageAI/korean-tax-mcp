@@ -542,6 +542,9 @@ def find_article(
         adm = None
         if re.sub(r"\D", "", as_of or ""):            # 기준일을 받았으면 그 날짜에 시행 중이던 연혁본에서 찾음
             adm, _next, _n = admrul.version_as_of(law_name, ef)
+            if adm is None and _n:                    # 연혁은 있는데 그 날짜에 시행 중인 판이 없음 — 현행본으로 답하지 않는다(law_article 폴백과 같게)
+                result["error"] = result["error"] + f" / 행정규칙 '{law_name}'은(는) {ef} 당시 시행본 없음(가장 이른 등록 판 시행일 {_next})"
+                return result
         if adm is None:
             adm = admrul.search(law_name)
         if adm:
