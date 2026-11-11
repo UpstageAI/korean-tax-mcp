@@ -33,6 +33,52 @@ def split_articles(text):
     return out
 
 
+_ITEM_HEAD_RE = re.compile(r"\s*(제\d+(?:-\d+)?조(?:의\d+)?)\s*\(")
+_CHAPTER_RE = re.compile(r"\s*제\d+(?:-\d+)?(?:장|절|관)\s")
+
+
+def articles_of(content):
+    """lawService 응답의 '조문내용' → (조 번호, 조 원문) 목록.
+
+    현행본은 한 문자열(split_articles로 나눔), 연혁본은 조 단위 문자열 목록으로 온다.
+    목록이면 조 머리로 시작하는 항목이 한 조이고, 머리가 없는 항목은 장·절 제목이 아니면 앞 조에 잇는다(글자 추가 없음).
+    """
+    if not content:
+        return []
+    if isinstance(content, str):
+        return split_articles(content)
+    out = []
+    for item in content:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        m = _ITEM_HEAD_RE.match(item)
+        if m:
+            out.append([m.group(1), item.strip()])
+        elif out and not _CHAPTER_RE.match(item):
+            out[-1][1] += "\n" + item.strip()
+    return [(a, b) for a, b in out]
+
+
+def addenda_text(svc_body, limit=1500):
+    """lawService 응답의 '부칙' 가운데 그 판의 부칙(가장 최근 발령분)을 한 문자열로 — 시행일·적용례 확인용. 길면 앞 limit자.
+
+    부칙은 {"부칙공포일자": [...], "부칙내용": [...], "부칙공포번호": [...]} 꼴로 그동안의 부칙이 모두 쌓여 오므로 마지막 것만 낸다.
+    """
+    ad = svc_body.get("부칙")
+    if not ad:
+        return ""
+    if isinstance(ad, dict):
+        body = ad.get("부칙내용")
+        if isinstance(body, list):
+            body = body[-1] if body else ""
+        txt = str(body or "").strip()
+    elif isinstance(ad, list):
+        txt = str(ad[-1]).strip() if ad else ""
+    else:
+        txt = str(ad).strip()
+    return txt if len(txt) <= limit else txt[:limit] + " …(생략)"
+
+
 def normalize(raw):
     """조 번호 표기를 정규화. 하이픈 조(제9-5조)는 그대로 유지.
 
@@ -88,12 +134,73 @@ def search(name):
     }
 
 
-def article(name, article_no):
+def versions(name):
+    """행정규칙의 현행본 + 연혁본 목록(시행일자 오름차순). 법제처 lawSearch target=admrul, nw=1(현행)·nw=2(연혁).
+
+    이름이 정확히 같은 행만 모은다(비슷한 이름의 다른 고시가 섞이지 않게).
+    반환: [{"행정규칙일련번호", "행정규칙명", "행정규칙종류", "시행일자", "발령일자", "발령번호", "소관부처명", "현행연혁구분"}]
+    """
+    q = urllib.parse.quote(name)
+    rows = []
+    for nw in ("1", "2"):
+        for page in range(1, 11):                      # 100건씩, 많아야 10쪽
+            data = law._get("lawSearch.do", f"target=admrul&display=100&page={page}&nw={nw}&query={q}")
+            got = data.get("AdmRulSearch", {}).get("admrul", [])
+            if isinstance(got, dict):
+                got = [got]
+            rows += [r for r in got if r.get("행정규칙명") == name]
+            if len(got) < 100:
+                break
+    seen, out = set(), []
+    for r in rows:
+        seq = r.get("행정규칙일련번호")
+        if not seq or seq in seen:
+            continue
+        seen.add(seq)
+        out.append({k: r.get(k) for k in ("행정규칙일련번호", "행정규칙명", "행정규칙종류", "시행일자", "발령일자", "발령번호",
+                                           "소관부처명", "현행연혁구분")})
+    out.sort(key=lambda r: (r.get("시행일자") or "", r.get("발령일자") or ""))
+    return out
+
+
+def version_as_of(name, as_of):
+    """as_of(YYYYMMDD) 당시 시행 중이던 판 — 시행일자가 as_of 이하인 것 가운데 가장 늦은 판.
+
+    반환: (그 판 | None, 다음 판의 시행일자 | None, 전체 판 수). 그 날짜에 시행 중인 판이 없으면 판 자리에 None.
+    """
+    as_of = law.as_of_or_today(as_of)                 # '2016-12-31'·'2016.12.31' → '20161231'(형식이 틀리면 ValueError)
+    vs = versions(name)
+    past = [v for v in vs if (v.get("시행일자") or "") <= as_of]
+    if not past:
+        return None, (vs[0].get("시행일자") if vs else None), len(vs)
+    cur = past[-1]
+    later = [v for v in vs if (v.get("시행일자") or "") > as_of]
+    return cur, (later[0].get("시행일자") if later else None), len(vs)
+
+
+def article(name, article_no, as_of=None):
     """행정규칙 조문을 조회.
 
     search → lawService(target=admrul, ID=일련번호) → split_articles → 해당 조.
+    as_of(YYYYMMDD)를 주면 그 날짜에 시행 중이던 판(연혁본)을 고른다.
     """
-    info = search(name)
+    next_ef = None
+    if as_of:
+        as_of = law.as_of_or_today(as_of)
+        info, next_ef, n_versions = version_as_of(name, as_of)
+        if info is None and n_versions:
+            return {
+                "법령": name, "구분": "행정규칙(고시)", "조": normalize(article_no), "적용 시행일": "", "발령일": "", "소관": "",
+                "본문": f"{as_of} 당시 시행본 없음 — 법제처에 등록된 가장 이른 판의 시행일은 {next_ef}",
+                "링크": f"https://www.law.go.kr/행정규칙/{urllib.parse.quote(name)}",
+                "주의": "행정규칙 연혁은 법제처에 등록된 판만 조회",
+                "error": f"{as_of} 당시 시행본 없음 — 가장 이른 판 시행일 {next_ef}",
+            }
+        if info is None:
+            info = search(name)                      # 정확한 이름이 아니면 현행본 검색으로(비슷한 이름) — 연혁은 적용 못 함
+            as_of = None
+    else:
+        info = search(name)
     if info is None:
         return {
             "법령": name,
@@ -112,7 +219,7 @@ def article(name, article_no):
     basics = svc.get("AdmRulService", {}).get("행정규칙기본정보", {})
     content = svc.get("AdmRulService", {}).get("조문내용", "")
     norm = normalize(article_no)
-    arts = dict(split_articles(content))
+    arts = dict(articles_of(content))
     body = arts.get(norm, "")
     if not body:
         body = "조문 없음 — 조번호 확인"
@@ -126,4 +233,18 @@ def article(name, article_no):
         "본문": body,
         "링크": f"https://www.law.go.kr/행정규칙/{urllib.parse.quote(info['행정규칙명'])}",
         "주의": "행정규칙은 현행본만 조회(연혁·as_of 미지원) — 개정 잦음",
+    } if not as_of else {
+        "법령": basics.get("행정규칙명") or info["행정규칙명"],
+        "구분": _구분(basics.get("행정규칙종류") or info["행정규칙종류"]),
+        "조": norm,
+        "적용 시행일": basics.get("시행일자") or info["시행일자"],
+        "발령일": basics.get("발령일자") or info.get("발령일자") or "",
+        "발령번호": basics.get("발령번호") or info.get("발령번호") or "",
+        "소관": basics.get("소관부처명") or info["소관부처명"],
+        "기준일": as_of,
+        "현행 여부": "현행" if next_ef is None else f"연혁(다음 판 시행일 {next_ef})",
+        "본문": body,
+        "부칙": addenda_text(svc.get("AdmRulService", {})),
+        "링크": f"https://www.law.go.kr/행정규칙/{urllib.parse.quote(info['행정규칙명'])}",
+        "주의": "행정규칙 — as_of 기준일에 시행 중이던 판(법제처 등록 연혁). 시행일 전후 거래는 부칙의 적용례·경과조치 확인",
     }
