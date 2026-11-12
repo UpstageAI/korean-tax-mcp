@@ -130,3 +130,8 @@ def test_foreign_workers_and_related_rulings():
     assert "서면-2024-소득-0033" in j["직원 — 비거주"]["사유"] and "서면-2024-소득-0033" in R(G.guide(2020))["상시근로자 범위"]["내용"]
     ids = lambda r: [x["문서번호"] for x in r["관련 해석"]]
     assert "서면-2024-소득-0033" in ids(G.guide(2020)) and "사전-2026-법규법인-0729" not in ids(G.guide(2020)) and "사전-2026-법규법인-0729" in ids(G.guide(2026))
+
+
+def test_youth_retention_from_leap_day_contract():
+    f = lambda size: J(G.guide(2026, size=size, workers=[{"name": "A", "age": 36, "age_at_contract": 34, "contract_date": "2028-02-29", "service_months": 12}]))["직원 — A"]["사유"]
+    assert "4년간(2032-02-29" in f("중소기업") and "3년간(2031-02-28" in f("일반")

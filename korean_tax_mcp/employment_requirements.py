@@ -227,7 +227,10 @@ def _youth(w, year, credit, size):
                 return None, "근로계약 체결 당시 34세 이하 — 청년등으로 보는 기간은 기업 규모에 따라 다름(size)"
             sme = size in ("중소기업", "중견기업")
             yrs = (4 if sme else 3) if cd.year >= 2026 else (3 if sme else 2)
-            until = cd.replace(year=cd.year + yrs, day=28) if (cd.month, cd.day) == (2, 29) else cd.replace(year=cd.year + yrs)
+            try:
+                until = cd.replace(year=cd.year + yrs)
+            except ValueError:      # 2월 29일 계약이고 끝나는 해가 윤년이 아님
+                until = cd.replace(year=cd.year + yrs, day=28)
             src = "시행령 제26조의8제4항제1호 후단" if cd.year >= 2026 else "시행령 2026.2.27. 개정 부칙 제11조제2항"
             src += ", 2025.1.1. 이후 개시하는 과세연도를 최초 공제연도로 신청하는 경우"
             if date(year, 1, 1) < until:
