@@ -23,6 +23,8 @@ from pydantic import Field
 
 from . import _mask_oc, admrul, casebook, cite, claims, i18n, law, localdocs, localtax, net, ntis, outcome, residency, solar, timeline, tribunal
 from . import timing_rules as _timing_rules_data
+from . import transfer_pricing as _transfer_pricing
+from . import oecd_tpg as _oecd_tpg
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -819,6 +821,56 @@ def timing_rules(
     읽기 전용. data/timing_rules.json 기반, 외부 호출 없음.
     """
     return _timing_rules_data.lookup(_TIMING_TAX_EN.get(tax, tax), kind or None, keyword, as_of)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def transfer_pricing_guide(
+    transaction: Annotated[Literal["재화", "용역", "금전대차", "지급보증", "무형자산"], Field(description="거래 유형 — 재화(제품·상품 공급), 용역(경영관리·전산지원·파견 등), 금전대차(대여·차입), 지급보증, 무형자산(상표·기술 사용료 등)")],
+    foreign_related: Annotated[bool, Field(description="거래 상대가 국외특수관계인인지(기본 True). False면 법인세법 제52조 대상이라고만 안내")] = True,
+    exception: Annotated[Literal["무상이전·채무면제", "무수익자산", "출연금대납", "자본거래"] | None, Field(description="국제거래라도 법인세법 제52조를 적용하는 예외 유형(국조령 제4조)에 해당하면 지정 — 자산 무상 이전·채무 면제 / 수익 없는 자산 매입·현물출자·비용 부담 / 출연금 대신 부담 / 자본거래(증자·감자·합병 등)")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택, 값은 true/false) — internal_comparable: 특수관계 없는 자와의 같은·유사 거래 가격이 있음 / buyer_resells: 구매자가 특수관계 없는 자에게 다시 판매(해외 판매법인) / seller_cost_known: 제조·판매·용역 제공 원가를 파악할 수 있음 / joint_profit: 양쪽이 함께 이익을 실현하고 공헌도를 나눌 수 있음")] = None,
+    as_of: Annotated[str, Field(description="사안 기준일 YYYYMMDD(선택). 표는 2021.1.1. 이후 시행본 기준 — 그 전이면 '기준일 주의'로 알림")] = "",
+) -> dict:
+    """Transfer pricing guide — which rule applies to a related-party transaction, the arm's length methods with statutory basis, selection criteria and transaction-specific rules. It does not compute an arm's length price.
+
+    정상가격 산출방법 안내 — 국외특수관계인 거래에 적용할 규정(국조법 정상가격 조정 / 법인세법 제52조), 쓸 수 있는 산출방법과 조문, 선택 기준, 적용 절차, 거래 유형별 특칙, 조정·소득처분.
+    언제: 해외 자회사·모회사와의 공급가, 용역 대가, 대여 이자율, 지급보증 수수료, 사용료를 어떤 방법으로 정하고 무엇을 준비해야 하는지 볼 때.
+    반환: {거래 유형, 적용 규정: {적용, 결론, 근거, 예외 유형?}, 산출방법: [{호, 방법, 정의, 맞는 상황, 필요 자료, 근거, 입력 사실?}], 먼저 볼 방법?, 순서, 선택 기준, 적용 절차, 거래 유형 특칙, 조정·처분, 한계, 다음 단계, 확인 시행본, 기준일 주의?}.
+      exception을 주면 법인세법 제52조 적용과 소득처분(시행령 제106조)만 안내. foreign_related=False면 법인세법 제52조 대상이라고만 안내.
+    정상가격을 산출하지 않고, 거래가격이 정상가격인지도 판정하지 않는다. '먼저 볼 방법'은 입력한 사실이 법 제8조제1항 각 호의 정의 문언에 맞는 방법일 뿐 — 가장 합리적인 방법은 시행령 제14조 기준으로 비교가능 거래 자료를 놓고 판단.
+    읽기 전용. data/transfer_pricing.json 기반(2021·2026 시행본 대조), 외부 호출 없음. 원문은 law_article, 해석·결정례는 search_tax_rulings(tax='국조').
+    """
+    return _transfer_pricing.guide(transaction, foreign_related, exception, facts, as_of)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def oecd_tp_guidelines(
+    paragraph: Annotated[str, Field(description="문단 번호나 범위. 예: '2.14', '3.55-3.62', '1.36, 2.2'. 한 번에 12개까지 전문")] = "",
+    keyword: Annotated[str, Field(description="찾을 말 — 영어 표현(예: 'limited risk distributor', 'working capital adjustment') 또는 한국어 용어(비교가능성·사분위·판매법인·분석대상당사자·저부가가치·지급보증·손실·다년도 등). 띄어 쓴 낱말은 모두 들어 있어야 함")] = "",
+    chapter: Annotated[int | None, Field(description="장 번호 1~10(선택). keyword와 함께 주면 그 장 안에서만 찾고, 혼자 주면 그 장의 절 목록", ge=1, le=10)] = None,
+    crosswalk: Annotated[str, Field(description="국조법령 조문·주제로 대응 문단 찾기. 예: '시행령 제15조', '정상가격 범위', '금전대차'. '전체'면 대응표 전부")] = "",
+    n: Annotated[int, Field(description="keyword 검색 결과 수(기본 6)", ge=1, le=20)] = 6,
+) -> dict:
+    """OECD Transfer Pricing Guidelines 2022 — paragraph text by number, keyword search, chapter outline, and a crosswalk to the Korean statute.
+
+    OECD 이전가격지침(2022) 문단 조회·검색·국조법령 대응표. 본문 제1장~제10장 문단 1,391개(영문 원문, 쪽 번호·절 제목 포함).
+    언제: 국조법령에 규정이 없거나 해석이 갈리는 대목(분석 대상 당사자 선정, 판매법인의 기능·위험, 정상가격 범위 안의 지점, 손실 비교대상, 다년도 자료, 시장 침투 전략 등)에서 정상가격 논거를 세울 때.
+    쓰는 법: crosswalk로 조문에 대응하는 문단 범위를 찾고 → paragraph로 전문을 읽는다. 조문을 모르면 keyword로 찾는다. 아무것도 안 주면 장 목록.
+    반환: paragraph → {결과: [{문단, 장, 절, 쪽, 본문}], 더 있음?, 없는 문단?} / keyword → {전체건수, 결과: [{문단, 장, 절, 쪽, 발췌}], 검색어} / chapter → {절: [{절, 시작 문단, 쪽}]} / crosswalk → {대응표: [{주제, 국내, 문단, 핵심?}]}. 모두 출처·지위·주의 포함.
+    지위: 지침은 국내에서 법적 효력이 있는 규정이 아니다(대법원 2012두1969) — 국조법령과 다르면 국조법령이 우선하고, 지침은 해석·논거 자료로 쓴다.
+    읽기 전용, 외부 호출 없음. 출처: OECD (2022), OECD Transfer Pricing Guidelines for Multinational Enterprises and Tax Administrations 2022, https://doi.org/10.1787/0e655865-en (PDF 추출문 — 인용 전에 쪽 번호로 원문 확인, 부속서는 없음).
+    """
+    if paragraph:
+        return _oecd_tpg.lookup(paragraph)
+    if keyword:
+        return _oecd_tpg.search(keyword, chapter, n)
+    if crosswalk:
+        return _oecd_tpg.crosswalk("" if crosswalk.strip() == "전체" else crosswalk)
+    if chapter:
+        return _oecd_tpg.sections(chapter)
+    return _oecd_tpg.chapters()
 
 
 @mcp.tool(annotations=RO)

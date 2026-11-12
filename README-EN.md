@@ -84,7 +84,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 5. If two values come out (before/after apportionment, total vs. taxable part, etc.), answer only the one the question asks for.
 ```
 
-## Tools (27)
+## Tools (29)
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -103,6 +103,8 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 | | `casebook_search` | NTS 2025 casebook (96 cases) |
 | Base year · check | `research_issue` | statute, rules and rulings for the base date; changes vs today |
 | | `timing_rules` | timing rules table — tax liability establishment, profit/loss attribution, income receipt timing, VAT supply timing |
+| | `transfer_pricing_guide` | transfer pricing guide — applicable rule (ITA Act vs CITA art.52), arm's length methods, selection criteria, transaction-specific rules |
+| | `oecd_tp_guidelines` | OECD Transfer Pricing Guidelines 2022 — paragraph lookup, keyword search, crosswalk to the Korean statute (1,391 paragraphs) |
 | | `verify_citations` | do cited document numbers and articles exist |
 | Compare · judge | `verify_statement` | one statement vs statute text |
 | | `judge_options` | several options vs articles at once |

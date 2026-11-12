@@ -56,7 +56,7 @@ def test_tools():
                 "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms",
                 "article_history", "article_addenda", "compare_outcomes",
                 "residency_check", "residency_report", "find_article", "verify_statement", "judge_options", "timing_rules",
-                "search_rulings_by_issue", "search_tribunal_decisions", "get_tribunal_decision"}
+                "search_rulings_by_issue", "search_tribunal_decisions", "get_tribunal_decision", "transfer_pricing_guide", "oecd_tp_guidelines"}
     assert names == expected, f"도구 목록 불일치: Extra={names-expected}, Missing={expected-names}"
 
 
