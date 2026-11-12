@@ -92,7 +92,10 @@ def test_2026_integrated_credit_rules():
     w = [{"name": "신규", "age": 30}, {"name": "일년", "age": 30, "service_months": 14}, {"name": "단기", "age": 30, "service_months": 8}]
     j = J(G.guide(2026, workers=w))
     assert j["직원 — 신규"]["판정"] == "확인 필요" and j["직원 — 일년"]["판정"] == "상시근로자 — 청년등" and j["직원 — 단기"]["판정"] == "상시근로자 아님"
-    assert any("부칙 제11조제1항" in x for x in r["한계"]) and any("부칙 제11조제1항" in x for x in G.guide(2025)["한계"]) and not any("부칙 제11조제1항" in x for x in G.guide(2024)["한계"])
+    q25 = R(G.guide(2025))
+    assert "근무개월 수" in q25["인원 계산"]["내용"] and "부칙 제11조제1항" in q25["인원 계산"]["근거"] and "제23조제10항" in q25["상시근로자 범위"]["근거"]
+    assert "매월 말" in R(G.guide(2024))["인원 계산"]["내용"] and "근무개월" not in R(G.guide(2024))["인원 계산"]["내용"]
+    assert any("부칙 제11조제1항" in x for x in G.guide(2025)["한계"]) and not any("부칙 제11조제1항" in x for x in G.guide(2024)["한계"])
 
 
 def test_2026_youth_kept_after_34():
@@ -102,7 +105,11 @@ def test_2026_youth_kept_after_34():
     assert a["판정"] == "상시근로자 — 청년등" and "3년간(2028-03-01" in a["사유"] and "부칙 제11조제2항" in a["사유"]
     assert "2년간(2027-03-01" in f("일반", "2025-03-01")["사유"] and "4년간(2030-02-01" in f("중견기업", "2026-02-01")["사유"]
     assert f(None, "2025-03-01")["판정"].endswith("확인 필요") and f("중소기업", "2024-03-01")["판정"].endswith("청년등 외")
-    assert J(G.guide(2025, size="중소기업", workers=[dict(base, name="A", contract_date="2025-03-01")]))["직원 — A"]["판정"].endswith("청년등 외")      # 2025년은 종전 규정으로 안내
+    assert "사전-2026-법규법인-0729" in f("중소기업", "2024-03-01")["사유"]
+    # 2025년 최초 공제분에도 청년 유지 규정 적용(부칙 제11조제1항·제2항) — 2025년 계약 3년
+    b = J(G.guide(2025, size="중소기업", workers=[{"name": "A", "age": 35, "age_at_contract": 34, "contract_date": "2025-02-01"}]))["직원 — A"]
+    assert b["판정"] == "상시근로자 — 청년등" and "3년간(2028-02-01" in b["사유"]
+    assert J(G.guide(2024, size="중소기업", workers=[{"name": "A", "age": 35, "age_at_contract": 34, "contract_date": "2024-02-01"}]))["직원 — A"]["판정"].endswith("청년등 외")
 
 
 def test_age_is_checked_before_other_groups_and_inputs_are_validated():
@@ -114,3 +121,12 @@ def test_age_is_checked_before_other_groups_and_inputs_are_validated():
     assert J(G.guide(2023, workers=[{"name": "G", "age": 25, "fixed_term": True}]))["직원 — G"]["판정"] == "확인 필요"      # 기간제인데 계약기간을 주지 않음
     bad = G.guide(2026, increase="5", consumer_service="예", workers=[{"age": "30"}, {"monthly_hours": -1}, {"contract_date": "2025.3.1"}, {"age": True}])
     assert "error" in bad and len(bad["문제"]) == 6
+
+
+def test_foreign_workers_and_related_rulings():
+    w = [{"name": "거주", "age": 30, "foreigner": True, "resident": True}, {"name": "비거주", "age": 30, "foreigner": True, "resident": False}, {"name": "미상", "age": 30, "foreigner": True}]
+    j = J(G.guide(2024, workers=w))
+    assert j["직원 — 거주"]["판정"] == "상시근로자 — 청년등" and j["직원 — 비거주"]["판정"] == "상시근로자 아님" and j["직원 — 미상"]["판정"] == "확인 필요"
+    assert "서면-2024-소득-0033" in j["직원 — 비거주"]["사유"] and "서면-2024-소득-0033" in R(G.guide(2020))["상시근로자 범위"]["내용"]
+    ids = lambda r: [x["문서번호"] for x in r["관련 해석"]]
+    assert "서면-2024-소득-0033" in ids(G.guide(2020)) and "사전-2026-법규법인-0729" not in ids(G.guide(2020)) and "사전-2026-법규법인-0729" in ids(G.guide(2026))
