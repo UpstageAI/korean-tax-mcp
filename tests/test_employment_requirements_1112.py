@@ -53,6 +53,8 @@ def test_regular_employee_exclusions():
     r = J(G.guide(2023, workers=w))
     assert all(r[f"직원 — {n}"]["판정"] == "상시근로자 아님" for n in ("단기", "임원", "배우자", "미신고", "알바"))
     assert r["직원 — 보험만"]["판정"] == "상시근로자 — 청년등 외" and r["직원 — 반일"]["인원_환산"] == 0.5 and r["직원 — 미상"]["판정"] == "확인 필요"
+    half = J(G.guide(2023, workers=[{"name": "보험없음", "age": 30, "social_insurance": False}, {"name": "원천없음", "age": 30, "withholding": False}, {"name": "원천만", "age": 30, "withholding": True, "social_insurance": False}]))
+    assert half["직원 — 보험없음"]["판정"] == "확인 필요" and half["직원 — 원천없음"]["판정"] == "확인 필요" and half["직원 — 원천만"]["판정"] == "상시근로자 — 청년등"      # 둘 다 확인되지 않아야 제외
     assert "제40조제1항" in R(G.guide(2019))["상시근로자 범위"]["제외"][2] and "제42조제1항" in R(G.guide(2018))["상시근로자 범위"]["제외"][2]
     assert "제23조제10항" in R(G.guide(2025))["상시근로자 범위"]["근거"]
 

@@ -142,6 +142,8 @@ def _worker(w, i, year, credit, size):
     pending = []
     if w.get("withholding") is False and w.get("social_insurance") is None:
         pending.append("원천징수 사실이 없으면 국민연금·건강보험 납부 사실 확인(social_insurance)")
+    if w.get("social_insurance") is False and w.get("withholding") is None:
+        pending.append("국민연금·건강보험 납부 사실이 없으면 근로소득세 원천징수 사실 확인(withholding)")
     months = w.get("service_months") if new else w.get("contract_months")
     if months is not None and months < 12:
         return out("상시근로자 아님", "근로기간이 1년 미만" if new else "근로계약기간이 1년 미만(연속 갱신으로 총 1년 이상이면 contract_months에 총 기간을)")
