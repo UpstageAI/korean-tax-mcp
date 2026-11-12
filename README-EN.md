@@ -84,7 +84,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 5. If two values come out (before/after apportionment, total vs. taxable part, etc.), answer only the one the question asks for.
 ```
 
-## Tools (33)
+## Tools (34)
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -107,6 +107,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 | | `transfer_pricing_report` | transfer pricing report outline following the Korean Local File form (24 items: how to write, facts, basis, OECD paragraphs, decisions) |
 | | `transfer_pricing_far` | functions-assets-risks analysis — risk allocation steps, tested party candidate, method suitability and profit level indicators |
 | | `sme_tax_incentives_guide` | SME tax incentives guide — startup reduction, venture startup, special reduction and loss carryback: eligibility, rates and statutory basis by founding date, region and industry |
+| | `rnd_credit_requirements_guide` | R&D tax credit requirements by tax year — recognized lab, eligible staff, controlling-shareholder executives excluded, grant-funded spending excluded, excluded activities, records; per-person, per-cost and per-contractor checks (STTCA Enforcement Decree Table 6, Enforcement Rule Art. 7, 2016–2026) |
 | | `transfer_pricing_cases` | transfer pricing decisions by issue (9 issues) — taxpayer wins and upheld assessments side by side |
 | | `oecd_tp_guidelines` | OECD Transfer Pricing Guidelines 2022 — paragraph lookup, keyword search, crosswalk to the Korean statute (1,391 paragraphs) |
 | | `verify_citations` | do cited document numbers and articles exist |

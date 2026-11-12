@@ -27,6 +27,7 @@ from . import transfer_pricing as _transfer_pricing
 from . import oecd_tpg as _oecd_tpg
 from . import tp_report as _tp_report
 from . import sme_incentives as _sme_incentives
+from . import rnd_requirements as _rnd_requirements
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -873,6 +874,29 @@ def sme_tax_incentives_guide(
     세액을 계산하지 않는다. 중소기업·소기업·지역 해당 여부는 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article, 적용례는 article_addenda.
     """
     return _sme_incentives.guide(founded_on, region, youth, industry, oem, venture_confirmed_on, size, hq_in_capital_area)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def rnd_credit_requirements_guide(
+    year: Annotated[int | None, Field(description="과세연도(2016~2026, 선택). 생략하면 연도별로 달라진 요건 목록")] = None,
+    lab: Annotated[bool | None, Field(description="인정받은 기업부설연구소·연구개발전담부서(또는 창작연구소, 산업디자인전문회사)가 있는지(선택)")] = None,
+    sme: Annotated[bool, Field(description="중소기업 여부")] = True,
+    staff: Annotated[list | None, Field(description="인건비 대상인지 볼 직원 [{name?, role(연구전담요원 | 연구보조원 | 연구요원 | 연구지원 | 행정사무 | 그 밖의 직원), shareholder_executive?(지배주주이거나 10% 초과 주주인 임원 또는 그 특수관계인이면 true)}]")] = None,
+    costs: Annotated[list | None, Field(description="대상 비용인지 볼 항목 — 인건비 | 사회보험료 | 연구용 재료·시약 | 연구용 소프트웨어 | 연구용 시설 임차·이용 | 클라우드 이용료 | 인공지능 학습용 데이터 | 위탁·공동연구개발비 | 직무발명 보상금 | 기술자문비 | 특허 조사·분석비 | 퇴직급여 | 성과급")] = None,
+    outsourced_to: Annotated[list | None, Field(description="연구개발을 맡긴 곳 [{name?, org(대학 | 국공립연구기관 | 정부출연연구기관 | 비영리법인 | 기업이 설립한 연구기관 | 다른 기업의 전담부서등 | 국외기업 부설 연구기관 | 연구산업 영위 기업 | 산학협력단 | 기술 검사·분석업 기업 | 산업디자인 기관 | 산업기술연구조합 | 대학 교수 개인 | 그 밖의 기업), performed_by_lab?(상대 기업의 전담부서등이 직접 수행했는지), system_development?(사업 운영·관리 시스템 개발 위탁이면 true)}]")] = None,
+    grant_funded: Annotated[bool | None, Field(description="정부·지방자치단체·공공기관 출연금 등으로 지출한 금액이 있는지(선택)")] = None,
+    activities: Annotated[list | None, Field(description="연구개발 활동인지 볼 활동 설명(문장 목록, 선택) — 연구개발에서 빼는 활동 문언과 대조")] = None,
+) -> dict:
+    """Requirements for the Korean R&D tax credit by tax year — recognized lab, eligible staff and costs, outsourced research, excluded activities and records, checked against the text in force that year. It does not compute tax.
+
+    연구·인력개발비 세액공제 요건 안내 — 과세연도별 요건(연구개발 활동, 전담부서등, 인건비 대상자, 주주인 임원 제외, 정부 출연금 제외, 증거서류)과 사실관계 판정(조세특례제한법 제10조, 시행령 별표 6, 시행규칙 제7조).
+    언제: 연구소·전담부서를 둔 회사의 인건비·재료비·위탁개발비가 그 해 세액공제 대상인지, 대표나 주주 임원의 인건비를 넣을 수 있는지, 위탁생산 업체에 낸 개발비가 위탁연구개발비인지 확인할 때.
+    반환: {과세연도, 요건: [{요건, 내용, 근거}], 판정?: [{항목, 판정(대상·대상 아님·조건부·확인 필요), 사유, 근거}], 한계, 다음 단계, 확인 시행본}. year를 생략하면 연도별 변화와 입력 구분값.
+    연도별로 다름: 연구개발에서 빼는 활동(2018년까지 7개 → 2025년부터 10개), 인건비 대상자(2021년부터 연구전담요원·연구보조원), 비용 항목(2024년 사회보험료, 2025년 클라우드 이용료, 2026년 인공지능 학습용 데이터 등), 증거서류(2020년부터 연구노트 작성·보관).
+    세액을 계산하지 않는다(계산 MCP의 rnd_tax_credit). 연구소 인정 여부와 활동의 실질은 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(article='별표 6').
+    """
+    return _rnd_requirements.guide(year, lab, sme, staff, costs, outsourced_to, grant_funded, activities)
 
 
 @mcp.tool(annotations=RO)
