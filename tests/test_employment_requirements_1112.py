@@ -139,9 +139,10 @@ def test_youth_retention_from_leap_day_contract():
 
 def test_2025_part_time_standard_and_truncation_from_forms():
     q = R(G.guide(2025))["인원 계산"]
-    assert "1개월간의 소정근로시간이 60시간 이상" in q["내용"] and "합계에서 버림" in q["내용"] and "별지 제10호의9서식(1)" in q["근거"] and "286쪽" in q["근거"]
+    assert "1개월간의 소정근로시간이 60시간 이상" in q["내용"] and "사람별로 버린 뒤 합함" in q["내용"] and "별지 제10호의9서식(1)" in q["근거"] and "286쪽" in q["근거"]
+    assert "제36342호 부칙 제2조제2항" in q["근거"] and "2025 과세연도에는 적용되지 않음" in q["내용"]
     q26 = R(G.guide(2026))["인원 계산"]
-    assert "월 평균 근로시간 60시간 이상" in q26["내용"] and "합계에서 버림" in q26["내용"] and "서식(2)" in q26["근거"]
+    assert "월 평균 근로시간 60시간 이상" in q26["내용"] and "합계에서 버림" in q26["내용"] and "서식(2)" in q26["근거"] and "제36342호" in q26["근거"]
     assert any("소정근로시간 60시간" in x and "종전 규정" in x for x in G.guide(2025)["한계"]) and not any("찾지 못함" in x for x in G.guide(2025)["한계"])
     assert any("별지 제10호의9서식" in x["문서번호"] for x in G.guide(2025)["관련 해석"]) and "국적 무관" in R(G.guide(2025))["상시근로자 범위"]["내용"]
     # 2025년 단시간근로자 판정은 종전 문언(1개월 소정근로시간), 2026년은 월 평균 근로시간
