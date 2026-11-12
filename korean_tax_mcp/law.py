@@ -343,6 +343,72 @@ def _eflaw(mst, ef):
     return d.get("법령", d)
 
 
+_APPENDIX_RE = re.compile(r"^\s*(?:\[)?\s*별표\s*(\d+)?\s*(?:의\s*(\d+))?\s*(?:\])?\s*$")
+APPENDIX_MAX = 12000
+
+
+def _last_cell(line):
+    """표 한 줄의 마지막 칸 글자(테두리 줄에 걸친 병합 칸 값 포함). 표 줄이 아니면 ''."""
+    t = line.rstrip()
+    if not t or t[-1] not in "│┤": return ""
+    t = t[:-1]
+    cut = max(t.rfind(ch) for ch in "│┤┼├")
+    return t[cut + 1:].strip(" ─") if cut >= 0 else ""
+
+
+def appendix(law, article, as_of="", keyword=""):
+    """별표 원문(시행본 전문에 들어 있는 '별표단위') — '별표 1', '별표 3의2'. 번호 없이 '별표'면 목록만.
+    표는 법제처가 주는 글자 그림 그대로 돌려준다(줄 끝 공백만 정리). 서식(별지)은 본문이 없어 목록에서 뺀다."""
+    m = _APPENDIX_RE.match(article or "")
+    if not m: return None
+    ef = as_of_or_today(as_of)
+    mst, vef = version(law, ef)
+    if not mst: return {"error": f"'{law}'의 {ef} 시행본을 찾지 못했습니다"}
+    us = (_eflaw(mst, vef).get("별표") or {}).get("별표단위") or []
+    us = us if isinstance(us, list) else [us]
+    us = [u for u in us if isinstance(u, dict) and u.get("별표구분") != "서식"]
+    def no(u): return f"별표 {int(u.get('별표번호') or 0)}" + (f"의{int(u['별표가지번호'])}" if int(u.get("별표가지번호") or 0) else "")
+    listing = [{"별표": no(u), "제목": (u.get("별표제목") or "").strip()} for u in us]
+    base = {"법령": law, "적용 시행일": vef, "적용 기준일": f"{ef[:4]}년 {int(ef[4:6])}월 {int(ef[6:])}일"}
+    if not m.group(1):
+        return {**base, "별표 목록": listing, "다음 단계": "law_article(law_name, article='별표 N', as_of)로 본문 조회"}
+    want = f"별표 {int(m.group(1))}" + (f"의{int(m.group(2))}" if m.group(2) else "")
+    u = next((x for x in us if no(x) == want), None)
+    if u is None:
+        return {"error": f"'{law}' {vef} 시행본에 {want}이(가) 없습니다", "별표 목록": listing}
+    c = u.get("별표내용") or []
+    lines = [x.rstrip() for row in (c if isinstance(c, list) else [c]) for x in (row if isinstance(row, list) else [row]) if isinstance(x, str)]
+    lines = [x for x in lines if x.strip()]
+    out = {**base, "별표": want, "제목": (u.get("별표제목") or "").strip(), "별표 시행일": u.get("별표시행일자") or ""}
+    if keyword:
+        hit = [i for i, x in enumerate(lines) if keyword in x.replace(" ", "") or keyword in x]
+        keep = sorted({j for i in hit for j in range(max(0, i - 3), min(len(lines), i + 4))})
+        out["본문"] = "\n".join(lines[j] for j in keep)
+        merged = []            # 병합된 칸(금액 등)은 그 묶음 위쪽 줄에 놓인다 — 일치한 줄 위에서 가장 가까운 마지막 칸 글자를 함께 준다
+        for i in hit:
+            if _last_cell(lines[i]):          # 일치한 줄에서 값이 시작 — 아래로 이어지는 줄까지
+                k = j = i
+                while j + 1 < len(lines) and _last_cell(lines[j + 1]): j += 1
+            else:
+                j = next((k for k in range(i - 1, -1, -1) if _last_cell(lines[k])), None)
+                if j is None: continue
+                k = j
+            while k > 0 and _last_cell(lines[k - 1]): k -= 1
+            v = " ".join(_last_cell(lines[x]) for x in range(k, j + 1))
+            if v not in merged: merged.append(v)
+        if merged: out["병합 칸 값"] = merged
+        out["반환 범위"] = f"'{keyword}'가 든 줄과 앞뒤 3줄({len(hit)}곳) — 전체 {len(lines)}줄"
+        if not hit: out["안내"] = "키워드가 든 줄이 없습니다 — 표는 낱말이 줄 사이에서 끊길 수 있으니 짧은 낱말이나 분류기호로 다시 찾으세요"
+    else:
+        text = "\n".join(lines)
+        out["본문"] = text[:APPENDIX_MAX]
+        out["반환 범위"] = "전체" if len(text) <= APPENDIX_MAX else f"앞 {APPENDIX_MAX:,}자 — 전체 {len(text):,}자. keyword로 필요한 줄만 조회"
+    if u.get("별표서식PDF파일링크"): out["원문 파일"] = "https://www.law.go.kr" + u["별표서식PDF파일링크"]
+    out["읽는 법"] = "표는 법제처 제공 글자 그림 그대로입니다. 병합된 칸의 값(금액 등)은 테두리 줄 사이에 놓이므로 위아래 행과 함께 읽으세요"
+    return out
+
+
+
 def _law_payload(law, ef):
     """(법령, 기준일) → 그 시행본 전문('법령' 객체). 시행본이 없으면 None. 다운로드·TTL·잠금은 _eflaw."""
     mst, vef = version(law, ef)
