@@ -22,6 +22,7 @@ ROLES = ("연구전담요원", "연구보조원", "연구요원", "연구지원"
 ORGS = ("대학", "국공립연구기관", "정부출연연구기관", "비영리법인", "기업이 설립한 연구기관", "다른 기업의 전담부서등", "국외기업 부설 연구기관", "연구산업 영위 기업",
         "산학협력단", "기술시험·검사 및 분석업 기업", "산업디자인 기관", "산업기술연구조합", "대학 교수 개인", "그 밖의 기업")
 _ORG_OK = {o: True for o in ORGS[:-1]}
+_LAB_COSTS = ("인건비", "사회보험료", "연구용 재료·시약", "연구용 소프트웨어", "연구용 시설 임차·이용", "클라우드 이용료", "인공지능 학습용 데이터")      # 별표 6 제1호가목 — 전담부서등이 전제
 COSTS = ("인건비", "사회보험료", "연구용 재료·시약", "연구용 소프트웨어", "연구용 시설 임차·이용", "클라우드 이용료", "인공지능 학습용 데이터", "위탁·공동연구개발비", "직무발명 보상금",
          "기술자문비", "특허 조사·분석비", "퇴직급여", "성과급")
 
@@ -128,7 +129,7 @@ def guide(year=None, lab=None, sme=True, staff=None, costs=None, outsourced_to=N
         elif s["role"] == "행정사무":
             res, why = "대상 아님", "연구개발과제를 직접 수행·보조하지 않고 행정 사무를 담당"
         elif s["role"] in staff_ok:
-            res, why = "대상", f"{year}년 시행본의 대상자({s['role']})"
+            res, why = "대상", f"{year}년 시행본의 대상자({s['role']})" + ("" if lab else " — 인정받은 전담부서등 소속인 경우(lab을 주지 않아 전제로 둠)")
             if s["role"] in ("연구요원", "연구지원") and year >= 2021:
                 res, why = "확인 필요", "2021년부터는 등록된 연구전담요원·연구보조원이어야 함"
         elif s["role"] in ("연구요원", "연구지원"):
@@ -138,8 +139,11 @@ def guide(year=None, lab=None, sme=True, staff=None, costs=None, outsourced_to=N
         판정.append({"항목": f"인건비 — {name}", "판정": res, "사유": why, "근거": f"{_J} 시행규칙 제7조제3항"})
     for c in costs or []:
         ok, text, basis = _cost_rule(year, c, sme)
-        if ok and lab is False and c in ("사회보험료", "연구용 재료·시약", "연구용 소프트웨어", "연구용 시설 임차·이용", "클라우드 이용료", "인공지능 학습용 데이터"):
-            ok, text = False, text + " — 전담부서등이 없어 대상이 아님"
+        if c in _LAB_COSTS and ok is not False:
+            if lab is False:
+                ok, text = False, text + " — 전담부서등이 없어 대상이 아님"
+            elif lab is None:
+                text += " — 인정받은 전담부서등의 비용인 경우(lab을 주지 않아 전제로 둠)"
         판정.append({"항목": f"비용 — {c}", "판정": {True: "대상", False: "대상 아님", None: "조건부"}[ok], "사유": text, "근거": basis})
     for o in outsourced_to or []:
         org = o["org"]
@@ -154,7 +158,7 @@ def guide(year=None, lab=None, sme=True, staff=None, costs=None, outsourced_to=N
         else:
             res, why = "대상", "별표 6 제1호나목의 기관에 과학기술·산업디자인 분야 연구개발용역을 맡긴 비용"
         if res == "대상" and o.get("system_development"):
-            res, why = "대상 아님", "전사적 기업자원 관리설비, 판매시점 정보관리 시스템 등 사업 운영·관리·지원 시스템 개발 위탁은 제외(2025 시행본 문언 — 그 전 시행본은 원문 확인)"
+            res, why = "대상 아님", "전사적 기업자원 관리설비, 판매시점 정보관리 시스템 등 사업 운영·관리·지원 활동과 관련된 시스템 개발 위탁은 제외(별표 6 제1호나목1) — 2016~2026 시행본 공통)"
         판정.append({"항목": f"위탁 — {o.get('name') or org}", "판정": res, "사유": why, "근거": f"{_J} 시행령 별표 6 제1호나목"})
     if grant_funded is not None:
         판정.append({"항목": "정부 출연금 등", "판정": "제외할 금액 있음" if grant_funded else "해당 없음",
