@@ -95,7 +95,7 @@ def test_2026_integrated_credit_rules():
     q25 = R(G.guide(2025))
     assert "근무개월 수" in q25["인원 계산"]["내용"] and "부칙 제11조제1항" in q25["인원 계산"]["근거"] and "제23조제10항" in q25["상시근로자 범위"]["근거"]
     assert "매월 말" in R(G.guide(2024))["인원 계산"]["내용"] and "근무개월" not in R(G.guide(2024))["인원 계산"]["내용"]
-    assert any("부칙 제11조제1항" in x for x in G.guide(2025)["한계"]) and not any("부칙 제11조제1항" in x for x in G.guide(2024)["한계"])
+    assert any("부칙 제11조" in x for x in G.guide(2025)["한계"]) and not any("부칙 제11조" in x for x in G.guide(2024)["한계"])
 
 
 def test_2026_youth_kept_after_34():
@@ -135,3 +135,15 @@ def test_foreign_workers_and_related_rulings():
 def test_youth_retention_from_leap_day_contract():
     f = lambda size: J(G.guide(2026, size=size, workers=[{"name": "A", "age": 36, "age_at_contract": 34, "contract_date": "2028-02-29", "service_months": 12}]))["직원 — A"]["사유"]
     assert "4년간(2032-02-29" in f("중소기업") and "3년간(2031-02-28" in f("일반")
+
+
+def test_2025_part_time_standard_and_truncation_from_forms():
+    q = R(G.guide(2025))["인원 계산"]
+    assert "1개월간의 소정근로시간이 60시간 이상" in q["내용"] and "합계에서 버림" in q["내용"] and "별지 제10호의9서식(1)" in q["근거"] and "286쪽" in q["근거"]
+    q26 = R(G.guide(2026))["인원 계산"]
+    assert "월 평균 근로시간 60시간 이상" in q26["내용"] and "합계에서 버림" in q26["내용"] and "서식(2)" in q26["근거"]
+    assert any("소정근로시간 60시간" in x and "종전 규정" in x for x in G.guide(2025)["한계"]) and not any("찾지 못함" in x for x in G.guide(2025)["한계"])
+    assert any("별지 제10호의9서식" in x["문서번호"] for x in G.guide(2025)["관련 해석"]) and "국적 무관" in R(G.guide(2025))["상시근로자 범위"]["내용"]
+    # 2025년 단시간근로자 판정은 종전 문언(1개월 소정근로시간), 2026년은 월 평균 근로시간
+    w = [{"name": "A", "age": 40, "part_time": True, "monthly_hours": 50, "service_months": 24}]
+    assert "1개월 소정근로시간 50" in J(G.guide(2025, workers=w))["직원 — A"]["사유"] and "월 평균 근로시간 50" in J(G.guide(2026, workers=w))["직원 — A"]["사유"]
