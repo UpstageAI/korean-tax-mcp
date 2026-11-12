@@ -26,6 +26,7 @@ from . import timing_rules as _timing_rules_data
 from . import transfer_pricing as _transfer_pricing
 from . import oecd_tpg as _oecd_tpg
 from . import tp_report as _tp_report
+from . import sme_incentives as _sme_incentives
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -843,6 +844,30 @@ def transfer_pricing_guide(
     읽기 전용. data/transfer_pricing.json 기반(2021·2026 시행본 대조), 외부 호출 없음. 원문은 law_article, 해석·결정례는 search_tax_rulings(tax='국조').
     """
     return _transfer_pricing.guide(transaction, foreign_related, exception, facts, as_of)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def sme_tax_incentives_guide(
+    founded_on: Annotated[str, Field(description="창업일(법인 설립등기일) YYYYMMDD(선택, 2016~2027). 생략하면 창업 시기별 감면율 표와 제도 개요")] = "",
+    region: Annotated[str, Field(description="창업 지역 — 수도권과밀억제권역 | 수도권(과밀억제권역도 인구감소지역도 아닌 수도권) | 수도권 인구감소지역 | 수도권 밖. founded_on을 주면 필수")] = "",
+    youth: Annotated[bool, Field(description="청년창업 여부 — 대표자가 창업 당시 15~34세(병역 기간 6년 한도 차감)이고 법인의 최대주주")] = False,
+    industry: Annotated[str, Field(description="업종 — 제조업 | 위탁제조(제조업체에 맡겨 생산) | 통신판매업 | 도매업 | 소매업 | 그 밖의 대상 업종. founded_on을 주면 필수")] = "",
+    oem: Annotated[dict | None, Field(description="위탁제조 요건(값 true/false, 선택) — domestic_maker: 국내 제조업체에 맡김 / own_planning: 직접 기획 / own_name: 자기 명의로 제조 / own_sale: 인수해 자기 책임으로 직접 판매")] = None,
+    venture_confirmed_on: Annotated[str, Field(description="벤처기업 확인일 YYYYMMDD(선택)")] = "",
+    size: Annotated[Literal["소기업", "중기업", ""], Field(description="특별세액감면용 기업 규모(선택) — 소기업은 매출액이 중소기업기본법 시행령 별표 3 기준 이내")] = "",
+    hq_in_capital_area: Annotated[bool | None, Field(description="본점이 지금 수도권에 있는지(선택). 생략하면 창업 지역으로 봄")] = None,
+) -> dict:
+    """Guide to Korean SME tax incentives — startup tax reduction, venture startup, SME special tax reduction and loss carryback, with eligibility by founding date, region, founder age and industry. It does not compute tax.
+
+    중소기업 조세지원 안내 — 창업중소기업 세액감면(조세특례제한법 제6조), 창업벤처중소기업, 중소기업 특별세액감면(제7조), 결손금 소급공제(법인세법 제72조)가 적용될 수 있는지와 감면율·감면기간·근거 조문.
+    언제: 창업한 지 몇 해 안 된 중소기업이나 위탁생산·온라인 판매 회사가 이익이 난 해에 받을 수 있는 감면과 적자가 난 해의 환급 제도를 한 번에 확인할 때.
+    반환: {입력, 창업중소기업 세액감면: {해당, 사유, 감면율?, 감면기간?, 한도?, 확인할 것?, 근거}, 창업벤처중소기업?, 중소기업 특별세액감면: {업종 구분, 본점, 감면율, 한도, 해당, 근거}, 선택?, 함께 볼 것, 결손금 소급공제, 한계, 다음 단계, 확인 시행본}.
+      founded_on을 생략하면 창업 시기별 감면율 표·위탁제조 요건·특별세액감면 감면율 표를 돌려줌.
+    감면율은 창업일 기준(개정 부칙의 적용례·경과조치). 도매업·소매업은 창업감면 업종이 아니고, 위탁제조는 네 요건을 모두 갖추면 제조업으로 봄(시행규칙 제4조의2).
+    세액을 계산하지 않는다. 중소기업·소기업·지역 해당 여부는 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article, 적용례는 article_addenda.
+    """
+    return _sme_incentives.guide(founded_on, region, youth, industry, oem, venture_confirmed_on, size, hq_in_capital_area)
 
 
 @mcp.tool(annotations=RO)
