@@ -196,3 +196,27 @@ def far(parties=None, risks=None, facts=None, tested_party=""):
             "한계": ["입력한 사실을 조문의 틀로 정리한 것 — 사실 자체가 맞는지, 비교대상과 얼마나 비슷한지는 판단하지 않는다",
                    "'문언상 맞음'은 시행규칙 제6조②의 적합성 평가 문언에 맞는다는 뜻 — 가장 합리적인 방법인지는 시행령 제14조① 다섯 기준(비교가능성, 자료 확보, 가정, 결함의 영향, 적합성)으로 판단",
                    "정상가격을 산출하지 않고 거래가격이 정상가격인지 판정하지 않는다"]}
+
+
+_CASES_PATH = os.path.join(os.path.dirname(__file__), "data", "tp_cases.json")
+with open(_CASES_PATH, encoding="utf-8") as _f:
+    _CASES = json.load(_f)
+
+
+def cases(issue="", outcome=""):
+    """쟁점별 이전가격 결정례. issue: 쟁점 이름(일부만 써도 됨), outcome: '납세자 승'·'과세관청 승'·'해석'."""
+    allc = _CASES["쟁점"]
+    k = "".join(str(issue or "").split())
+    picked = {n: v for n, v in allc.items() if not k or k in "".join(n.split()) or "".join(n.split()) in k or k in "".join(v["설명"].split())}
+    if not picked:
+        return {"error": f"issue={issue!r} — 쟁점: {list(allc)}"}
+    if outcome and outcome not in ("납세자 승", "과세관청 승", "해석"):
+        return {"error": "outcome — '납세자 승'·'과세관청 승'·'해석'"}
+    out = {}
+    for n, v in picked.items():
+        rows = [c for c in v["사례"] if not outcome or c["결과"] == outcome]
+        out[n] = {"설명": v["설명"], "사례": rows, "보고서에 반영할 점": v["보고서에 반영할 점"],
+                  "납세자 승": sum(1 for c in v["사례"] if c["결과"] == "납세자 승"), "과세관청 승": sum(1 for c in v["사례"] if c["결과"] == "과세관청 승")}
+    return {"쟁점": out, "쟁점 목록": list(allc), "주의": _CASES["주의"], "확인일": _CASES["확인일"],
+            "다음 단계": ["본문은 get_tax_ruling(id) — id가 'tt:'로 시작하면 get_tribunal_decision", "우리 사실관계와의 같고 다름은 compare_with_case",
+                      "같은 쟁점의 다른 결정은 search_tax_rulings(tax='국조')·compare_outcomes"]}

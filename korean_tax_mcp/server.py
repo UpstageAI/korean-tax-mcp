@@ -881,6 +881,23 @@ def transfer_pricing_far(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def transfer_pricing_cases(
+    issue: Annotated[str, Field(description="쟁점(선택, 일부만 써도 됨) — 입증책임·다년도 자료·비교대상 선정·분석대상 당사자·차이 조정·판매·생산 자회사와의 거래·정상이자율·지급보증 수수료·용역 대가. 생략하면 전부")] = "",
+    outcome: Annotated[Literal["납세자 승", "과세관청 승", "해석"] | None, Field(description="결과로 좁히기(선택)")] = None,
+) -> dict:
+    """Transfer pricing decisions by issue — cases where the taxpayer prevailed and where the assessment was upheld, side by side, with points to reflect in a report.
+
+    이전가격 쟁점별 결정례 — 쟁점 9개에 대해 납세자 주장이 받아들여진 사례와 과세관청 처분이 유지된 사례를 나란히, 보고서에 반영할 점과 함께.
+    언제: 정상가격 검토 보고서에서 회사 논리를 세울 때 같은 쟁점에서 무엇이 통했고 무엇이 통하지 않았는지 확인할 때.
+    반환: {쟁점: {이름: {설명, 사례: [{문서번호, id, 구분, 일자, 결과, 요지, 읽은 범위}], 보고서에 반영할 점, 납세자 승, 과세관청 승}}, 쟁점 목록, 주의, 다음 단계}.
+    요지는 국세법령정보시스템 요지를 옮긴 것이고 '읽은 범위'가 요지·제목인 건은 본문을 대조하지 않았다 — 인용 전에 get_tax_ruling(id)로 본문 확인. 대부분 2020년 이전 구법 사안이라 현행 조문과 대조해야 한다.
+    읽기 전용. data/tp_cases.json 기반(2026-11-12 검색분), 외부 호출 없음.
+    """
+    return _tp_report.cases(issue, outcome or "")
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def oecd_tp_guidelines(
     paragraph: Annotated[str, Field(description="문단 번호나 범위. 예: '2.14', '3.55-3.62', '1.36, 2.2'. 한 번에 12개까지 전문")] = "",
     keyword: Annotated[str, Field(description="찾을 말 — 영어 표현(예: 'limited risk distributor', 'working capital adjustment') 또는 한국어 용어(비교가능성·사분위·판매법인·분석대상당사자·저부가가치·지급보증·손실·다년도 등). 띄어 쓴 낱말은 모두 들어 있어야 함")] = "",

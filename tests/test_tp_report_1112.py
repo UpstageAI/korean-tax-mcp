@@ -102,3 +102,26 @@ def test_tools_registered():
     g = getattr(S.transfer_pricing_far, "fn", S.transfer_pricing_far)
     assert "질문지" in g() and g(parties=PARTIES)["분석대상 당사자"]["후보"] == "미국법인"
     assert isinstance(g(lang="en"), dict)
+
+
+def test_cases_by_issue():
+    r = R.cases()
+    assert len(r["쟁점"]) == 9 and r["쟁점 목록"][0] == "입증책임"
+    total = sum(len(v["사례"]) for v in r["쟁점"].values())
+    assert total == 20
+    for v in r["쟁점"].values():
+        assert v["보고서에 반영할 점"]
+        for c in v["사례"]:
+            assert c["결과"] in ("납세자 승", "과세관청 승", "해석", "(제목만 확인)") and c["요지"] and c["읽은 범위"] in ("요지", "요지와 판단 부분", "제목")
+    d = R.cases("다년도")["쟁점"]
+    assert list(d) == ["다년도 자료"] and d["다년도 자료"]["과세관청 승"] == 3 and any("제9조" in s for s in d["다년도 자료"]["보고서에 반영할 점"])
+    w = R.cases("차이 조정", "납세자 승")["쟁점"]["차이 조정"]["사례"]
+    assert [c["문서번호"] for c in w] == ["서울고등법원-2009-누-39126"]
+    assert "error" in R.cases("없는쟁점") and "error" in R.cases("", "무승부")
+
+
+def test_cases_tool():
+    f = getattr(S.transfer_pricing_cases, "fn", S.transfer_pricing_cases)
+    r = f(issue="비교대상")
+    assert r["쟁점"]["비교대상 선정"]["납세자 승"] == 1 and r["쟁점"]["비교대상 선정"]["과세관청 승"] == 2
+    assert any("본문" in s for s in r["주의"])
