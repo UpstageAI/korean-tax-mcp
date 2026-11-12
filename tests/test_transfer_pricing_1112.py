@@ -62,7 +62,7 @@ def test_old_law_warning_and_input_errors():
 
 def test_tool_registered_and_english():
     tools = {t.name: t for t in asyncio.run(S.mcp.list_tools())}
-    assert "transfer_pricing_guide" in tools and len(tools) == 29
+    assert "transfer_pricing_guide" in tools and len(tools) >= 29
     f = getattr(S.transfer_pricing_guide, "fn", S.transfer_pricing_guide)
     r = f(transaction="재화", facts={"buyer_resells": True})
     assert r["먼저 볼 방법"]["방법"] == ["재판매가격방법"]

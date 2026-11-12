@@ -25,6 +25,7 @@ from . import _mask_oc, admrul, casebook, cite, claims, i18n, law, localdocs, lo
 from . import timing_rules as _timing_rules_data
 from . import transfer_pricing as _transfer_pricing
 from . import oecd_tpg as _oecd_tpg
+from . import tp_report as _tp_report
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -842,6 +843,40 @@ def transfer_pricing_guide(
     읽기 전용. data/transfer_pricing.json 기반(2021·2026 시행본 대조), 외부 호출 없음. 원문은 law_article, 해석·결정례는 search_tax_rulings(tax='국조').
     """
     return _transfer_pricing.guide(transaction, foreign_related, exception, facts, as_of)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def transfer_pricing_report(
+    section: Annotated[str, Field(description="목차 번호(선택). 'Ⅱ'(장 전체, '2'도 됨) 또는 'Ⅱ-7'('2-7'도 됨). 생략하면 24개 항목 전부")] = "",
+    keyword: Annotated[str, Field(description="제목·작성방법·준비 자료에 들어 있는 말로 좁히기(선택). 예: '다년도', '차이 조정', '계약서'")] = "",
+) -> dict:
+    """Transfer pricing report outline following the Korean Local File form — per item: how to write it, facts to prepare, statutory basis, OECD guideline paragraphs, related decisions.
+
+    정상가격 검토 보고서 뼈대 — 개별기업보고서(국조칙 별지 제13호) 목차 24개 항목별 작성방법, 준비할 사실·자료, 근거 조문, OECD 이전가격지침 문단, 쓸 도구, 관련 결정례 + 분석절차 아홉 단계(시행규칙 제7조).
+    언제: 해외 자회사·모회사와의 거래에 대해 정상가격 검토 보고서나 개별기업보고서를 쓸 때 무엇을 어떤 순서로 채울지 정할 때.
+    반환: {항목: [{번호, 장, 제목, 작성방법, 준비할 사실·자료, 근거, OECD 지침 문단?, 도구?, 관련 결정례?}], 전체건수, 분석절차, 제출 의무, 확인 시행본, 한계, 다음 단계}.
+    목차와 작성방법은 서식 원문(2026.3.20. 시행본)을 옮긴 것. 정상가격을 산출하지 않고 거래가격이 정상가격인지 판정하지 않는다. 읽기 전용, 외부 호출 없음.
+    """
+    return _tp_report.outline(section, keyword)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def transfer_pricing_far(
+    parties: Annotated[dict | None, Field(description="거래 당사자 {이름: {기능: [..], 자산: [..], 고유무형자산: true|false}} — 둘 이상. 기능 예: 설계·제조·조립·연구·개발·용역·구매·유통·마케팅·광고·운송·재무·관리. 생략하면 질문지를 돌려줌")] = None,
+    risks: Annotated[list | None, Field(description="위험 목록 [{위험, 계약상(계약상 부담자 이름), 손익귀속(이익·손실이 실제 귀속된 쪽), 관리통제: [이름], 재정능력: [이름]}] — 위험 예: 시장위험·투자위험·재무위험·신용위험·재고위험")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(값 true/false, 선택) — internal_comparable: 특수관계 없는 자와의 같은·유사 거래 가격 있음 / tested_resells_to_third_parties: 분석대상 당사자가 제3자에게 재판매 / tested_processing_or_manufacturing: 분석대상 당사자가 중요한 가공·제조 수행 / tested_bears_inventory: 분석대상 당사자가 재고 부담 / intermediate_goods_or_services: 중간재 거래 또는 용역 제공 / asset_intensive: 자산 집약적 활동 / both_unique_intangibles: 양쪽이 특수한 무형자산 형성에 관여")] = None,
+    tested_party: Annotated[str, Field(description="분석대상 당사자로 보려는 쪽의 이름(선택) — 생략하면 도구가 고른 후보 기준")] = "",
+) -> dict:
+    """Functions-assets-risks analysis for a related-party transaction under the Korean rules — risk allocation steps, tested party candidate, method suitability and profit level indicators by statutory wording.
+
+    기능·자산·위험 분석 — 거래 당사자의 사실관계를 시행규칙 제6조·제10조의 틀로 정리. 위험은 계약상 부담자 → 손익의 실제 귀속 → 관리·통제 기능과 재정적 능력 순으로 부담자를 정함(제10조).
+    언제: 본사와 해외법인 중 누가 어떤 기능·위험을 지는지 정리해 분석대상 당사자, 산출방법, 이익 지표의 논거를 세울 때(개별기업보고서 Ⅱ-7·Ⅱ-8·Ⅱ-9).
+    반환: parties 없이 부르면 {질문지(비교가능성 일곱 요소별), 위험 분석 순서, 입력 형식}. parties를 주면 {당사자별 기능·자산·위험, 위험 분석: [{위험, 부담자, 결론, 재배분?, 경로}], 분석대상 당사자: {후보, 이유, 근거, OECD 지침 문단}, 산출방법 적합성: [{방법, 적합성, 이유, 근거}], 거래순이익률 지표?, 쟁점?, 보고서 항목, 한계}.
+    '문언상 맞음'은 시행규칙 제6조제2항의 적합성 평가 문언에 맞는다는 뜻일 뿐 — 가장 합리적인 방법은 시행령 제14조제1항 기준으로 판단. 입력한 사실이 맞는지, 정상가격인지는 판정하지 않는다. 읽기 전용, 외부 호출 없음.
+    """
+    return _tp_report.far(parties, risks, facts, tested_party)
 
 
 @mcp.tool(annotations=RO)
