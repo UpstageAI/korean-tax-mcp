@@ -24,6 +24,7 @@ from pydantic import Field
 from . import _mask_oc, admrul, casebook, cite, claims, i18n, law, localdocs, localtax, net, ntis, outcome, residency, solar, timeline, tribunal
 from . import timing_rules as _timing_rules_data
 from . import transfer_pricing as _transfer_pricing
+from . import oecd_tpg as _oecd_tpg
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -841,6 +842,35 @@ def transfer_pricing_guide(
     읽기 전용. data/transfer_pricing.json 기반(2021·2026 시행본 대조), 외부 호출 없음. 원문은 law_article, 해석·결정례는 search_tax_rulings(tax='국조').
     """
     return _transfer_pricing.guide(transaction, foreign_related, exception, facts, as_of)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def oecd_tp_guidelines(
+    paragraph: Annotated[str, Field(description="문단 번호나 범위. 예: '2.14', '3.55-3.62', '1.36, 2.2'. 한 번에 12개까지 전문")] = "",
+    keyword: Annotated[str, Field(description="찾을 말 — 영어 표현(예: 'limited risk distributor', 'working capital adjustment') 또는 한국어 용어(비교가능성·사분위·판매법인·분석대상당사자·저부가가치·지급보증·손실·다년도 등). 띄어 쓴 낱말은 모두 들어 있어야 함")] = "",
+    chapter: Annotated[int | None, Field(description="장 번호 1~10(선택). keyword와 함께 주면 그 장 안에서만 찾고, 혼자 주면 그 장의 절 목록", ge=1, le=10)] = None,
+    crosswalk: Annotated[str, Field(description="국조법령 조문·주제로 대응 문단 찾기. 예: '시행령 제15조', '정상가격 범위', '금전대차'. '전체'면 대응표 전부")] = "",
+    n: Annotated[int, Field(description="keyword 검색 결과 수(기본 6)", ge=1, le=20)] = 6,
+) -> dict:
+    """OECD Transfer Pricing Guidelines 2022 — paragraph text by number, keyword search, chapter outline, and a crosswalk to the Korean statute.
+
+    OECD 이전가격지침(2022) 문단 조회·검색·국조법령 대응표. 본문 제1장~제10장 문단 1,391개(영문 원문, 쪽 번호·절 제목 포함).
+    언제: 국조법령에 규정이 없거나 해석이 갈리는 대목(분석 대상 당사자 선정, 판매법인의 기능·위험, 정상가격 범위 안의 지점, 손실 비교대상, 다년도 자료, 시장 침투 전략 등)에서 정상가격 논거를 세울 때.
+    쓰는 법: crosswalk로 조문에 대응하는 문단 범위를 찾고 → paragraph로 전문을 읽는다. 조문을 모르면 keyword로 찾는다. 아무것도 안 주면 장 목록.
+    반환: paragraph → {결과: [{문단, 장, 절, 쪽, 본문}], 더 있음?, 없는 문단?} / keyword → {전체건수, 결과: [{문단, 장, 절, 쪽, 발췌}], 검색어} / chapter → {절: [{절, 시작 문단, 쪽}]} / crosswalk → {대응표: [{주제, 국내, 문단, 핵심?}]}. 모두 출처·지위·주의 포함.
+    지위: 지침은 국내에서 법적 효력이 있는 규정이 아니다(대법원 2012두1969) — 국조법령과 다르면 국조법령이 우선하고, 지침은 해석·논거 자료로 쓴다.
+    읽기 전용, 외부 호출 없음. 출처: OECD (2022), OECD Transfer Pricing Guidelines for Multinational Enterprises and Tax Administrations 2022, https://doi.org/10.1787/0e655865-en (PDF 추출문 — 인용 전에 쪽 번호로 원문 확인, 부속서는 없음).
+    """
+    if paragraph:
+        return _oecd_tpg.lookup(paragraph)
+    if keyword:
+        return _oecd_tpg.search(keyword, chapter, n)
+    if crosswalk:
+        return _oecd_tpg.crosswalk("" if crosswalk.strip() == "전체" else crosswalk)
+    if chapter:
+        return _oecd_tpg.sections(chapter)
+    return _oecd_tpg.chapters()
 
 
 @mcp.tool(annotations=RO)

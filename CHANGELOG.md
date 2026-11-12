@@ -4,13 +4,17 @@
 
 Claude 작성.
 
-- 새 도구 `transfer_pricing_guide`(도구 28개): 국외특수관계인 거래에 적용할 규정과 정상가격 산출방법을 조문 근거와 함께 안내. 정상가격을 산출하거나 거래가격이 정상가격인지 판정하지 않는다.
+- 새 도구 `transfer_pricing_guide`: 국외특수관계인 거래에 적용할 규정과 정상가격 산출방법을 조문 근거와 함께 안내. 정상가격을 산출하거나 거래가격이 정상가격인지 판정하지 않는다.
   - 적용 규정: 국제거래는 법인세법 제52조를 적용하지 않고 정상가격으로 조정(국조법 제4조②·제7조). 자산 무상 이전·채무 면제, 수익 없는 자산, 출연금 대신 부담, 자본거래는 국제거래라도 법인세법 제52조(시행령 제4조) — 이 경우 소득처분(법인세법 시행령 제106조①)을 안내.
   - 산출방법 여섯 가지(법 제8조①, 시행령 제5조~제10조)의 정의·맞는 상황·필요 자료. 제6호는 제1호~제5호로 산출할 수 없는 경우에만(법 제8조① 단서). 사실관계(`facts`)를 주면 정의 문언에 맞는 방법을 '먼저 볼 방법'으로 표시.
   - 선택 기준(시행령 제14조), 적용 절차·정상가격 범위(제15조), 거래 유형 특칙 — 용역(제12조: 원가 범위, 저부가가치용역 원가+5%, 손금 요건), 금전대차(제11조·시행규칙 제3조: 정상이자율 요소, 당좌대출이자율·지표금리+1.5%), 지급보증(제12조④⑤), 무형자산(제13조).
   - 조정·처분: 신고·경정청구(법 제6조), 결정·경정(제7조), 반환 미확인 시 배당 처분·출자 조정(제13조), 제3자 개입·상계거래(제10조·제11조).
   - `data/transfer_pricing.json` 기반(2021.12.31.·2026.11.1. 시행본 대조), 외부 호출 없음. 기준일이 2020.12.31. 이전이면 구법 조문 번호가 다르다고 알림.
-- 테스트 `test_transfer_pricing_1112.py`(오프라인).
+- 새 도구 `oecd_tp_guidelines`(도구 29개): OECD 이전가격지침 2022 본문 제1장~제10장 문단 1,391개를 문단 번호·범위로 조회, 키워드로 검색(한국어 용어 40여 개를 지침의 영어 표현으로 연결), 장별 절 목록, 국조법령 조문 ↔ 지침 문단 대응표 29행.
+  - 자료: OECD (2022), OECD Transfer Pricing Guidelines for Multinational Enterprises and Tax Administrations 2022, OECD Publishing, Paris, https://doi.org/10.1787/0e655865-en. OECD 이용약관(2024.7.1. 전 발간 자료는 출처를 밝히면 복제·배포·번안 가능)에 따라 PDF 658쪽 전 쪽에서 추출해 `data/oecd_tpg_2022.json`에 실음(쪽 번호·절 제목 포함, 부속서 제외). This is an adaptation of an original work by the OECD. The opinions expressed and arguments employed in this adaptation should not be reported as representing the official views of the OECD or of its Member countries.
+  - 결과마다 지위를 표시: 지침은 국내에서 법적 효력이 있는 규정이 아니고(대법원 2012두1969) 국조법령이 우선, 규정이 없거나 해석이 갈리는 대목의 논거 자료.
+  - `transfer_pricing_guide` 결과에 산출방법별·거래 유형별 지침 문단 범위를 연결.
+- 테스트 `test_transfer_pricing_1112.py`, `test_oecd_tpg_1112.py`(오프라인).
 
 ## 0.12.17 (2026-11-11)
 

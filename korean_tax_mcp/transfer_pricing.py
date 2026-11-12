@@ -4,10 +4,17 @@
 import json
 import os
 
+from . import oecd_tpg as _tpg
+
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "transfer_pricing.json")
 with open(_DATA_PATH, encoding="utf-8") as _f:
     _DATA = json.load(_f)
 
+_TPG_TOPICS = {
+    "공통": ["가장 합리적인 방법 선택", "비교가능성 분석요소", "기능 분석", "위험 분석", "비교가능성 분석 절차", "정상가격 범위", "다년도 자료", "차이 조정", "문서화"],
+    "재화": ["사업전략", "손실이 계속", "통합평가"], "용역": ["용역이 실제 제공", "저부가가치"], "금전대차": ["금전대차"], "지급보증": ["지급보증"],
+    "무형자산": ["무형자산", "원가분담"],
+}
 TRANSACTIONS = ("재화", "용역", "금전대차", "지급보증", "무형자산")
 EXCEPTIONS = ("무상이전·채무면제", "무수익자산", "출연금대납", "자본거래")
 _FACT_KEYS = ("internal_comparable", "buyer_resells", "seller_cost_known", "joint_profit")
@@ -49,6 +56,9 @@ def guide(transaction, foreign_related=True, exception=None, facts=None, as_of="
     first = []
     for m in _DATA["산출방법"]:
         row = {k: v for k, v in m.items() if k != "facts"}
+        tp = _tpg.pointers([m["방법"]])
+        if tp:
+            row["OECD 지침 문단"] = tp[0]["문단"]
         if m["facts"] and m["facts"] in facts:
             row["입력 사실"] = "해당" if facts[m["facts"]] else "해당 없음"
             if facts[m["facts"]]:
@@ -64,6 +74,8 @@ def guide(transaction, foreign_related=True, exception=None, facts=None, as_of="
     out["적용 절차"] = _DATA["적용 절차"]
     out["거래 유형 특칙"] = _DATA["거래 유형"][transaction]
     out["조정·처분"] = _DATA["조정·처분"]
+    out["OECD 지침"] = {"관련 문단": _tpg.pointers(_TPG_TOPICS["공통"] + _TPG_TOPICS[transaction]), "지위": _tpg.STATUS,
+                      "조회": "oecd_tp_guidelines(paragraph='문단 번호 또는 범위') — 국조법령에 규정이 없거나 해석이 갈리는 대목의 논거 자료"}
     out["한계"] = _DATA["한계"]
     out["다음 단계"] = ([{"확인할 조문": t, "호출": c} for t, c in _NEXT[transaction]]
                     + [{"확인할 것": "관련 해석·결정례", "호출": f"search_tax_rulings(query='정상가격 {transaction} 국외특수관계인', tax='국조')"}])
