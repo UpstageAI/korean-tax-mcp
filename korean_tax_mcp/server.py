@@ -28,6 +28,7 @@ from . import oecd_tpg as _oecd_tpg
 from . import tp_report as _tp_report
 from . import sme_incentives as _sme_incentives
 from . import rnd_requirements as _rnd_requirements
+from . import employment_requirements as _employment_requirements
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -897,6 +898,31 @@ def rnd_credit_requirements_guide(
     세액을 계산하지 않는다(계산 MCP의 rnd_tax_credit). 연구소 인정 여부와 활동의 실질은 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(article='별표 6').
     """
     return _rnd_requirements.guide(year, lab, sme, staff, costs, outsourced_to, grant_funded, activities)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def employment_credit_requirements_guide(
+    year: Annotated[int | None, Field(description="과세연도(2018~2026, 선택). 생략하면 연도별로 달라진 요건 목록")] = None,
+    credit: Annotated[str | None, Field(description="고용증대 | 통합고용(선택). 생략하면 2022년까지 고용증대, 2023년부터 통합고용 기준")] = None,
+    size: Annotated[str | None, Field(description="중소기업 | 중견기업 | 일반(선택)")] = None,
+    consumer_service: Annotated[bool | None, Field(description="소비성서비스업(호텔업·여관업, 유흥주점업 등)을 경영하는지(선택)")] = None,
+    workers: Annotated[list | None, Field(description="상시근로자·청년등인지 볼 직원 [{name?, age?, military_years?(병역 이행 연수), age_at_contract?(근로계약 체결일 현재 나이), contract_date?(YYYY-MM-DD), contract_months?(근로계약기간 총 개월 — 갱신 포함, 기간의 정함이 없으면 생략), service_months?(근로기간 개월 — 2026년 통합고용), part_time?, monthly_hours?(단시간근로자의 1개월 소정근로시간, 2026년 통합고용은 월 평균 근로시간), fixed_term?(기간제), dispatched?(파견), youth_harmful_workplace?, executive?(임원), foreigner?(외국인), resident?(외국인이 소득세법의 거주자인지), owner_or_family?(최대주주·대표자 본인, 배우자, 직계존비속, 친족), withholding?(근로소득세 원천징수 확인), social_insurance?(국민연금·건강보험 납부 확인), disabled_kind?(장애인 | 상이자 | 5·18민주화운동부상자 | 고엽제후유의증환자), career_break?, defector?(북한이탈주민)}]")] = None,
+    startup_reduction: Annotated[bool | None, Field(description="같은 과세연도에 창업중소기업 감면(제6조)을 받는지(선택)")] = None,
+    founded: Annotated[str | None, Field(description="창업일 YYYY-MM-DD(선택) — 2025년부터 창업감면과의 관계 판정에 씀")] = None,
+    extra_reduction_for_employment: Annotated[bool | None, Field(description="제6조제7항(고용 증가에 따른 추가 감면)을 받는지(선택)")] = None,
+    took_employment_increase: Annotated[bool | None, Field(description="고용증대(제29조의7) 공제를 받았는지(선택) — 통합고용 판정에 씀")] = None,
+    increase: Annotated[float | None, Field(description="상시근로자 증가 인원(선택) — 2026년 통합고용의 최소고용증가인원수 판정에 씀")] = None,
+) -> dict:
+    """Requirements for the Korean employment tax credits by tax year — who counts as a regular employee and as a youth-or-equivalent employee, industry exclusion, overlap with the startup reduction, carryforward — checked against the text in force that year. It does not compute tax.
+
+    고용 세액공제 요건 안내 — 고용증대(조세특례제한법 제29조의7)와 통합고용(제29조의8)의 과세연도별 요건(업종, 상시근로자 범위, 청년등 범위, 인원 계산, 공제 기간과 사후관리, 창업감면과의 관계, 이월공제, 신청)과 직원별 판정.
+    언제: 직원이 상시근로자 수에 들어가는지(계약직, 단시간근로자, 임원, 대표 가족), 청년등 인원에 들어가는지(나이, 병역, 60세 이상, 경력단절), 창업감면을 받는 해에 고용 공제를 함께 받을 수 있는지 확인할 때.
+    반환: {과세연도, 제도, 그 해에 쓸 수 있는 제도, 요건: [{요건, 내용, 근거}], 판정?: [{항목, 판정, 사유, 근거, 인원_환산?}], 한계, 관련 해석, 다음 단계, 확인 시행본}. year를 생략하면 연도별 변화와 입력 구분값.
+    연도별로 다름: 제도(2022년까지 고용증대, 2023·2024년 선택, 2025년부터 통합고용), 청년 나이(고용증대 29세, 통합고용 34세), 청년등 범위(2021년 60세 이상, 2025년 경력단절 근로자·북한이탈주민), 창업감면과의 관계(2025.1.1. 이후 창업분은 제6조 전체와 배제), 2026년 통합고용의 상시근로자 범위·인원 계산·최소고용증가인원수.
+    세액을 계산하지 않는다(계산 MCP의 employment_increase_credit, integrated_employment_credit). 임원·친족 해당 여부와 경력단절 요건의 실질은 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article, 적용례는 article_addenda.
+    """
+    return _employment_requirements.guide(year, credit, size, consumer_service, workers, startup_reduction, founded, extra_reduction_for_employment, took_employment_increase, increase)
 
 
 @mcp.tool(annotations=RO)
