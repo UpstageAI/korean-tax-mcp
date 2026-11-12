@@ -884,7 +884,7 @@ def rnd_credit_requirements_guide(
     sme: Annotated[bool, Field(description="중소기업 여부")] = True,
     staff: Annotated[list | None, Field(description="인건비 대상인지 볼 직원 [{name?, role(연구전담요원 | 연구보조원 | 연구요원 | 연구지원 | 행정사무 | 그 밖의 직원), shareholder_executive?(지배주주이거나 10% 초과 주주인 임원 또는 그 특수관계인이면 true)}]")] = None,
     costs: Annotated[list | None, Field(description="대상 비용인지 볼 항목 — 인건비 | 사회보험료 | 연구용 재료·시약 | 연구용 소프트웨어 | 연구용 시설 임차·이용 | 클라우드 이용료 | 인공지능 학습용 데이터 | 위탁·공동연구개발비 | 직무발명 보상금 | 기술자문비 | 특허 조사·분석비 | 퇴직급여 | 성과급")] = None,
-    outsourced_to: Annotated[list | None, Field(description="연구개발을 맡긴 곳 [{name?, org(대학 | 국공립연구기관 | 정부출연연구기관 | 비영리법인 | 기업이 설립한 연구기관 | 다른 기업의 전담부서등 | 국외기업 부설 연구기관 | 연구산업 영위 기업 | 산학협력단 | 기술 검사·분석업 기업 | 산업디자인 기관 | 산업기술연구조합 | 대학 교수 개인 | 그 밖의 기업), performed_by_lab?(상대 기업의 전담부서등이 직접 수행했는지), system_development?(사업 운영·관리 시스템 개발 위탁이면 true)}]")] = None,
+    outsourced_to: Annotated[list | None, Field(description="연구개발을 맡긴 곳 [{name?, org(대학 | 국공립연구기관 | 정부출연연구기관 | 비영리법인 | 기업이 설립한 연구기관 | 다른 기업의 전담부서등 | 국외기업 부설 연구기관 | 연구산업 영위 기업 | 산학협력단 | 기술시험·검사 및 분석업 기업 | 산업디자인 기관 | 산업기술연구조합 | 대학 교수 개인 | 그 밖의 기업), performed_by_lab?(상대 기업의 전담부서등이 직접 수행했는지), system_development?(사업 운영·관리 시스템 개발 위탁이면 true)}]")] = None,
     grant_funded: Annotated[bool | None, Field(description="정부·지방자치단체·공공기관 출연금 등으로 지출한 금액이 있는지(선택)")] = None,
     activities: Annotated[list | None, Field(description="연구개발 활동인지 볼 활동 설명(문장 목록, 선택) — 연구개발에서 빼는 활동 문언과 대조")] = None,
 ) -> dict:
