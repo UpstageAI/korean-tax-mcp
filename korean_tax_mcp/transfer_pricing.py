@@ -70,6 +70,7 @@ def guide(transaction, foreign_related=True, exception=None, facts=None, as_of="
     elif transaction in ("금전대차", "지급보증"):
         out["먼저 볼 방법"] = {"방법": [], "이유": f"{transaction}은 아래 '거래 유형 특칙'을 먼저 본다"}
     out["순서"] = "제1호~제5호 가운데 가장 합리적인 방법을 고르고, 제6호(그 밖의 방법)는 제1호~제5호로 산출할 수 없는 경우에만 적용(법 제8조① 단서)"
+    out["비교가능 거래"] = _DATA["비교가능 거래"]
     out["선택 기준"] = _DATA["선택 기준"]
     out["적용 절차"] = _DATA["적용 절차"]
     out["거래 유형 특칙"] = _DATA["거래 유형"][transaction]

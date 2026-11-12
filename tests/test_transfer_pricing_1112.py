@@ -68,3 +68,11 @@ def test_tool_registered_and_english():
     assert r["먼저 볼 방법"]["방법"] == ["재판매가격방법"]
     en = f(transaction="재화", lang="en")
     assert isinstance(en, dict) and en
+
+
+def test_comparable_transaction_notice():
+    r = T.guide("재화")
+    items = {x["항목"]: x for x in r["비교가능 거래"]["내용"]}
+    assert list(items) == ["뜻", "분석요소", "내부 비교가능 거래", "제외할 수 있는 거래", "이익률 자료의 한계", "과세당국의 재산정"]
+    assert "제14조①1호" in items["뜻"]["근거"] and "제7조①4호" in items["내부 비교가능 거래"]["근거"] and "확인할 수 없다" in items["이익률 자료의 한계"]["내용"]
+    assert "비교가능 거래" not in T.guide("재화", exception="자본거래") and "비교가능 거래" not in T.guide("재화", foreign_related=False)
