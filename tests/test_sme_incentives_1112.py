@@ -49,3 +49,14 @@ def test_special_reduction_and_errors():
     assert G.guide("20210302", "수도권 밖", False, "제조업", size="중기업")["중소기업 특별세액감면"]["감면율"] == "15%"
     assert G.guide("20210302", "수도권", False, "제조업", hq_in_capital_area=False)["중소기업 특별세액감면"]["감면율"] == {"소기업": "30%", "중기업": "15%"}
     assert "error" in G.guide("20210302") and "error" in G.guide("2021-03-02", "수도권", False, "제조업") and "error" in G.guide("20210302", "서울", False, "제조업")
+
+
+def test_consignment_rulings_in_special_reduction():
+    # 0.12.23: 위탁제조면 제7조 결정례 2건과 업종 분류 주의를 함께 안내, 다른 업종에는 넣지 않음
+    sp = G.guide("20210302", "수도권과밀억제권역", True, "위탁제조", OEM, size="소기업")["중소기업 특별세액감면"]
+    assert [d["문서번호"] for d in sp["결정례"]] == ["조심2023서10448", "조심2010중3890"] and all(d["id"] and d["요지"] for d in sp["결정례"])
+    assert "제4조의2" in sp["업종 주의"] and "자기명의" in sp["업종 주의"] and "원재료" in sp["업종 분류 주의"]
+    assert sp["업종 구분"] == "그 밖의 감면 업종"
+    bad = G.guide("20210302", "수도권과밀억제권역", True, "위탁제조", dict(OEM, own_name=False), size="소기업")["중소기업 특별세액감면"]
+    assert bad["업종 구분"].startswith("도매업등") and "결정례" in bad
+    assert "결정례" not in G.guide("20210302", "수도권과밀억제권역", True, "통신판매업", size="소기업")["중소기업 특별세액감면"]
