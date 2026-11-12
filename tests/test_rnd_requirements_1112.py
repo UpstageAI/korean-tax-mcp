@@ -72,3 +72,18 @@ def test_grant_and_lab_flags():
 def test_input_errors():
     assert "error" in G.guide(2015) and "error" in G.guide(2025, staff=[{"role": "사장"}])
     assert "error" in G.guide(2025, costs=["접대비"]) and "error" in G.guide(2025, outsourced_to=[{"org": "친구"}])
+
+
+def test_lab_dependency_in_judgments():
+    # 0.12.25: 전담부서등이 없으면 조건부 비용과 인건비도 대상이 아님
+    r = J(G.guide(2022, lab=False, costs=["연구용 소프트웨어", "인건비", "위탁·공동연구개발비", "직무발명 보상금"]))
+    assert r["비용 — 연구용 소프트웨어"]["판정"] == "대상 아님" and r["비용 — 인건비"]["판정"] == "대상 아님"
+    assert r["비용 — 위탁·공동연구개발비"]["판정"] == "조건부" and r["비용 — 직무발명 보상금"]["판정"] == "대상"      # 전담부서등이 전제가 아닌 비용은 그대로
+    # lab을 주지 않으면 전제를 사유에 적음
+    r = J(G.guide(2025, staff=[{"name": "연구원", "role": "연구전담요원"}], costs=["클라우드 이용료"]))
+    assert r["인건비 — 연구원"]["판정"] == "대상" and "전제" in r["인건비 — 연구원"]["사유"] and "전제" in r["비용 — 클라우드 이용료"]["사유"]
+    assert "전제" not in J(G.guide(2025, lab=True, staff=[{"name": "연구원", "role": "연구전담요원"}]))["인건비 — 연구원"]["사유"]
+    # 시스템 개발 위탁 제외는 전 연도 공통
+    for y in (2016, 2020, 2025):
+        x = J(G.guide(y, outsourced_to=[{"name": "ERP", "org": "대학", "system_development": True}]))["위탁 — ERP"]
+        assert x["판정"] == "대상 아님" and "2016~2026" in x["사유"]
