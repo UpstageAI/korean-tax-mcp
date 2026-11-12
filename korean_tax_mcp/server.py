@@ -360,7 +360,7 @@ def _truncate_text(text, limit=RESP_MAX_CHARS):
 @bilingual
 def law_article(
     law_name: Annotated[str, Field(description="법령 정식 명칭. 예: '법인세법', '법인세법 시행령', '법인세법 시행규칙'")],
-    article: Annotated[str, Field(description=ART + ". '제52조 제1항'처럼 항을 함께 줄 수 있음")],
+    article: Annotated[str, Field(description=ART + ". '제52조 제1항'처럼 항을 함께 줄 수 있음. 별표는 '별표 1', 목록은 '별표'")],
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 사실관계에 사업연도·귀속연도·과세기간이 있으면 그 기간 말일을 넣는다(생략하면 오늘 시행본). 거래처·거래일처럼 특정 날짜가 필요하면 그 날짜")] = "",
     with_delegation: Annotated[bool, Field(description="True면 법률 조문에 연결된 시행령·시행규칙 위임 조문 전부(3단)")] = False,
     with_rules: Annotated[bool, Field(description="True면 그 조의 기본통칙 전문과 집행기준 항목도 함께")] = False,
@@ -371,6 +371,7 @@ def law_article(
 
     사실관계에 사업연도·귀속연도·과세기간이 있으면 as_of에 그 기간 말일을 넣는다(생략하면 오늘 시행본).
     언제: 세액·요건 판단처럼 사실 발생 시점의 법령이 필요할 때. 해석·판례는 회신 당시 법 기준이므로 이 도구로 적용 연도 조문과 대조.
+    별표: article='별표 1'(가지번호는 '별표 3의2')이면 그 시행본의 별표 원문(표는 글자 그림 그대로), article='별표'면 별표 목록. 긴 별표는 keyword로 그 낱말이 든 줄과 앞뒤 줄만.
     조문 번호를 모르면 find_article로 먼저 찾는다. 긴 조문(4,000자 초과)은 keyword(키워드가 든 항만) 또는 paragraph(특정 항)로 필요한 항만 조회 — 둘 다 없으면 항 목록과 안내 반환.
     결과의 '연결'에 상위·하위 조문 위치가 있으니 그 조를 law_article로 이어서 조회.
     행정규칙(외국환거래규정·국세청 고시 등)은 법령에 없을 때 자동 폴백 — as_of를 주면 그 날짜에 시행 중이던 연혁본(법제처 등록분)과 부칙, 생략하면 현행본.
@@ -393,6 +394,10 @@ def _law_article(law_name, article, as_of, with_delegation, with_rules, keyword,
     except ValueError as e: return {"error": str(e)}
     partial = []   # 시간 예산·연결 문제로 못 받은 항목
     try:
+        ap = law.appendix(law_name, article, ef, keyword)     # '별표 1' — 시행본에 딸린 별표 원문
+        if ap is not None:
+            if not given and "error" not in ap: ap["기준일 안내"] = "as_of를 주지 않아 오늘 시행본입니다 — 사안의 연도가 있으면 그 기간 말일을 넣어 다시 조회"
+            return ap
         norm, hang = law.normalize_article(article)
         if LANG.get() == "en" and not with_delegation:   # 영어: 공식 영문 번역본 + 한국어 원문 시행본
             out = law.article_en(law_name, norm)
