@@ -103,3 +103,14 @@ def test_2026_youth_kept_after_34():
     assert "2년간(2027-03-01" in f("일반", "2025-03-01")["사유"] and "4년간(2030-02-01" in f("중견기업", "2026-02-01")["사유"]
     assert f(None, "2025-03-01")["판정"].endswith("확인 필요") and f("중소기업", "2024-03-01")["판정"].endswith("청년등 외")
     assert J(G.guide(2025, size="중소기업", workers=[dict(base, name="A", contract_date="2025-03-01")]))["직원 — A"]["판정"].endswith("청년등 외")      # 2025년은 종전 규정으로 안내
+
+
+def test_age_is_checked_before_other_groups_and_inputs_are_validated():
+    # 청년 나이면 다른 표시가 있어도 청년등(북한이탈주민 2024, 경력단절·5·18 부상자 2018)
+    j = J(G.guide(2024, workers=[{"name": "A", "age": 25, "defector": True}, {"name": "B", "age": 30, "career_break": True}, {"name": "C", "age": 45, "career_break": True}]))
+    assert j["직원 — A"]["판정"] == "상시근로자 — 청년등" and j["직원 — B"]["판정"] == "상시근로자 — 청년등" and j["직원 — C"]["판정"].endswith("확인 필요")
+    j = J(G.guide(2018, workers=[{"name": "D", "age": 25, "disabled_kind": "5·18민주화운동부상자"}, {"name": "E", "age": 28, "career_break": True}, {"name": "F", "defector": True}]))
+    assert j["직원 — D"]["판정"] == "상시근로자 — 청년등" and j["직원 — E"]["판정"] == "상시근로자 — 청년등" and j["직원 — F"]["판정"].endswith("확인 필요")
+    assert J(G.guide(2023, workers=[{"name": "G", "age": 25, "fixed_term": True}]))["직원 — G"]["판정"] == "확인 필요"      # 기간제인데 계약기간을 주지 않음
+    bad = G.guide(2026, increase="5", consumer_service="예", workers=[{"age": "30"}, {"monthly_hours": -1}, {"contract_date": "2025.3.1"}, {"age": True}])
+    assert "error" in bad and len(bad["문제"]) == 6

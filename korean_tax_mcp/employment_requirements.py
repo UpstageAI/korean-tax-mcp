@@ -20,6 +20,7 @@ CREDITS = ("고용증대", "통합고용")
 SIZES = ("중소기업", "중견기업", "일반")
 DISABLED_KINDS = ("장애인", "상이자", "5·18민주화운동부상자", "고엽제후유의증환자")
 _L, _D = "조세특례제한법", "조세특례제한법 시행령"
+_NUM_FIELDS = ("age", "military_years", "age_at_contract", "contract_months", "service_months", "monthly_hours")
 
 
 def _art(credit):
@@ -147,6 +148,8 @@ def _worker(w, i, year, credit, size):
     months = w.get("service_months") if new else w.get("contract_months")
     if months is not None and months < 12:
         return out("상시근로자 아님", "근로기간이 1년 미만" if new else "근로계약기간이 1년 미만(연속 갱신으로 총 1년 이상이면 contract_months에 총 기간을)")
+    if not new and months is None and w.get("fixed_term"):
+        pending.append("기간제근로자는 근로계약기간이 갱신을 포함해 1년 이상인지 확인(contract_months)")
     if new and months is None:
         pending.append("2026년 통합고용은 근로기간 1년 이상인지 확인(service_months)")
     weight = 1
@@ -169,53 +172,50 @@ def _worker(w, i, year, credit, size):
 
 
 def _youth(w, year, credit, size):
+    """나이로 청년인지 먼저 보고, 아니면 장애인 등·60세 이상·북한이탈주민·경력단절, 끝으로 2026년 통합고용의 청년 유지 기간을 본다."""
     limit = 29 if credit == "고용증대" else 34
+    mil = min(max(w.get("military_years") or 0, 0), 6)
+    blocked = [k for k, v in (("기간제근로자", w.get("fixed_term")), ("단시간근로자", w.get("part_time")), ("파견근로자", w.get("dispatched")), ("청소년유해업소 청소년", w.get("youth_harmful_workplace"))) if v]
+    age, notes = w.get("age"), []
+    if age is not None:
+        eff = age - mil
+        if 15 <= eff <= limit and not blocked:
+            return True, f"15세 이상 {limit}세 이하" + (f"(병역 기간을 빼고 계산한 나이 {eff}세)" if eff != age else "")
+        notes.append(f"나이는 {limit}세 이하지만 {', '.join(blocked)}라 청년에서 제외" if 15 <= eff <= limit else (f"{limit}세 초과" if eff > limit else "15세 미만"))
     kind = w.get("disabled_kind")
     if kind in ("장애인", "상이자") or (kind in DISABLED_KINDS and (year >= 2019 or credit == "통합고용")):
         return True, f"{kind}"
     if kind in DISABLED_KINDS:
-        return False, f"{kind}은 2019년 시행본부터 청년등에 포함 — {year}년에는 해당 없음"
+        notes.append(f"{kind}은 2019년 시행본부터 청년등에 포함 — {year}년에는 해당 없음")
     if w.get("age_at_contract") is not None and w["age_at_contract"] >= 60:
         if year >= 2021 or credit == "통합고용":
             return True, "근로계약 체결일 현재 60세 이상"
-        return False, "근로계약 체결일 현재 60세 이상은 2021년 시행본부터 청년등에 포함"
+        notes.append("근로계약 체결일 현재 60세 이상은 2021년 시행본부터 청년등에 포함")
     if w.get("defector"):
         if credit == "통합고용" and year >= 2025:
             return True, "북한이탈주민(2025.1.1. 이후 개시하는 과세연도를 최초 공제연도로 신청하는 경우부터 — 시행령 2025.2.28. 개정 부칙 제9조)"
-        return False, "북한이탈주민은 2025년 통합고용부터 청년등에 포함"
+        notes.append("북한이탈주민은 2025년 통합고용부터 청년등에 포함")
     if w.get("career_break"):
         if credit == "통합고용":
             return None, ("경력단절 여성(법 제29조의3제1항) 요건을 갖췄는지 확인" if year <= 2024 else "경력단절 근로자 세 요건(1년 이상 근무 후 사유 퇴직, 퇴직 후 2년 이상 15년 미만, 최대주주 등이 아닐 것)을 갖췄는지 확인 — 법 제29조의8제2항")
-        return False, "경력단절 여성은 고용증대의 청년등이 아님(재고용 세액공제는 제29조의3)"
-    age = w.get("age")
-    if age is None:
-        return None, "나이(age)를 주지 않아 청년 여부를 판정하지 않음"
-    eff = age - min(max(w.get("military_years") or 0, 0), 6)
-    blocked = [k for k, v in (("기간제근로자", w.get("fixed_term")), ("단시간근로자", w.get("part_time")), ("파견근로자", w.get("dispatched")), ("청소년유해업소 청소년", w.get("youth_harmful_workplace"))) if v]
-    if 15 <= eff <= limit:
-        if blocked:
-            return False, f"나이는 {limit}세 이하지만 {', '.join(blocked)}라 청년에서 제외"
-        return True, f"15세 이상 {limit}세 이하" + (f"(병역 기간을 빼고 계산한 나이 {eff}세)" if eff != age else "")
+        notes.append("경력단절 여성은 고용증대의 청년등이 아님(재고용 세액공제는 제29조의3)")
     if credit == "통합고용" and year >= 2026 and w.get("age_at_contract") is not None and w.get("contract_date") and not blocked:
-        try:
-            cd = date.fromisoformat(str(w["contract_date"]))
-        except ValueError:
-            return None, "contract_date는 YYYY-MM-DD"
-        eff_c = w["age_at_contract"] - min(max(w.get("military_years") or 0, 0), 6)
-        if 15 <= eff_c <= 34 and cd.year >= 2025:
+        cd = date.fromisoformat(str(w["contract_date"]))
+        if 15 <= w["age_at_contract"] - mil <= 34 and cd.year >= 2025:
             if size is None:
                 return None, "근로계약 체결 당시 34세 이하 — 청년등으로 보는 기간은 기업 규모에 따라 다름(size)"
             sme = size in ("중소기업", "중견기업")
             yrs = (4 if sme else 3) if cd.year >= 2026 else (3 if sme else 2)
-            try:
-                until = cd.replace(year=cd.year + yrs)
-            except ValueError:
-                until = cd.replace(year=cd.year + yrs, day=28)
+            until = cd.replace(year=cd.year + yrs, day=28) if (cd.month, cd.day) == (2, 29) else cd.replace(year=cd.year + yrs)
             src = "시행령 제26조의8제4항제1호 후단" if cd.year >= 2026 else "시행령 2026.2.27. 개정 부칙 제11조제2항"
             if date(year, 1, 1) < until:
                 return True, f"근로계약 체결 당시 34세 이하 — 체결일({cd})부터 {yrs}년간({until} 전까지)은 청년등으로 봄({src}). 그 기간에 속하는 달만 청년등으로 계산"
-            return False, f"근로계약 체결일({cd})부터 {yrs}년이 지남"
-    return False, f"{limit}세 초과" if eff > limit else "15세 미만"
+            notes.append(f"근로계약 체결일({cd})부터 {yrs}년이 지남")
+    if age is None and not notes:
+        return None, "나이(age)를 주지 않아 청년 여부를 판정하지 않음"
+    if age is None:
+        return None, "; ".join(notes) + " — 나이(age)를 주지 않아 청년 여부는 판정하지 않음"
+    return False, "; ".join(notes)
 
 
 def guide(year=None, credit=None, size=None, consumer_service=None, workers=None, startup_reduction=None, founded=None, extra_reduction_for_employment=None,
@@ -235,8 +235,22 @@ def guide(year=None, credit=None, size=None, consumer_service=None, workers=None
     for i, w in enumerate(workers or []):
         if not isinstance(w, dict):
             문제.append(f"workers[{i}] — {{name?, age?, ...}} 형식")
-        elif w.get("disabled_kind") is not None and w["disabled_kind"] not in DISABLED_KINDS:
-            문제.append(f"workers[{i}].disabled_kind — {' | '.join(DISABLED_KINDS)}")
+        else:
+            if w.get("disabled_kind") is not None and w["disabled_kind"] not in DISABLED_KINDS:
+                문제.append(f"workers[{i}].disabled_kind — {' | '.join(DISABLED_KINDS)}")
+            for k in _NUM_FIELDS:
+                if w.get(k) is not None and (isinstance(w[k], bool) or not isinstance(w[k], (int, float)) or w[k] < 0):
+                    문제.append(f"workers[{i}].{k}={w[k]!r} — 0 이상의 수")
+            if w.get("contract_date") is not None:
+                try:
+                    date.fromisoformat(str(w["contract_date"]))
+                except ValueError:
+                    문제.append(f"workers[{i}].contract_date={w['contract_date']!r} — YYYY-MM-DD")
+    if increase is not None and (isinstance(increase, bool) or not isinstance(increase, (int, float))):
+        문제.append(f"increase={increase!r} — 증가 인원(수)")
+    for k, v in (("consumer_service", consumer_service), ("startup_reduction", startup_reduction), ("extra_reduction_for_employment", extra_reduction_for_employment), ("took_employment_increase", took_employment_increase)):
+        if v is not None and not isinstance(v, bool):
+            문제.append(f"{k}={v!r} — true | false")
     fd = None
     if founded is not None:
         try:
