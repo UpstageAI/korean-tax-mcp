@@ -29,6 +29,7 @@ from . import tp_report as _tp_report
 from . import sme_incentives as _sme_incentives
 from . import rnd_requirements as _rnd_requirements
 from . import employment_requirements as _employment_requirements
+from . import tax_crime as _tax_crime
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -923,6 +924,30 @@ def employment_credit_requirements_guide(
     세액을 계산하지 않는다(계산 MCP의 employment_increase_credit, integrated_employment_credit). 임원·친족 해당 여부와 경력단절 요건의 실질은 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article, 적용례는 article_addenda.
     """
     return _employment_requirements.guide(year, credit, size, consumer_service, workers, startup_reduction, founded, extra_reduction_for_employment, took_employment_increase, increase)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def tax_crime_guide(
+    act_date: Annotated[str | None, Field(description="행위일 YYYY-MM-DD(2016-01-01 이후). 조세포탈은 기수 시기(신고·납부기한이 지난 때 등). 생략하면 범칙행위 목록과 행위일별 변화")] = None,
+    offense: Annotated[str | None, Field(description="조세포탈 | 면세유 부정유통 | 면세유류 구입카드 부정발급 | 가짜석유제품 | 무면허 주류 | 체납처분 면탈 | 장부 소각·파기 | 성실신고 방해 | 세금계산서 미발급·거짓기재 | 세금계산서 미수취·거짓수취 | 실물거래 없는 세금계산서 | 명의대여 | 납세증명표지 불법사용 | 원천징수 불이행 | 거짓 근로소득 원천징수영수증 | 해외금융계좌 비밀유지 위반 | 해외금융계좌 신고의무 불이행")] = None,
+    evaded_tax: Annotated[float | None, Field(description="포탈세액등(원, 선택) — 조세포탈의 제3조제1항 단서(3억원·5억원) 판정에 씀")] = None,
+    tax_due: Annotated[float | None, Field(description="신고·납부하여야 할 세액(원, 선택) — 포탈세액등이 3억원 이상일 때 100분의 30 기준 판정에 씀")] = None,
+    annual_evaded_tax: Annotated[float | None, Field(description="연간 포탈세액등(원, 선택) — 특정범죄 가중처벌 등에 관한 법률 제8조(연간 5억원·10억원) 판정에 씀")] = None,
+    supply_amount_total: Annotated[float | None, Field(description="공급가액등의 합계액(원, 선택) — 실물거래 없는 세금계산서의 특정범죄 가중처벌(30억원·50억원) 판정에 씀")] = None,
+    for_profit: Annotated[bool | None, Field(description="영리 목적인지(선택) — 실물거래 없는 세금계산서의 특정범죄 가중처벌 판정에 씀")] = None,
+    unreported_amount: Annotated[float | None, Field(description="해외금융계좌 신고의무 위반금액(원, 선택) — 50억원 초과 판정에 씀")] = None,
+    document: Annotated[str | None, Field(description="세금계산서 | 계산서(선택) — 미발급·미수취 행위의 대상 문서. 계산서는 2019.1.1. 시행본부터 제10조제1항·제2항 대상")] = None,
+) -> dict:
+    """Korean tax crime provisions as in force on the date of the act — applicable article, elements, statutory penalty, amount thresholds, aggravated punishment, complaint requirement, limitation period and corporate liability. It does not decide guilt or a sentence.
+
+    조세범 처벌법 요건 안내 — 행위일의 시행본으로 적용 조문, 구성요건, 법정형, 금액 기준(제3조제1항 단서, 특정범죄 가중처벌 등에 관한 법률 제8조·제8조의2, 해외금융계좌 50억원), 고발(제21조), 공소시효(제22조), 양벌규정(제18조)을 돌려준다.
+    언제: 조세포탈, 거짓 세금계산서 발급·수취, 명의대여, 원천징수한 세금 미납부, 체납처분 면탈 같은 행위가 어느 조문에 걸리고 법정형과 가중처벌 기준이 무엇인지, 고발이 있어야 하는지, 공소시효가 몇 년인지 확인할 때.
+    반환: {행위일, 적용 시행본, 범칙행위, 조문, 구성요건, 법정형, 병과·가중·감경?, 부정한 행위?, 기수 시기?, 판정?: [{항목, 판정(해당·해당 아님·확인 필요·대상·대상 아님), 사유, 법정형?, 근거}], 공통 규정, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 범칙행위 목록과 행위일별 변화.
+    행위일에 따라 다름: 제10조제1항·제2항의 계산서(2019.1.1.부터), 제14조의 근로장려금 목적(2019.1.1.부터), 제15조·제16조 해외금융계좌 벌칙(2019.1.1.부터), 인용 조문(2021.1.1.).
+    형량·벌금액·통고처분 금액을 정하지 않는다. 고의와 부정한 행위의 실질, 정당한 사유, 영리 목적은 판정하지 않는다. 2016.1.1. 전 행위와 지방세·관세 포탈은 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=행위일).
+    """
+    return _tax_crime.guide(act_date, offense, evaded_tax, tax_due, annual_evaded_tax, supply_amount_total, for_profit, unreported_amount, document)
 
 
 @mcp.tool(annotations=RO)
