@@ -6,7 +6,7 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 27 tools.
+> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 35 tools.
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules and treaties. [한국어](README.md)
 
@@ -16,30 +16,62 @@
 
 ```mermaid
 flowchart LR
-  Q["AI request<br/>law, article, date, keyword"] --> V["Pick the version<br/>in force on the date"]
-  V --> P["Shape the text<br/>paragraphs, provisos"]
-  P --> L["Delegation links<br/>Act→Decree→Rule"]
-  Q --> S["Rulings search<br/>per issue, doc no., summary"]
-  Q --> Y["Base-year bundle<br/>statute, rules, rulings, changes"]
-  Q --> C["Compare and judge<br/>text vs. statute"]
-  V -.-> A1[("law.go.kr Open API")]
-  L -.-> A1
-  S -.-> A2[("taxlaw.nts.go.kr")]
-  Y -.-> A1
-  Y -.-> A2
-  P --> R["Result<br/>text, in-force date, doc no., link"]
-  L --> R
-  S --> R
-  Y --> R
+  Q["AI question<br/>law, article, date, facts"]
+  Q --> A["Statutes<br/>version in force, delegation<br/>addenda, annexes, admin rules"]
+  Q --> B["Rulings and cases<br/>rulings, court and tribunal decisions<br/>basic rules, execution standards"]
+  Q --> C["Base year<br/>bundle per tax type<br/>timing rules"]
+  Q --> D["Requirement guides<br/>research credit, employment, SME<br/>by tax year, item judgment"]
+  Q --> E["Transfer pricing<br/>methods, FAR analysis<br/>local file outline, decisions, OECD"]
+  Q --> F["Treaties and residency<br/>96 treaties<br/>3-step residency test"]
+  Q --> G["Compare and verify<br/>statements, options, citations<br/>against the text"]
+  A -.-> S1[("law.go.kr Open API")]
+  B -.-> S2[("taxlaw.nts.go.kr")]
+  C -.-> S1
+  C -.-> S2
+  F -.-> S2
+  G -.-> S1
+  D -.-> S3[("Built-in tables<br/>checked against statutes and addenda")]
+  E -.-> S3
+  A --> R["Result<br/>text, in-force date, doc no., link<br/>requirements, judgment, limits"]
+  B --> R
   C --> R
+  D --> R
+  E --> R
+  F --> R
+  G --> R
+  R --> K["korean-tax-calc-mcp<br/>calculation and statutory forms"]
 ```
 
-1. **Statutes** — picks the version in force on the base date from law.go.kr and returns the text with provisos and Act → Decree → Rule links. Without a date, today is used. Names not found among statutes (administrative rules such as the Foreign Exchange Transactions Regulations or NTS notices) fall back to the current text (no history).
-2. **Rulings** — searches the NTS system for rulings, decisions, basic rules and execution standards, with document numbers and links. A question with several issues is searched issue by issue (`search_rulings_by_issue`).
-3. **Base year** — gathers the statute and rulings for the base date of each tax type (fiscal year end, transfer date, …) and flags changes against today's text. Timing rules (income recognition, VAT supply time) come first from the `timing_rules` table.
-4. **Compare** — checks statements against the statute text word by word and marks differing numbers and provisos.
+1. **Statutes** — picks the version in force on the base date from law.go.kr and returns the text with provisos and Act → Decree → Rule links. Without a date, today is used. Addenda (`article_addenda`) show from when an amendment applies; annexes are read with `law_article` ('Annex 1' style). Names not found among statutes (administrative rules such as the Foreign Exchange Transactions Regulation) are looked up as administrative rules.
+2. **Rulings and cases** — searches the NTS system for rulings, court and tribunal decisions, basic rules and execution standards, with document numbers, links and full text. A question with several issues is searched issue by issue (`search_rulings_by_issue`). Local-tax questions also get Tax Tribunal decisions from law.go.kr. Wins and losses on the same issue can be compared (`compare_outcomes`), or matched against your facts (`compare_with_case`).
+3. **Base year** — gathers the statute, basic rules and rulings for the base date of each tax type and flags changes against today's text. Timing rules (income recognition, VAT supply time) come first from the `timing_rules` table (90 rules).
+4. **Requirement guides** — for incentives whose conditions change by tax year, returns the conditions checked against that year's statute and addenda: R&D tax credit (`rnd_credit_requirements_guide`, 2016–2026), employment credits (`employment_credit_requirements_guide`, 2018–2026) and SME incentives (`sme_tax_incentives_guide`). Given a list of employees or costs, it judges each item and lists what could not be confirmed.
+5. **Transfer pricing** — applicable rules and arm's-length methods (`transfer_pricing_guide`), functions-assets-risks analysis (`transfer_pricing_far`), the 24-item local file outline (`transfer_pricing_report`), decisions on 9 issues (`transfer_pricing_cases`) and OECD Guidelines paragraphs (`oecd_tp_guidelines`). It does not compute or judge an arm's-length price.
+6. **Treaties and residency** — text of 96 tax treaties (Korean and English), reduced rates on dividends, interest and royalties, and a 3-step resident / non-resident test (`residency_check`).
+7. **Compare and verify** — checks statements and options against the statute text word by word (`verify_statement`, `judge_options`) and checks that cited document numbers and articles exist (`verify_citations`).
 
-Judgment and conclusions stay with your AI and a professional; this server fetches the sources.
+Judgment and conclusions stay with your AI and a professional. This server fetches the sources; amounts and statutory forms are handled by [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp).
+
+## Sources
+
+| Source | Scope | Where from | Tools |
+|---|---|---|---|
+| Statutes (Acts, Decrees, Rules) | version in force, history, addenda, annexes and forms | law.go.kr Open API (per call) | `law_article`, `find_article`, `article_history`, `article_addenda`, `search_forms` |
+| Administrative rules | notices, directives, e.g. Foreign Exchange Transactions Regulation | law.go.kr Open API | `law_article` |
+| Rulings, court and tribunal decisions | summary search and full text | taxlaw.nts.go.kr | `search_tax_rulings`, `search_rulings_by_issue`, `get_tax_ruling`, `rulings_by_article` |
+| Tax Tribunal decisions | national and local taxes | law.go.kr | `search_tribunal_decisions`, `get_tribunal_decision` |
+| Basic rules, execution standards | full text of basic rules; item, page and link for execution standards | taxlaw.nts.go.kr | `basic_rules`, `execution_standards` |
+| Tax treaties | 96 treaties (Korean and English), reduced rates | taxlaw.nts.go.kr | `tax_treaty`, `treaty_withholding_rates` |
+| NTS publications | full-text search | taxlaw.nts.go.kr | `search_nts_publications` |
+| NTS 2025 casebook of tax interpretations | 96 cases | bundled | `casebook_search` |
+| OECD Transfer Pricing Guidelines 2022 | 1,391 paragraphs (English), crosswalk to Korean law | bundled | `oecd_tp_guidelines` |
+| Timing rules | 90 rules on tax liability, income recognition, supply time | bundled (checked against statutes) | `timing_rules` |
+| Transfer pricing tables | methods, 24-item local file outline, decisions on 9 issues | bundled | `transfer_pricing_guide`, `transfer_pricing_far`, `transfer_pricing_report`, `transfer_pricing_cases` |
+| Incentive requirement rules | R&D 2016–2026, employment 2018–2026, SME incentives | bundled (checked against each year's statute, addenda and rulings) | `rnd_credit_requirements_guide`, `employment_credit_requirements_guide`, `sme_tax_incentives_guide` |
+| Residency rules | Income Tax Act art. 1-2, Decree arts. 2, 2-2, 3, treaty tie-breaker | bundled, treaties fetched | `residency_check`, `residency_report` |
+| Your own documents | PDFs in a folder you set | local (`KOREAN_TAX_MCP_DOCS`) | `search_local_documents` |
+
+Bundled tables return the statute version and the date they were checked. Re-check against the statute for your tax year with `law_article` (`as_of`).
 
 ## Install
 
@@ -60,7 +92,7 @@ claude mcp add korean-tax -- uvx korean-tax-mcp
 }
 ```
 
-The second entry, [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp), is the companion server: it turns the statutes and rulings found here into computed amounts, limits and determinations (95 tools) and fills the statutory Excel forms. With both installed, "find the basis → compute → fill the form" runs in one conversation. The first entry alone is enough for statutes and cases.
+The second entry, [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp), is the companion server: it turns the statutes and rulings found here into computed amounts, limits and determinations (126 tools) and fills the statutory Excel forms. With both installed, "find the basis → compute → fill the form" runs in one conversation. The first entry alone is enough for statutes and cases.
 
 | Key | Used for |
 |---|---|
