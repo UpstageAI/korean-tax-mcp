@@ -1,6 +1,6 @@
 # korean-tax-mcp
 
-> MCP server that gives AI agents the sources of Korean (South Korea) tax law: statutes as in force on any date, National Tax Service (NTS) rulings, court and Tax Tribunal decisions, basic rules, 96 tax treaties with treaty withholding rates, a resident/non-resident test, transfer pricing references and NTS guidebooks. Read-only; every tool takes lang="en".
+> MCP server that gives AI agents the sources of Korean (South Korea) tax law: statutes as in force on any date, National Tax Service (NTS) rulings, court and Tax Tribunal decisions, basic rules, 96 tax treaties with treaty withholding rates, a resident/non-resident test, transfer pricing references and NTS guidebooks. Read-only except `build_tax_memo`, which writes one Word file locally; every tool takes lang="en".
 
 Install: `uvx korean-tax-mcp` (Claude Code: `claude mcp add korean-tax -- uvx korean-tax-mcp`). Most tools need no key. Statute tools (law_article, find_article, article_history, article_addenda, research_issue, verify_statement, judge_options) and Tax Tribunal tools (search_tribunal_decisions, get_tribunal_decision) need a free law.go.kr Open API key in `LAW_OC` (see the key table in the README). `UPSTAGE_API_KEY` is optional (Solar summaries and translation; otherwise your own AI does it).
 
@@ -34,6 +34,7 @@ Agent builders: Anthropic's BM25 tool search (`tool_search_tool_bm25`) does not 
 | Income type rules (wage incl. flat rate for foreign employees, interest, dividend, business, pension, other, retirement income) | `wage_income_guide`, `interest_income_guide`, `dividend_income_guide`, `business_income_guide`, `pension_income_guide`, `other_income_guide`, `retirement_income_guide` |
 | Tax crime provisions and investigation procedure | `tax_crime_guide`, `tax_crime_procedure_guide`; nominee-held property: `nominee_trust_guide` |
 | Do cited document numbers and articles exist? Does a statement match the text? | `verify_citations`, `verify_statement`, `judge_options` |
+| Write a tax memo or opinion as a Word file (English or Korean) with a fixed order of reasoning and real footnotes | `tax_memo_guide` (logic line, schema, example) → evidence tools here + calculators in korean-tax-calc-mcp → `build_tax_memo` (validates, writes .docx) |
 | NTS 2025 casebook of interpretations | `casebook_search` |
 | Your own PDFs (e.g. OECD Guidelines you downloaded) | `search_local_documents` |
 

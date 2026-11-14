@@ -56,7 +56,7 @@ def test_tools():
                 "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms",
                 "article_history", "article_addenda", "compare_outcomes",
                 "residency_check", "residency_report", "find_article", "verify_statement", "judge_options", "timing_rules",
-                "search_rulings_by_issue", "search_tribunal_decisions", "get_tribunal_decision", "transfer_pricing_guide", "oecd_tp_guidelines", "transfer_pricing_report", "transfer_pricing_far", "transfer_pricing_cases", "sme_tax_incentives_guide", "rnd_credit_requirements_guide", "employment_credit_requirements_guide", "tax_crime_guide", "tax_crime_procedure_guide", "nominee_trust_guide", "one_house_exemption_guide", "family_business_succession_guide", "vat_exempt_zero_rate_guide", "interest_income_guide", "dividend_income_guide", "wage_income_guide", "business_income_guide", "pension_income_guide", "other_income_guide", "retirement_income_guide", "permanent_establishment_guide"}
+                "search_rulings_by_issue", "search_tribunal_decisions", "get_tribunal_decision", "transfer_pricing_guide", "oecd_tp_guidelines", "transfer_pricing_report", "transfer_pricing_far", "transfer_pricing_cases", "sme_tax_incentives_guide", "rnd_credit_requirements_guide", "employment_credit_requirements_guide", "tax_crime_guide", "tax_crime_procedure_guide", "nominee_trust_guide", "one_house_exemption_guide", "family_business_succession_guide", "vat_exempt_zero_rate_guide", "interest_income_guide", "dividend_income_guide", "wage_income_guide", "business_income_guide", "pension_income_guide", "other_income_guide", "retirement_income_guide", "permanent_establishment_guide", "tax_memo_guide", "build_tax_memo"}
     assert names == expected, f"도구 목록 불일치: Extra={names-expected}, Missing={expected-names}"
 
 
@@ -81,7 +81,9 @@ def test_input_errors(monkeypatch):
 
 def test_descriptions_complete():
     for t in asyncio.run(mcp.list_tools()):
-        assert t.description and "언제" in t.description and t.annotations.read_only_hint
+        assert t.description and "언제" in t.description
+        # build_tax_memo만 파일(.docx 하나)을 쓴다 — 나머지는 모두 읽기 전용
+        assert t.annotations.read_only_hint == (t.name != "build_tax_memo"), t.name
         assert all(v.get("description") for v in t.input_schema["properties"].values()), t.name
 
 

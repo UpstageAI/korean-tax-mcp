@@ -35,6 +35,7 @@ from . import permanent_establishment as _pe
 from . import tax_crime_procedure as _tax_crime_proc
 from . import nominee_trust as _nominee_trust
 from . import vat_exempt_zero_rate as _vat_ezr
+from . import tax_memo as _tax_memo
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)", version=__version__,
@@ -47,6 +48,7 @@ mcp = MCPServer(
                  "귀속·공급시기·성립시기는 직접 정하기 전에 timing_rules를 먼저 본다. "
                  "계산 도구(korean-tax-calc-mcp) 결과가 직접 계산이나 기억과 다르면 바로 어느 쪽을 고르지 말고, 두 값을 가르는 조문을 law_article로 열어 요건을 사실관계에 하나씩 대조한다. "
                  "도구가 틀렸다는 조문 근거를 찾지 못하면 도구 값을 따르고, 다른 값을 쓸 때는 그 조문 번호를 밝힌다. "
+                 "세무 메모·의견서·검토 보고(Word)를 원하면 tax_memo_guide로 따지는 순서와 구조를 받고 → 이 서버의 요건·조약·조문 도구로 근거를, korean-tax-calc-mcp 계산기로 숫자를 받아 구조를 채운 뒤 → build_tax_memo로 만들고 경고를 고쳐 다시 만든다(엑셀 계산서는 korean-tax-calc-mcp의 export_workbook). 도구 결과나 사용자가 준 사실에 없는 내용은 단정하지 않는다. "
                  "도구 결과는 한국어로 나오지만, 답변은 사용자가 질문한 언어로 작성한다(국문 용어는 괄호로 병기). "
                  "Tool results are mostly in Korean; always answer in the language the user asked in, keeping key Korean terms in parentheses.")
 
@@ -760,6 +762,46 @@ def verify_citations(
             r["생략"] = (r.get("생략", "") + " " if r.get("생략") else "") + f"2만 자를 넘는 뒷부분({len(text) - 20000:,}자)은 검증 안 함 — 나눠서 다시 검증"
         return r
     except Exception as e: return _err(e)
+
+
+WRITE_FILE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
+
+
+@mcp.tool(annotations=RO)
+def tax_memo_guide(
+    lang: Annotated[Literal["en", "ko"], Field(description="Language of the memo and of this guide — use the user's language. 'en' (default) | 'ko'. 메모와 안내문의 언어(사용자의 언어)")] = "en",
+) -> dict:
+    """Logic line for a Korean tax memo or opinion: the fixed order of reasoning, the structure JSON schema and an illustrative example of the shape (not of any real case). Call this first when the user asks for a tax memo, opinion or review note; then build_tax_memo.
+
+    세무 메모·검토의견서의 따지는 순서(논리선), 구조 JSON 스키마, 모양을 보이는 예시를 돌려준다. 특정 거래의 쟁점 목록은 주지 않는다 — 쟁점은 요건 안내 도구, 계산기의 쟁점 목록, 사용자가 준 문서에서 가져온다.
+    언제: 사용자가 세무 메모·의견서·검토 보고를 Word 문서로 원할 때 맨 먼저. AI가 즉흥으로 목차를 짜지 않고 이 순서를 따른다.
+    순서: 머리(작성·일자·제목·범위) → 핵심 요약 3개(굵은 결론 한 문장 + 근거 + 각주) → 쟁점 → 결론 → 사실관계와 전제 → 검토(쟁점마다 근거 규정 → 적용 → 결론 + 인용; 소득·거래 구분 → 과세 여부·원천 → 세율 → 조약 → 절차 → 관련 세목 순서) → 사실관계별 결과 표(선택) → 계산 표 → 위험과 확인할 점(우선순위) → 다음 단계 → 각주(1차 자료, 원어 병기) → 작성 방법.
+    작업: 사실 수집 → 이 서버의 요건·조약·조문 도구와 korean-tax-calc-mcp 계산기 호출 → 구조 채움 → build_tax_memo → 경고 고침 → 다시 만듦. 도구 결과나 사용자가 준 사실에 없는 것은 단정하지 않고 전제나 확인할 점에 적는다.
+    반환: {lang, guide(규칙 글), stages(쟁점 순서), priorities, schema, example_note, example(지어낸 사례로 모양만 보이는 구조 — 내용을 가져다 쓰지 않는다. 그대로 넣으면 경고 0건), checks(점검 규칙 목록), next}. 읽기 전용, 외부 호출 없음.
+    """
+    try: return _tax_memo.guide(lang)
+    except ValueError as e: return {"error": str(e)}
+
+
+@mcp.tool(annotations=WRITE_FILE)
+def build_tax_memo(
+    structure: Annotated[dict | str, Field(description="Memo structure JSON (object or its string) following tax_memo_guide's schema: head, summary(3), question, short_answer, facts, analysis, decision_table?, calculation, risks, next_steps, footnotes, prepared_how. tax_memo_guide의 schema를 따른 구조 JSON(객체 또는 그 문자열)")],
+    output_dir: Annotated[str, Field(description="Folder to write the .docx into. Default '.' (the server's working folder; falls back to ~/korean-tax-mcp when that is not writable). 저장 폴더")] = ".",
+    filename: Annotated[str | None, Field(description="File name (optional; '.docx' is added). Default: Tax_Memo_<subject>.docx, 국문은 세무메모_<제목>.docx")] = None,
+    lang: Annotated[Literal["", "en", "ko"], Field(description="Memo language: 'en' | 'ko'. Empty = structure.lang, else detected from the subject. 메모 언어(비우면 structure.lang 또는 제목으로 판단)")] = "",
+    check_only: Annotated[bool, Field(description="True = validate only, write no file. True면 점검만 하고 파일을 만들지 않음")] = False,
+) -> dict:
+    """Validate a tax memo structure against the logic line and write it as a Word file (.docx) with real footnotes. Returns the path plus errors and warnings to fix; rebuild until there are no warnings.
+
+    세무 메모 구조를 논리선에 대어 점검하고 Word(.docx)로 만든다.
+    언제: tax_memo_guide의 구조를 도구 결과로 채운 뒤. 경고가 있으면 고쳐서 다시 호출한다(경고 0건이 될 때까지).
+    점검: 머리 4칸, 요약 정확히 3개(결론 한 문장 + 근거 + 각주), 쟁점 1~2문장, 결론 = 답 + 조건, 답을 바꾸는 전제는 위험 항목과 연결, 쟁점 3개 이상·정해진 순서(stage), 쟁점마다 근거 규정·적용·결론과 조문·사건 번호 인용, 요약·결론의 금액이 계산 표에 있는지, 합계 = 구성 행의 합, 우선순위 값, 각주 id 일치(쓰인 것·정의된 것), 문단 길이, 군말, 작성 방법 문단.
+    결과물: A4, 제목·머리, 번호 붙은 요약, 표(머리·합계 음영, 우선순위 색, 행이 쪽에서 갈라지지 않음), 실제 Word 각주(읽는 순서 번호, 같은 출처는 '주 N 참조'), 바닥글 안내와 쪽 번호. 한글 글꼴(맑은 고딕) 지정.
+    반환: {path, ok, lang, errors, warnings, footnotes(각주 수), next}. errors(구조가 깨짐)가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고 고칠 점을 돌려준다.
+    이 도구만 파일을 쓴다(지정한 폴더에 .docx 하나, 같은 이름이면 덮어씀). 외부 호출 없음. 엑셀 계산서는 korean-tax-calc-mcp의 export_workbook.
+    """
+    try: return _tax_memo.build(structure, output_dir, filename, lang, check_only)
+    except (ValueError, OSError) as e: return {"error": str(e)}
 
 
 @mcp.tool(annotations=RO)
