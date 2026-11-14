@@ -21,7 +21,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from . import _mask_oc, admrul, casebook, cite, claims, i18n, law, localdocs, localtax, net, ntis, outcome, residency, solar, timeline, tribunal
+from . import __version__, _mask_oc, admrul, casebook, cite, claims, i18n, law, localdocs, localtax, net, ntis, outcome, residency, solar, timeline, tribunal
 from . import timing_rules as _timing_rules_data
 from . import transfer_pricing as _transfer_pricing
 from . import oecd_tpg as _oecd_tpg
@@ -36,7 +36,9 @@ from . import nominee_trust as _nominee_trust
 from . import vat_exempt_zero_rate as _vat_ezr
 
 mcp = MCPServer(
-    "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
+    "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)", version=__version__,
+    description="Korean tax law evidence for AI agents: NTS rulings, court and tax tribunal decisions, basic rules, "
+                "point-in-time statutes, tax treaties (96 countries), treaty withholding rates, residency, transfer pricing.",
     instructions="한국 세법 쟁점의 근거(국세청 해석·판례·통칙·집행기준·조문)를 찾는다. search_tax_rulings로 넓게 찾고, get_tax_ruling으로 본문을 읽고, "
                  "조문 단위로는 rulings_by_article·basic_rules·law_article을 쓴다. 조문 번호를 모르면 find_article로 먼저 찾고, 긴 조문은 law_article의 keyword/paragraph로 필요한 항만 보라. "
                  "특정 사업연도 기준 정리는 research_issue, 사실 날짜의 귀속·공급시기는 timing_rules, 쟁점의 납세자 승·패 사례 비교는 compare_outcomes, 초안 검수는 verify_citations, 국제거래는 tax_treaty·search_nts_publications. 문서번호는 결과에 있는 것만 인용하고, "
@@ -1787,7 +1789,15 @@ def residency_check(
     def L(text): return i18n.english({"근거": text})["근거"] if _lang == "en" else text
     def s1label(): return i18n.english({"거주자": "resident", "비거주자": "non-resident", "판단 보류": "pending"})[result.stage1.overall] if _lang == "en" else result.stage1.overall
     def s2label(): return i18n.english({"이중거주자": "dual resident", "이중거주자 아님": "not dual resident", "확인 필요": "needs confirmation"})[result.stage2.dual] if _lang == "en" else result.stage2.dual
-    def s3label(): return i18n.english({"한국 거주자": "Korea resident", "상대국 거주자": "foreign resident", "양국 과세(미체결국)": "taxed in both countries (no treaty)", "판정 보류": "pending"})[result.stage3.outcome] if _lang == "en" else result.stage3.outcome
+    def s3label():
+        if _lang != "en":
+            return result.stage3.outcome
+        o = result.stage3.outcome
+        # tie-break 결과는 "상대국(미국) 거주자"처럼 나라 이름이 붙어 나온다.
+        if o.startswith("상대국(") and o.endswith(") 거주자"):
+            return f"foreign resident ({o[len('상대국('):-len(') 거주자')]})"
+        return {"한국 거주자": "Korea resident", "상대국 거주자": "foreign resident",
+                "양국 과세(미체결국)": "taxed in both countries (no treaty)", "판정 보류": "pending"}.get(o, o)
     def finallabel(): return i18n.english({"거주자": "resident", "비거주자": "non-resident", "이중거주자(조세조약 적용 필요)": "dual resident (treaty tie-break needed)", "판정 보류": "pending", "양국 과세(미체결국)": "taxed in both countries (no treaty)"})[result.final_outcome] if _lang == "en" else result.final_outcome
 
     return {

@@ -181,6 +181,28 @@ Every tool takes `lang="en"`:
 
 Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for loans to related parties (lang=en)"* or *"Show the dividend article of the Korea–US tax treaty in English."*
 
+## For foreign companies, expats and Korean subsidiaries
+
+If you are a foreign parent company with a Korean subsidiary, a Korean company paying foreign suppliers, an expat working in Korea, or an adviser to any of them, these tools cover the cross-border questions. All of them take `lang="en"`.
+
+| Question | Tool |
+|---|---|
+| Am I (or my seconded employee) a Korean tax resident? Which country wins under the treaty tie-breaker? | `residency_check` (rules, no key), then `residency_report` for a written review |
+| What does the Korea–X treaty say on permanent establishment, residence, business profits, etc.? | `tax_treaty` — 96 treaties, official English text where available |
+| What is the treaty cap on dividends, interest or royalties paid to country X, and does it include local income tax? | `treaty_withholding_rates` — rate, shareholding condition and the clause text |
+| Which transfer pricing rule and method applies to an intercompany transaction? How do I write the Local File? | `transfer_pricing_guide`, `transfer_pricing_far`, `transfer_pricing_report`, `transfer_pricing_cases`, `oecd_tp_guidelines` |
+| What do the NTS guidebooks say? | `search_nts_publications` — full text of NTS publications, including the 2026 tax guidebook for companies expanding overseas (해외진출기업을 위한 세무 가이드북), the tax guide for foreign corporations and foreign-invested companies (외국법인 및 외국인투자기업 납세안내) and the year-end tax settlement guide for foreigners |
+| Flat tax rate for foreign employees, overseas work allowance, dividend and interest withholding, VAT zero-rating for services to foreign businesses | `wage_income_guide`, `dividend_income_guide`, `interest_income_guide`, `vat_exempt_zero_rate_guide` |
+| How has the NTS ruled on this cross-border issue? | `search_tax_rulings` with `tax="국조"` (international tax), then `get_tax_ruling` |
+
+Example questions:
+
+- *"What is the treaty withholding rate on royalties a Korean subsidiary pays to its US parent? Quote the clause and tell me whether local income tax is on top (lang=en)."*
+- *"A US citizen is seconded to our Seoul subsidiary for two years and keeps a home in the US. Is she a Korean tax resident for 2026, and how does the Korea–US treaty tie-breaker apply?"*
+- *"Search the NTS publications for what the 2026 overseas-expansion tax guidebook says about reporting overseas subsidiaries."*
+
+For the numbers — withholding tax on payments to non-residents (`nonresident_withholding`), VAT reverse charge on services from foreign suppliers (`vat_reverse_charge`), expat cost recharges (`expat_cost_recharge`), dividends from foreign subsidiaries (`foreign_subsidiary_dividend`), foreign tax credits and CFC rules — install the companion [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp). Worked examples: [docs/use-cases](docs/use-cases/index.md).
+
 ## Disclaimer
 
 Results from this tool are **not tax advice**. They are reference material that finds and shows tax-law sources. For actual filing, tax audits, or appeals, consult a qualified professional (tax accountant, CPA, or attorney). Verify rulings, decisions, and statutes by following the original source links.
