@@ -974,7 +974,7 @@ def pension_income_guide(
     입력: receipt_date(수령일), pension_type, 그리고 아는 사실만(age, join_date, source(재원), amount, annual_private_total, start_requested, account_value, pension_year, reason, docs_within_6m, lifetime_contract, actual_receipt_year, deposit_date, public_benefit, public_fund). 생략한 사실은 '확인 필요'로 남김.
     반환: {수령일, 과세기간, 연금 구분, 구분, 판정: [{항목, 판정(충족·미충족·연금수령·연금외수령·분리과세·종합과세·비과세·확인 필요 등), 사유, 근거}], 원천징수세율(연금수령)?, 분리과세 기준?, 연금소득공제, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 구분·날짜별 변화·입력 안내.
     수령일에 따라 다름: 이연퇴직소득 해외이주 인출 3년 요건(2017.2.3. 이후 입금분), 퇴직소득 연금 원천징수 70%→실제 수령연차 10년 초과 60%(2020.1.1.), 재난 15일 이상 입원 인출 사유(2022.2.15.), 15% 분리 계산 선택(2023.1.1.), 분리과세 기준 1천200만원→1천500만원(2024.1.1. 이후 지급분), 종신계약 4%→3%·20년 초과 50%(2026.1.1. 이후 지급분).
-    세액을 계산하지 않는다(계산 MCP의 pension_income, pension_account_withdrawal). 시행규칙(요양·재난 인출 한도 금액)과 지방소득세는 대조하지 않아 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=수령일), 부칙은 article_addenda.
+    세액을 계산하지 않는다(계산 MCP의 pension_income, pension_account_withdrawal). 요양·재난 인출 한도(시행규칙 제11조의2)는 금액을 안내하고, 지방소득세는 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=수령일), 부칙은 article_addenda.
     """
     from . import pension_income as _pension
     return _pension.guide(receipt_date, pension_type, age, join_date, source, amount, annual_private_total, start_requested, account_value, pension_year,
@@ -1133,6 +1133,7 @@ def one_house_exemption_guide(
     special_date: Annotated[str | None, Field(description="특례 기준일 YYYY-MM-DD(선택) — 상속개시일, 동거봉양 합가일, 혼인일")] = None,
     rental_registered_date: Annotated[str | None, Field(description="양도 주택을 임대하려고 소득세법 제168조 사업자등록과 민간임대주택법 임대사업자등록을 신청한 날 YYYY-MM-DD(선택) — 구 시행령 제154조제1항제4호 거주요건 면제(2017.9.19.~2020.2.10. 양도분, 그 뒤는 2019.12.16. 이전 신청분만)")] = None,
     rental_rule_kept: Annotated[bool | None, Field(description="임대의무기간 중 양도가 아니고, 2019.2.12. 이후 임대차계약 체결·갱신분의 임대보증금·임대료 연 증가율이 5% 이하인지(선택) — 구 제154조제1항제4호 단서")] = None,
+    existing_tenant_lease_end: Annotated[str | None, Field(description="신규 주택 취득일 현재 살고 있던 기존 임차인의 임대차 종료일 YYYY-MM-DD(선택, 취득 후 갱신한 계약 제외) — 2019.12.17. 이후 취득분의 1년 양도·전입 기한을 임대차 종료일까지(2년 한도)로 늘리는 제155조제1항제2호 단서")] = None,
 ) -> dict:
     """Korean capital gains tax exemption for a one-house household as in force on the transfer date — household definition, holding and residence periods (two-year residence for houses acquired in adjustment areas), temporary two-house disposal deadlines, the high-priced house threshold and main special cases. It does not compute tax.
 
@@ -1145,7 +1146,8 @@ def one_house_exemption_guide(
     """
     return _one_house.guide(transfer_date, acquisition_date, adjusted_area_at_acquisition, residence_periods, contract_date, homeless_at_contract,
                             contract_before_designation, transfer_price, other_houses_disposed_date, new_house_acquisition_date, new_house_contract_date,
-                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date, rental_registered_date, rental_rule_kept)
+                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date, rental_registered_date, rental_rule_kept,
+                            existing_tenant_lease_end)
 
 
 @mcp.tool(annotations=RO)

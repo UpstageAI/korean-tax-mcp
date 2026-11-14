@@ -40,7 +40,7 @@ def test_unverified_name_rate_boundaries():
     assert v("2018-01-01") == "40%" and v("2018-12-31") == "40%"
     assert v("2019-01-01") == "42%" and v("2022-12-31") == "42%"
     assert v("2023-01-01") == "45%" and v("2026-12-31") == "45%"
-    assert rate("2024-01-01", "예금 이자", unverified_name=True, realname_act=True).startswith("금융실명법")
+    assert rate("2024-01-01", "예금 이자", unverified_name=True, realname_act=True).startswith("90%")   # 금융실명법 제5조
     assert J(G.guide("2024-01-01", income_type="예금 이자", facts={"unverified_name": True}))["과세 방법"]["판정"] == "분리과세"
 
 
@@ -117,7 +117,7 @@ def test_insurance_monthly_cap_2017_04_01():
 
 def test_insurance_old_contract_and_similar_contract():
     base = dict(premium_type="일시납·일반", holding_years=12, total_premium=EOK)
-    assert ins("2024-01-01", contract_date="2013-02-14", **base) == "확인 필요"
+    assert ins("2024-01-01", contract_date="2013-02-14", **base).startswith("이자소득 아님")   # 종전 제25조제1항 — 10년 이상이면 한도 없이 제외
     assert ins("2024-01-01", contract_date="2013-02-15", **base).startswith("이자소득 아님")
     assert ins("2025-02-27", contract_date="2015-01-01", similar_contract=True, **base) == "확인 필요"
     assert ins("2025-02-28", contract_date="2015-01-01", similar_contract=True, **base).startswith("과세")
@@ -134,5 +134,5 @@ def test_output_shape():
     for k in ("기준일", "판정", "요건", "한계", "관련 해석", "다음 단계", "확인 시행본"):
         assert k in r
     assert "financial_income_aggregate" in r["다음 단계"] and "withholding_tax" in r["다음 단계"] and "timing_rules" in r["다음 단계"]
-    assert any("미확인" in x for x in r["한계"])
+    assert not any("미확인" in x for x in r["한계"]) and any("2012.9.14." in x for x in r["한계"])
     assert J(r)["수입시기"]["근거"].startswith("소득세법 시행령 제45조")
