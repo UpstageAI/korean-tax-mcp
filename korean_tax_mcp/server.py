@@ -31,6 +31,7 @@ from . import rnd_requirements as _rnd_requirements
 from . import employment_requirements as _employment_requirements
 from . import tax_crime as _tax_crime
 from . import tax_crime_procedure as _tax_crime_proc
+from . import nominee_trust as _nominee_trust
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -985,6 +986,42 @@ def tax_crime_procedure_guide(
     return _tax_crime_proc.guide(decision_date, offense_article, evasion_proviso, annual_reported_revenue, annual_suspected_evasion, expected_evaded_tax,
                                  filed_return, registered, in_progress, flight_or_destroy_risk, prison_likely, cannot_pay, unreachable,
                                  investigation_end_date, committee_resolution_date, notice_date, notice_served_date, paid_date, accused_date)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def nominee_trust_guide(
+    trust_type: Annotated[str | None, Field(description="타인명의(명의자 명의로 등기등·명의개서) | 명의개서해태(취득 후 실제소유자 명의로 개서하지 않음). 생략하면 날짜별 변화와 입력 구분값")] = None,
+    asset_type: Annotated[str | None, Field(description="비상장주식 | 상장주식 | 출자지분 | 사채 | 차량 | 선박 | 항공기 | 건설기계 | 기타등록재산 | 토지 | 건물 | 예금·금전")] = None,
+    registration_date: Annotated[str | None, Field(description="명의자 명의로 등기등·명의개서를 한 날 YYYY-MM-DD(타인명의 유형의 증여의제일)")] = None,
+    acquisition_date: Annotated[str | None, Field(description="실제소유자의 소유권취득일 YYYY-MM-DD(명의개서해태 유형 — 다음 해 말일의 다음 날이 증여의제일, 평가기준일)")] = None,
+    agreement: Annotated[str | None, Field(description="명의신탁 합의 여부(선택): 합의 | 명의도용 | 모름")] = None,
+    exception: Annotated[str | None, Field(description="적용 제외·추정 배제 사유(선택): 신탁재산 | 비거주자_법정대리인 | 양도세신고_변경신고 | 상속세신고_포함 | 양도담보")] = None,
+    origin: Annotated[str | None, Field(description="재산의 내력(선택): 최초 | 매도대금_재취득 | 합병신주 | 유상증자신주 | 신탁자사망_상속 | 기존수탁주식_양수 | 수탁자사망_상속인명의")] = None,
+    nominee_kind: Annotated[str | None, Field(description="명의자: 개인 | 영리법인 | 비영리법인(선택)")] = None,
+    avoided_taxes: Annotated[list | None, Field(description="명의신탁으로 회피될 수 있던 조세 목록(선택) — 예: 배당 종합과세, 과점주주 간주취득세, 과점주주 제2차 납세의무, 양도소득세 대주주")] = None,
+    non_tax_purposes: Annotated[list | None, Field(description="조세 외 목적 목록(선택) — 예: 발기인 수 충족, 대주주 공시요건 회피, 체류자격")] = None,
+    inheritance_return_date: Annotated[str | None, Field(description="상속세 신고일 YYYY-MM-DD(선택) — 상속세신고_포함 추정 배제는 2016.1.1. 이후 신고분")] = None,
+    inheritance_return_type: Annotated[str | None, Field(description="정기 | 수정 | 기한후(선택)")] = None,
+    foreknown: Annotated[bool | None, Field(description="결정·경정을 미리 알고 한 수정신고·기한 후 신고인지(선택)")] = None,
+    no_shareholder_register: Annotated[bool | None, Field(description="주주명부·사원명부가 없는지(선택) — 주식등변동상황명세서로 판정, 증여일 규정")] = None,
+    restored_to: Annotated[str | None, Field(description="실명 환원 상대(선택): 실제소유자 | 제3자")] = None,
+    restored_date: Annotated[str | None, Field(description="환원·이전일 YYYY-MM-DD(선택)")] = None,
+    filed: Annotated[bool | None, Field(description="증여세 신고 여부(선택) — 부과제척기간 10년·15년")] = None,
+    asset_value: Annotated[float | None, Field(description="재산 가액(원, 선택) — 계산 MCP 인자 미리 채움")] = None,
+) -> dict:
+    """Korean deemed gift on nominee-held (title-trusted) property — Inheritance and Gift Tax Act Article 45-2 — as in force on the deemed gift date: covered assets, presumption of a tax-avoidance purpose and rebuttal, failure to transfer title, timing and valuation date, taxpayer (actual owner for deemed gifts on or after 2019-01-01, nominee's secondary property liability), aggregation and tax base, filing deadline, assessment period, restoration, case law on repeated taxation, corporate links, and the Real Estate Real Name Act for land and buildings. It does not compute tax.
+
+    명의신탁재산의 증여 의제 안내 — 상속세 및 증여세법 제45조의2를 증여의제일의 시행본으로: 대상 재산(등기등이 필요한 재산, 토지·건물 제외), 조세회피목적 추정과 반증, 명의개서 해태 의제, 증여시기·평가기준일, 납세의무자(2019.1.1. 이후 의제분은 실제소유자, 명의자 물적납세의무), 합산배제·과세표준(증여재산공제 없음), 신고기한, 부과제척기간, 실명 환원, 반복 과세 제한 판례, 법인 쪽(주식등변동상황명세서, 과점주주 제2차 납세의무·간주취득세), 토지·건물이면 부동산실명법 안내.
+    언제: 차명주식·차명 등록재산이 증여의제에 걸리는지, 누가 증여세를 내는지, 언제가 증여일·평가기준일인지, 조세회피목적을 반증할 수 있는지, 합병신주·매도대금 재취득·유상증자 신주가 다시 과세되는지, 제척기간이 몇 년인지 확인할 때.
+    입력: trust_type, asset_type, registration_date(타인명의) 또는 acquisition_date(명의개서해태), 선택으로 agreement, exception, origin, nominee_kind, avoided_taxes, non_tax_purposes, filed.
+    반환: {증여의제일, 적용 규정, 증여의제: {판정, 사유}, 증여시기, 납세의무, 세액 계산 요소, 부과제척기간, 판정: [{항목, 판정, 사유, 근거?, 판례?}], 실명 환원?, 법인 연계?, 계산 다음 단계?, 한계, 다음 단계, 확인 시행본}. 토지·건물이면 {증여의제, 부동산}.
+    날짜에 따라 다름: 2019.1.1. 이후 의제분 납세의무자·연대·물적납세의무·관할·합산배제(2018.12.31. 이전 취득 해태분은 부칙 제6조로 종전), 2016.1.1. 상속세 신고 추정 배제, 2020.1.1. 주주명부 없는 경우 증여일.
+    세액은 계산 MCP의 nominee_gift_tax. 조세회피목적·합의의 실질은 판정하지 않는다. 부동산실명법 과징금 부과기준은 원문 대조를 못해 계산·안내하지 않는다. 읽기 전용, 외부 호출 없음.
+    """
+    return _nominee_trust.guide(trust_type, asset_type, registration_date, acquisition_date, agreement, exception, origin, nominee_kind,
+                                avoided_taxes, non_tax_purposes, inheritance_return_date, inheritance_return_type, foreknown,
+                                no_shareholder_register, restored_to, restored_date, filed, asset_value)
 
 
 @mcp.tool(annotations=RO)
