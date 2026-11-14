@@ -1,0 +1,290 @@
+{
+ "lang": "en",
+ "head": {
+  "prepared_by": "Example team — made-up test data",
+  "date": "1 January 2000 (made-up)",
+  "re": "Made-up test memo on a late-payment charge under the Example Tax Act",
+  "scope": "Fabricated act, court, rates and amounts — test data only"
+ },
+ "summary": [
+  {
+   "conclusion": "A late-payment charge of KRW 330,000 is due on KRW 10,000,000 of unpaid tax.",
+   "basis": "It is a fixed charge of KRW 300,000 plus a daily charge of KRW 30,000 for 30 days.[^a10][^a11]"
+  },
+  {
+   "conclusion": "If payment slips to 60 days, the charge rises to KRW 360,000.",
+   "basis": "The daily charge keeps running at KRW 1,000 a day until the tax is paid.[^a11]"
+  },
+  {
+   "conclusion": "A reduction to KRW 180,000 is possible only on application.",
+   "basis": "The office may halve the fixed charge where the taxpayer applies in time, and the Example Court reads that deadline strictly.[^a12][^c1]"
+  }
+ ],
+ "question": "Is a late-payment charge due when tax of KRW 10,000,000 is paid 30 days after the deadline, and how much?",
+ "short_answer": {
+  "answer": "Yes — KRW 330,000.",
+  "conditions": "This holds if the unpaid tax was KRW 10,000,000, payment was 30 days late, the shortfall was not an under-reporting, and no reduction has been granted."
+ },
+ "facts": [
+  "Tax due under the Example Tax Act: KRW 10,000,000.",
+  {
+   "text": "Payment was made 30 days after the deadline.",
+   "assumption": true,
+   "changes_answer": true,
+   "risk": "days"
+  },
+  {
+   "text": "The return itself was correct; only the payment was late.",
+   "assumption": true,
+   "changes_answer": true,
+   "risk": "kind"
+  },
+  {
+   "text": "No reduction has been applied for.",
+   "assumption": true,
+   "changes_answer": true,
+   "risk": "reduction"
+  },
+  {
+   "text": "The taxpayer is not a small taxpayer under the act.",
+   "assumption": true
+  }
+ ],
+ "analysis": [
+  {
+   "stage": "characterization",
+   "heading": "The amount is a late-payment charge, not an under-reporting penalty",
+   "rule": "A late-payment charge applies where a correctly reported tax is paid late; an under-reporting penalty applies where the reported tax is too low.[^a9] The Example Court keeps the two apart.[^c1]",
+   "application": "The return is assumed to be correct and only the payment was late.",
+   "conclusion": "Only the late-payment charge is in point.",
+   "confirm": "Whether the reported amount matched the final assessment."
+  },
+  {
+   "stage": "taxability",
+   "heading": "A charge arises once the deadline passes unpaid",
+   "rule": "Tax not paid by the deadline attracts a late-payment charge from the following day.[^a10]",
+   "application": "The tax was paid 30 days after the deadline.",
+   "conclusion": "A charge is due for 30 days."
+  },
+  {
+   "stage": "rate",
+   "heading": "The charge is a fixed 3 percent plus 0.01 percent a day",
+   "rule": "The charge is 3 percent of the unpaid tax plus 0.01 percent of the unpaid tax for each day of delay.[^a11]",
+   "application": "3 percent of KRW 10,000,000 is KRW 300,000, and 0.01 percent a day for 30 days is KRW 30,000.",
+   "conclusion": "KRW 330,000 in total."
+  },
+  {
+   "stage": "procedure",
+   "heading": "A reduction needs an application within the period",
+   "rule": "The office may halve the fixed charge where the taxpayer applies within the period set by the act.[^a12]",
+   "application": "No application has been made on the facts given.",
+   "conclusion": "No reduction applies unless an application is filed in time.",
+   "confirm": "The application deadline and whether the delay had a cause the act recognises."
+  },
+  {
+   "stage": "related_taxes",
+   "heading": "No further charge accrues on the charge itself",
+   "rule": "A late-payment charge is not itself subject to a further charge.[^a13]",
+   "application": "The KRW 330,000 is paid together with the tax.",
+   "conclusion": "Nothing is added on top of the charge."
+  }
+ ],
+ "decision_table": {
+  "columns": [
+   "Fact pattern",
+   "Fixed charge",
+   "Total for 30 days"
+  ],
+  "rows": [
+   [
+    "Paid on time",
+    "0%",
+    "KRW 0"
+   ],
+   [
+    "Paid late, reduction granted",
+    "1.5%",
+    "KRW 180,000"
+   ],
+   [
+    "Paid late, no reduction",
+    "3%",
+    "KRW 330,000"
+   ],
+   [
+    "Small taxpayer under the act",
+    "0%",
+    "daily charge only"
+   ]
+  ]
+ },
+ "calculation": {
+  "currency": "KRW",
+  "rows": [
+   {
+    "item": "Unpaid tax",
+    "basis": "—",
+    "amount": "10,000,000",
+    "role": "base"
+   },
+   {
+    "item": "Fixed charge",
+    "basis": "3% of the unpaid tax",
+    "amount": "300,000",
+    "role": "component"
+   },
+   {
+    "item": "Daily charge",
+    "basis": "0.01% × 30 days",
+    "amount": "30,000",
+    "role": "component"
+   },
+   {
+    "item": "Total charge",
+    "basis": "—",
+    "amount": "330,000",
+    "role": "total"
+   },
+   {
+    "item": "Each further day",
+    "basis": "0.01% of the unpaid tax",
+    "amount": "1,000",
+    "role": "info"
+   }
+  ],
+  "scenarios": [
+   {
+    "title": "If paid 60 days late",
+    "rows": [
+     {
+      "item": "Fixed charge",
+      "basis": "3% of the unpaid tax",
+      "amount": "300,000",
+      "role": "component"
+     },
+     {
+      "item": "Daily charge",
+      "basis": "0.01% × 60 days",
+      "amount": "60,000",
+      "role": "component"
+     },
+     {
+      "item": "Total charge",
+      "basis": "—",
+      "amount": "360,000",
+      "role": "total"
+     }
+    ]
+   },
+   {
+    "title": "With the reduction granted",
+    "rows": [
+     {
+      "item": "Fixed charge",
+      "basis": "1.5% of the unpaid tax",
+      "amount": "150,000",
+      "role": "component"
+     },
+     {
+      "item": "Daily charge",
+      "basis": "0.01% × 30 days",
+      "amount": "30,000",
+      "role": "component"
+     },
+     {
+      "item": "Total charge",
+      "basis": "—",
+      "amount": "180,000",
+      "role": "total"
+     }
+    ]
+   }
+  ],
+  "note": "All figures are made up for test purposes."
+ },
+ "risks": [
+  {
+   "id": "days",
+   "priority": "HIGH",
+   "point": "Number of days late",
+   "why": "The daily charge depends on the exact payment date.[^a11]",
+   "check": "The bank record of the payment date."
+  },
+  {
+   "id": "kind",
+   "priority": "HIGH",
+   "point": "Late payment or under-reporting?",
+   "why": "An under-reporting penalty follows different rules.[^a9]",
+   "check": "The return against the final assessment."
+  },
+  {
+   "id": "reduction",
+   "priority": "MEDIUM",
+   "point": "Reduction not applied for",
+   "why": "The fixed charge could be halved if an application is still possible.[^a12]",
+   "check": "Whether the application period is still open."
+  },
+  {
+   "id": "cause",
+   "priority": "MEDIUM",
+   "point": "Recognised cause for the delay",
+   "why": "The Example Court allowed a reduction only for causes listed in the act.[^c1]",
+   "check": "Documents showing the cause."
+  },
+  {
+   "id": "small",
+   "priority": "LOW",
+   "point": "Small-taxpayer status",
+   "why": "A small taxpayer pays the daily charge only.",
+   "check": "The size test in the act."
+  },
+  {
+   "id": "figures",
+   "priority": "LOW",
+   "point": "Made-up figures",
+   "why": "Every rate and amount here is fabricated test data.",
+   "check": "Nothing to check."
+  }
+ ],
+ "next_steps": [
+  {
+   "action": "Confirm the payment date from the bank record.",
+   "owner": "Example owner"
+  },
+  {
+   "action": "Decide whether to apply for the reduction.",
+   "owner": "Example owner",
+   "deadline": "made-up deadline"
+  },
+  {
+   "action": "Pay the charge together with the tax."
+  }
+ ],
+ "footnotes": [
+  {
+   "id": "a10",
+   "text": "Example Tax Act (예시세법), Art. 10(1) — made-up provision."
+  },
+  {
+   "id": "a11",
+   "text": "Example Tax Act, Art. 11(2) — made-up provision (fixed and daily rates)."
+  },
+  {
+   "id": "a12",
+   "text": "Example Tax Act, Art. 12(1) (예시세법 제12조) — made-up provision (reduction on application)."
+  },
+  {
+   "id": "c1",
+   "text": "Example Court (예시법원), decision of 1 January 2000, 2000예12345 — made-up case."
+  },
+  {
+   "id": "a9",
+   "text": "Example Tax Act, Art. 9 — made-up provision (kinds of charge)."
+  },
+  {
+   "id": "a13",
+   "text": "Example Tax Act, Art. 13 — made-up provision."
+  }
+ ],
+ "prepared_how": "Fabricated test data: no tool was called. The act, the court, the rates and the amounts do not exist."
+}

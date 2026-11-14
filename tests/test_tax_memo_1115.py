@@ -1,8 +1,8 @@
 """세무 메모(tax_memo_guide·build_tax_memo): 따지는 순서 점검 규칙과 Word 파일. 작성 Mia(윤승미)
 
 규칙마다 통과하는 구조와 그 규칙만 어긴 구조를 넣는다. 외부 호출 없음.
-통과하는 구조는 tests/fixtures/tax_memo_royalty_{en,ko}.json(테스트 전용, 패키지에 넣지 않음) — 조문·판례·금액은 2026-11-15에
-korean-tax-mcp 0.15.3·korean-tax-calc-mcp 0.53.1 호출 결과로 대조한 것. 도구가 돌려주는 예시는 이와 무관한 지어낸 사례(모양만)다.
+통과하는 구조는 tests/fixtures/tax_memo_fixture_{en,ko}.json — 법 이름·법원·세율·금액을 모두 지어낸 자료(쟁점 5개, 결과 표, 경우의 수 2개,
+우선순위 전부). 도구가 돌려주는 예시도 지어낸 사례(모양만)다. 실제 사례의 답은 도구 출력에도 tests/fixtures에도 두지 않는다.
 """
 import asyncio
 import copy
@@ -17,7 +17,7 @@ import pytest
 from korean_tax_mcp import tax_memo as M
 from korean_tax_mcp.server import mcp
 
-EX = {lang: json.loads((Path(__file__).parent / "fixtures" / f"tax_memo_royalty_{lang}.json").read_text("utf-8")) for lang in ("en", "ko")}
+EX = {lang: json.loads((Path(__file__).parent / "fixtures" / f"tax_memo_fixture_{lang}.json").read_text("utf-8")) for lang in ("en", "ko")}
 
 
 def _codes(structure, lang=""):
@@ -69,6 +69,9 @@ def test_tools_teach_the_logic_line_only(tmp_path):
         assert r["ok"] and r["footnotes"] == 9, r
         texts.append(json.dumps(M.build({"lang": lang, "head": {}, "summary": [{}], "analysis": [{}]}, check_only=True), ensure_ascii=False))
     texts.append(Path(M.__file__).read_text("utf-8")); texts.append(Path(M.__file__).with_name("memo_docx.py").read_text("utf-8"))
+    fixtures = Path(__file__).parent / "fixtures"
+    texts += [f.read_text("utf-8") for f in sorted(fixtures.glob("tax_memo*"))]          # 테스트 자료에도 실제 사례를 두지 않는다
+    assert len(list(fixtures.glob("tax_memo*"))) == 2 and not list(fixtures.glob("*royalt*"))
     for text in texts:
         for word in banned: assert word.lower() not in text.lower(), word
     for name in ("tax_memo_example_en.json", "tax_memo_example_ko.json"):
@@ -84,9 +87,9 @@ FAIL = [
     ("M02", lambda s: s["summary"].pop()),
     ("M02", lambda s: s["summary"].append(dict(s["summary"][0]))),
     ("M03", lambda s: s["summary"][0].update(conclusion="")),
-    ("M03", lambda s: s["summary"][0].update(conclusion="Withhold KRW 16,500,000. That is KRW 15,000,000 plus KRW 1,500,000.")),
-    ("M04", lambda s: s["summary"][1].update(basis="[^cta98]")),
-    ("M05", lambda s: s["summary"][2].update(conclusion="We reviewed the Supreme Court decision on unregistered patents.")),
+    ("M03", lambda s: s["summary"][0].update(conclusion="A charge of KRW 330,000 is due. That is KRW 300,000 plus KRW 30,000.")),
+    ("M04", lambda s: s["summary"][1].update(basis="[^a11]")),
+    ("M05", lambda s: s["summary"][2].update(conclusion="We reviewed the Example Court decision on reductions.")),
     ("M06", lambda s: s.update(question="")),
     ("M06", lambda s: s.update(question="First sentence here. Second sentence here. Third sentence here.")),
     ("M07", lambda s: s["short_answer"].update(conditions="")),
@@ -100,28 +103,28 @@ FAIL = [
     ("M13", lambda s: s["decision_table"]["rows"][0].pop()),
     ("M14", lambda s: s["calculation"].update(currency="")),
     ("M14", lambda s: s["calculation"]["rows"][1].update(role="subtotal")),
-    ("M15", lambda s: s["calculation"]["rows"][3].update(amount="16,000,000")),
-    ("M15", lambda s: s["calculation"]["scenarios"][0]["rows"][2].update(amount="21,000,000")),
+    ("M15", lambda s: s["calculation"]["rows"][3].update(amount="331,000")),
+    ("M15", lambda s: s["calculation"]["scenarios"][0]["rows"][2].update(amount="361,000")),
     ("M16", lambda s: s["risks"][0].update(priority="URGENT")),
     ("M16", lambda s: s["risks"][5].update(why="", check="")),
     ("M17", lambda s: s.update(next_steps=[])),
     ("M18", lambda s: s["footnotes"].append(dict(s["footnotes"][0]))),
     ("M20", lambda s: s["footnotes"].append({"id": "unused", "text": "Corporate Tax Act, Art. 1."})),
     ("M21", lambda s: s["analysis"][0].update(application=" ".join(["word"] * 130) + ".")),
-    ("M22", lambda s: s["analysis"][0].update(conclusion="It should be noted that this is treated as a royalty.")),
+    ("M22", lambda s: s["analysis"][0].update(conclusion="It should be noted that this is a late-payment charge.")),
     ("M23", lambda s: s.update(recipient="CFO")),
     ("T01", lambda s: s.update(analysis=s["analysis"][:2])),
     ("T02", lambda s: s["analysis"].insert(0, s["analysis"].pop())),
     ("T02", lambda s: s["analysis"][0].update(stage="")),
     ("T03", lambda s: s["analysis"][2].update(rule=_drop_notes(s["analysis"][2]["rule"]))),
-    ("T03", lambda s: [f.update(text="Corporate Tax Act: 20 percent on royalties.") for f in s["footnotes"] if f["id"] == "cta98"]),
+    ("T03", lambda s: [f.update(text="Example Tax Act: fixed and daily rates.") for f in s["footnotes"] if f["id"] == "a11"]),
     ("T04", lambda s: s["summary"][2].update(basis=_drop_notes(s["summary"][2]["basis"]))),
     ("T05", lambda s: s.pop("calculation")),
     ("T05", lambda s: s["calculation"]["rows"].pop(3)),
     ("T05", lambda s: [r.update(role="") for r in s["calculation"]["rows"] if r["role"] == "component"]),
-    ("T06", lambda s: s["summary"][0].update(conclusion="Withhold KRW 16,600,000 on a KRW 100,000,000 royalty.")),
-    ("T06", lambda s: s["short_answer"].update(answer="KRW 18,000,000, if five conditions hold.")),
-    ("T06", lambda s: s["calculation"].update(scenarios=[])),          # 요약의 22,000,000이 표에서 사라짐
+    ("T06", lambda s: s["summary"][0].update(conclusion="A late-payment charge of KRW 999,000 is due on KRW 10,000,000 of unpaid tax.")),
+    ("T06", lambda s: s["short_answer"].update(answer="Yes — KRW 998,000.")),
+    ("T06", lambda s: s["calculation"].update(scenarios=[])),          # 요약의 360,000이 표에서 사라짐
     ("T07", lambda s: [f.update(text=re.sub(r"[가-힣]", "", f["text"])) for f in s["footnotes"]]),
     ("T08", lambda s: s.update(prepared_how="")),
 ]
@@ -139,14 +142,14 @@ def test_every_rule_has_a_failing_case():
 
 
 KO_FAIL = [
-    ("M03", lambda s: s["summary"][0].update(conclusion="16,500,000원을 원천징수한다. 법인세와 지방소득세의 합계이다.")),
-    ("M05", lambda s: s["summary"][0].update(conclusion="검토한 결과 16,500,000원을 원천징수한다.")),
+    ("M03", lambda s: s["summary"][0].update(conclusion="가산금 330,000원을 내야 한다. 정액분과 일수분의 합계이다.")),
+    ("M05", lambda s: s["summary"][0].update(conclusion="검토한 결과 가산금 330,000원을 내야 한다.")),
     ("M12", lambda s: s["analysis"][2].update(heading="세율")),
     ("M16", lambda s: s["risks"][0].update(priority="HIGH")),
     ("M21", lambda s: s["analysis"][0].update(application="가" * 401)),
-    ("M22", lambda s: s["analysis"][0].update(conclusion="사용료에 해당하는 것으로 보입니다.")),
-    ("T03", lambda s: [f.update(text="법인세법: 사용료 20%.") for f in s["footnotes"] if f["id"] == "cta98"]),
-    ("T06", lambda s: s["short_answer"].update(answer="다섯 가지 조건이 맞으면 17,000,000원이다.")),
+    ("M22", lambda s: s["analysis"][0].update(conclusion="지연 가산금에 해당하는 것으로 보입니다.")),
+    ("T03", lambda s: [f.update(text="예시세법: 정액·일수 비율.") for f in s["footnotes"] if f["id"] == "a11"]),
+    ("T06", lambda s: s["short_answer"].update(answer="내야 하며 999,000원이다.")),
 ]
 
 
@@ -158,15 +161,15 @@ def test_korean_rules(code, fn):
 
 
 def test_dates_and_case_numbers_are_not_sentences_or_amounts():
-    assert M.sentences("대법원 2025. 9. 18. 선고 2021두59908 전원합의체 판결은 국내원천 사용료로 본다.") == 1
+    assert M.sentences("예시법원 2000. 1. 1. 선고 2000예12345 판결은 감면 기간을 엄격하게 본다.") == 1
     assert M.sentences("Under Art. 14(1) of the treaty the cap is 15 percent. See Art. 98-6.") == 2
-    assert M._amounts("Supreme Court, 2021두59908, KRW 16,500,000 and 22000000 in 2026") == {"16500000", "22000000"}
+    assert M._amounts("Example Court, 2000예12345, KRW 16,500,000 and 22000000 in 2026") == {"16500000", "22000000"}
     assert M.number("(1,500,000)") == -1500000 and M.number("—") is None and M.number("16,500,000") == 16500000
 
 
 # ── 오류(파일을 만들지 않음) ──
 def test_hard_errors_write_no_file(tmp_path):
-    r = M.build(_mut("en", lambda s: s["summary"][0].update(basis="Tax is withheld.[^missing]")), str(tmp_path))
+    r = M.build(_mut("en", lambda s: s["summary"][0].update(basis="A charge is due.[^missing]")), str(tmp_path))
     assert r["path"] == "" and not r["ok"] and any(x.startswith("[E03]") for x in r["errors"])
     r = M.build(_mut("en", lambda s: s.update(summary="three points", analysis="text")), str(tmp_path))
     assert r["path"] == "" and sum(x.startswith("[E01]") for x in r["errors"]) == 2 and any(x.startswith("[E02]") for x in r["errors"])
@@ -213,15 +216,16 @@ def test_docx_is_well_formed_with_real_footnotes(tmp_path, lang):
     # 각주: 본문 참조 번호 = 각주 파일 번호 = 1..n, 읽는 순서
     refs = [int(x) for x in re.findall(r'<w:footnoteReference w:id="(\d+)"/>', doc)]
     defined = [int(x) for x in re.findall(r'<w:footnote w:id="(\d+)">', notes)]
-    assert refs == defined == list(range(1, r["footnotes"] + 1)) and r["footnotes"] == 25
+    n_marks = sum(len(M.MARK.findall(v)) for v in re.findall(r'"(?:basis|rule|why|check)": "([^"]*)"', json.dumps(EX[lang], ensure_ascii=False)))
+    assert refs == defined == list(range(1, r["footnotes"] + 1)) and r["footnotes"] == n_marks == 15
     assert 'w:type="separator" w:id="-1"' in notes and 'w:type="continuationSeparator" w:id="0"' in notes
     assert notes.count("<w:footnoteRef/>") == len(defined)
     # 같은 출처가 다시 나오면 '주 N 참조'
     see = "See note 1." if lang == "en" else "주 1 참조."
     assert see in notes and notes.count(EX[lang]["footnotes"][0]["text"][:30]) == 1
     # 한글이 본문과 각주에 그대로 들어 있고, 모든 글자 조각에 동아시아 글꼴이 지정됨
-    assert re.search(r"[가-힣]", notes) and "법인세법" in notes
-    assert ("대법원" in notes) and (lang == "en" or "핵심 요약" in doc)
+    assert re.search(r"[가-힣]", notes) and "예시세법" in notes
+    assert ("예시법원" in notes) and (lang == "en" or "핵심 요약" in doc)
     for xml in (doc, notes, parts["word/footer1.xml"]):
         fonts = re.findall(r"<w:rFonts [^>]*/>", xml)
         assert fonts and all('w:eastAsia="Malgun Gothic"' in f for f in fonts)
@@ -260,8 +264,8 @@ def test_docx_is_reproducible_and_escapes_markup(tmp_path):
 
 def test_file_name_and_folder(tmp_path):
     r = M.build(EX["ko"], str(tmp_path / "새 폴더"))
-    assert r["path"].endswith("세무메모_미국_모회사에_지급하는_특허_기술_사용료의_원천징수.docx")
-    assert M.build(EX["en"], str(tmp_path))["path"].split("/")[-1].startswith("Tax_Memo_Korean_withholding_tax")
+    assert r["path"].endswith("세무메모_예시세법에_따른_지연_가산금_테스트_메모.docx")
+    assert M.build(EX["en"], str(tmp_path))["path"].split("/")[-1].startswith("Tax_Memo_Made_up_test_memo")
     assert M.build(EX["en"], str(tmp_path), "../../evil.pdf")["path"] == str(tmp_path / "evil.docx")
     assert M.build(json.dumps(EX["en"]), str(tmp_path), "from_string")["ok"]          # JSON 문자열도 받음
     assert M.build(_mut("en", lambda s: s.pop("lang")), str(tmp_path), "auto")["lang"] == "en"
