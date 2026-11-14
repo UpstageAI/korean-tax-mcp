@@ -83,3 +83,22 @@ def test_admrul_search_single_row(monkeypatch):
     row = {"행정규칙일련번호": "1", "행정규칙명": "상속세 및 증여세 사무처리규정", "행정규칙종류": "훈령", "시행일자": "20260803", "소관부처명": "국세청"}
     monkeypatch.setattr(law, "_get", lambda path, query: {"AdmRulSearch": {"admrul": row}})
     assert admrul.search("상속세 및 증여세 사무처리규정")["시행일자"] == "20260803"
+
+
+def test_english_law_search_strips_highlight_tags(monkeypatch):
+    row = {"법령일련번호": "283631", "시행일자": "20260227", "법령명영문": "ENFORCEMENT DECREE OF THE INCOME TAX ACT",
+           "법령명한글": '<strong class="tbl_tx_type"><strong class="tbl_tx_type">소득세법</strong> 시행령</strong>'}
+    monkeypatch.setattr(law, "_get", lambda path, query: {"LawSearch": {"law": row}})
+    assert [v["법령일련번호"] for v in law._en_versions("소득세법 시행령")] == ["283631"]
+    assert law._en_versions("소득세법") == []
+
+
+def test_english_article_new_response_format(monkeypatch):
+    row = {"법령일련번호": "280389", "시행일자": "20260101", "법령명한글": '<strong class="tbl_tx_type">국제조세조정에 관한 법률</strong>'}
+    full = {"Law": {"JoSection": {"Jo": [{"joNo": "0016", "joYn": "N", "joBrNo": "00", "joCts": "Subsection 3 ..."},
+                                        {"joNo": "0016", "joYn": "Y", "joBrNo": "00", "joCts": "Article 16 (Obligation to Submit Data on International Transactions)"},
+                                        {"joNo": "0016", "joYn": "Y", "joBrNo": "02", "joCts": "Article 16-2 (...)"}]}}}
+    monkeypatch.setattr(law, "_get", lambda path, query: {"LawSearch": {"law": row}} if path == "lawSearch.do" else full)
+    r = law.article_en("국제조세조정에 관한 법률", "제16조")
+    assert r["본문"].startswith("Article 16 (Obligation") and "16-2" not in r["본문"]
+    assert law.article_en("국제조세조정에 관한 법률", "제16조의2")["본문"].startswith("Article 16-2")
