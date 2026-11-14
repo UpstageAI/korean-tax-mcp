@@ -29,8 +29,11 @@ from . import tp_report as _tp_report
 from . import sme_incentives as _sme_incentives
 from . import rnd_requirements as _rnd_requirements
 from . import employment_requirements as _employment_requirements
+from . import one_house_exemption as _one_house
 from . import tax_crime as _tax_crime
 from . import tax_crime_procedure as _tax_crime_proc
+from . import nominee_trust as _nominee_trust
+from . import vat_exempt_zero_rate as _vat_ezr
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -834,6 +837,34 @@ def timing_rules(
     return _timing_rules_data.lookup(_TIMING_TAX_EN.get(tax, tax), kind or None, keyword, as_of)
 
 
+InterestType = Literal["채권·증권 이자", "예금 이자", "신용계·신용부금", "환매조건부 매매차익", "저축성보험 보험차익", "직장공제회 초과반환금",
+                       "비영업대금의 이익", "유사 이자", "파생결합 이익", "법원 보증금·경락대금 이자"]
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def interest_income_guide(
+    payment_date: Annotated[str | None, Field(description="지급일 YYYY-MM-DD(2016-01-01~2026-12-31). 원천징수세율·저축성보험 범위는 지급일 기준. 생략하면 year로 판정")] = None,
+    year: Annotated[int | None, Field(description="귀속연도(2016~2026, 선택). payment_date가 없으면 그 해 12월 31일로 봄")] = None,
+    income_type: Annotated[InterestType | None, Field(description="이자 유형 — 채권·증권 이자 | 예금 이자 | 신용계·신용부금 | 환매조건부 매매차익 | 저축성보험 보험차익 | 직장공제회 초과반환금 | 비영업대금의 이익 | 유사 이자 | 파생결합 이익 | 법원 보증금·경락대금 이자")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택, 아는 것만 — 생략하고 부르면 '입력 안내'에 키 목록). 저축성보험 {contract_date: 'YYYY-MM-DD', holding_years: 10, premium_type: '일시납·일반'|'월적립식'|'종신형 연금', "
+                                                     "total_premium: 원, monthly_premium: 원, payment_years: 5, equal_monthly: true, annuity_within_10y: false, lifetime_annuity_ok: true, injury_benefit: false, similar_contract: false}, "
+                                                     "비영업대금 {lending_business: false(대금업 표방·불특정다수 대여면 true), p2p: true(온라인투자연계금융업자 경유)}, "
+                                                     "공통 {withheld: true, financial_income_total: 그 해 이자·배당 합계(원), unverified_name: 비실명, realname_act, long_term_bond, bond_issued_before_2018, nonprofit_group, public_interest_trust}")] = None,
+) -> dict:
+    """Korean interest income guide by payment date or tax year — what counts as interest income (Income Tax Act Article 16), private lending versus a money-lending business, savings insurance gains and their exclusion (Decree Article 25), exemption, separate taxation (Article 14(3)), the KRW 20 million comprehensive taxation threshold and withholding rates (Article 129), checked against the text and transitional rules in force. It does not compute tax.
+
+    이자소득 요건 안내 — 지급일(귀속연도)의 시행본으로 이자소득의 범위(소득세법 제16조 — 채권·증권 이자와 할인액, 예금 이자, 비영업대금의 이익, 저축성보험 보험차익, 직장공제회 초과반환금, 유사 이자 등), 비영업대금과 대금업 사업소득의 구분, 저축성보험 과세 제외 요건(시행령 제25조 — 10년 이상, 일시납 한도, 월적립식 요건, 종신형 연금보험), 비과세(제12조제1호), 분리과세(제14조제3항 — 비실명, 법원 보증금·경락대금, 직장공제회, 2천만원 이하), 원천징수세율(제129조)을 판정한다.
+    언제: 개인 간 대여 이자가 비영업대금인지 사업소득인지, 온라인투자연계 이자의 원천징수세율, 저축성보험 만기·해지 환급금 차익이 과세되는지, 이자·배당이 2천만원을 넘어 종합과세되는지, 비실명 이자 세율을 확인할 때.
+    입력: payment_date(지급일) 또는 year(귀속연도), income_type(이자 유형), facts(저축성보험 계약일·유지기간·납입 방식·금액, 대금업 표방 여부, 온라인투자연계 경유, 원천징수 여부, 이자·배당 합계 등 아는 것만).
+    반환: {기준일, 귀속연도, 소득 유형, 판정: [{항목, 판정, 사유, 근거}], 요건: [{요건, 내용, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 유형 목록·facts 키·날짜별 변화.
+    지급일·계약일에 따라 다름: 비실명 세율(2017년까지 38%, 2018년 40%, 2019~2022년 42%, 2023년부터 45%), 비영업대금 14% 단서(2020년 온라인 중개업자 경유, 2021년부터 온라인투자연계금융업자 경유 — 2019년까지 없음), 장기채권 분리과세 30%(2018.1.1. 삭제, 그 전 발행분 종전), 저축성보험 한도(2017.3.31.까지 계약 2억원, 2017.4.1.부터 1억원·월적립식 월 150만원, 2013.2.15. 전 계약 종전 규정, 2025.2.28. 이후 지급분 유사 계약 제외).
+    세액을 계산하지 않는다(계산 MCP의 financial_income_aggregate, withholding_tax). 수입시기 표는 timing_rules(tax='소득', kind='이자소득 수입시기'). 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=지급일), 부칙은 article_addenda.
+    """
+    from . import interest_income as _ii
+    return _ii.guide(payment_date, year, income_type, facts)
+
+
 @mcp.tool(annotations=RO)
 @bilingual
 def transfer_pricing_guide(
@@ -881,6 +912,71 @@ def sme_tax_incentives_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def vat_exempt_zero_rate_guide(
+    supply_date: Annotated[str | None, Field(description="공급일 YYYY-MM-DD(2016-01-01~2026-12-31). 그 날의 시행본으로 판정. 생략하면 유형 목록과 날짜별 변화")] = None,
+    category: Annotated[str | None, Field(description="공급 유형 — 면세: 미가공식료품 | 의료보건 | 교육 | 금융·보험 | 주택 임대 | 토지 공급 | 도서·신문 | 여객운송 | 국민주택 공급. "
+                                                      "영세율: 직수출 | 중계무역 등 수출 | 내국신용장·구매확인서 | 비거주자 지정 인도 재화 | 국외 제공 용역 | 외국항행 용역 | 외화 획득 용역 | 수출재화임가공 | 외항선박 등 공급 | 외교공관등 공급 | 외교관 면세판매 | 주한 국제연합군·미군 공급 | 외국인 관광객 관광알선")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택, 유형별 키 — 생략하고 부르면 '입력 안내'에 키 목록). 예: 의료보건 {provider: '의사등', cosmetic_listed: true}, "
+                                                     "외화 획득 용역 {counterparty_nonresident: true, has_domestic_place: false, service_kind: '전문서비스업', payment: '외국환은행 원화', reciprocal: true}, "
+                                                     "주택 임대 {residential: true, house_floor_area: 120, building_footprint: 60, land_area: 400, outside_urban: false}, "
+                                                     "내국신용장·구매확인서 {issued_in_time: true}, 공통 {also_zero_rated: true(면세 재화를 수출), supplier_nonresident: true, reciprocal: true}")] = None,
+    waive_exemption: Annotated[bool | None, Field(description="면세포기(부가가치세법 제28조)를 검토하는지(선택)")] = None,
+) -> dict:
+    """VAT exemption and zero-rating by supply date — whether a supply is exempt (Article 26), taxable, or zero-rated (Articles 21 to 25), the scope set by the Enforcement Decree, exemption waiver (Article 28) and zero-rate attachments (Decree Article 101), checked against the text in force on the supply date. It does not compute tax.
+
+    부가가치세 면세·영세율 판정 안내 — 공급일의 시행본으로 면세(부가가치세법 제26조 — 미가공식료품, 의료보건, 교육, 금융·보험, 주택 임대와 부수토지 한도, 토지, 도서·신문, 여객운송), 면세포기(제28조), 영세율(제21조 수출 형태, 제22조 국외 제공 용역, 제23조 외국항행, 제24조 외화 획득 — 시행령 제33조의 거래 상대방·업종·대금 결제 요건, 제25조 상호주의)과 영세율 첨부서류(시행령 제101조)를 판정한다.
+    언제: 미용 목적 시술이 과세인지, 학원 교육이 면세인지, 겸용주택 임대의 부수토지가 어디까지 면세인지, 국내사업장 없는 외국법인에 제공한 용역이나 구매확인서 거래가 영세율인지, 면세 재화를 수출할 때 면세포기가 되는지 확인할 때.
+    입력: supply_date(공급일), category(공급 유형), facts(유형별 사실 — 내국신용장·구매확인서 기한 내 발급, 대금 결제 방법, 상대방의 비거주자 여부와 국내사업장 유무, 상호면세 등), waive_exemption.
+    반환: {공급일, 구분, 유형, 판정: [{항목, 판정(면세·과세·영세율·확인 필요 등), 사유, 근거}], 요건, 면세포기?, 영세율 첨부서류?, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 유형 목록·facts 키·날짜별 변화.
+    공급일에 따라 다름: 외화 획득 용역의 비거주자 범위(2017.2.7.)·투자자문업(2020.7.1.), 보세구역 물품 반출 수출(2019.2.12.), 삭도·관광유람선 여객운송 과세(2019.1.1.), 사회적협동조합 교육·간병(2020.7.1.), 실내 도서열람 면세(2023.1.1.), 동물 혈액 면세(2025.1.1.).
+    세액을 계산하지 않는다(계산 MCP의 vat_return_general, 공급시기는 vat_supply_timing). 시행령 2022년 이후 시행본·시행규칙·조세특례제한법 제106조는 대조하지 못해 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=공급일).
+    """
+    return _vat_ezr.guide(supply_date, category, facts, waive_exemption)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def pension_income_guide(
+    receipt_date: Annotated[str | None, Field(description="수령일(지급일) YYYY-MM-DD(2016-01-01~2026-12-31). 그 날의 시행본·과세기간으로 판정. 생략하면 구분·날짜별 변화·입력 안내")] = None,
+    pension_type: Annotated[Literal["공적연금", "연금저축계좌", "퇴직연금계좌"] | None, Field(description="공적연금(국민연금·공무원연금 등) | 연금저축계좌 | 퇴직연금계좌(DC·IRP 등)")] = None,
+    age: Annotated[int | None, Field(description="수령일 현재 나이(선택) — 55세 요건과 원천징수세율(70세·80세 구간)")] = None,
+    join_date: Annotated[str | None, Field(description="연금계좌 가입일 YYYY-MM-DD(선택) — 가입 5년 경과, 2013.3.1. 전 가입이면 기산연차 6년차")] = None,
+    source: Annotated[Literal["이연퇴직소득", "세액공제 받은 납입액", "운용수익", "세액공제 받지 않은 납입액", "그 밖의 이연소득"] | None,
+                      Field(description="인출 재원(선택) — 이연퇴직소득(연금계좌로 옮겨 원천징수되지 않은 퇴직소득) | 세액공제 받은 납입액 | 운용수익 | 세액공제 받지 않은 납입액(과세제외) | 그 밖의 이연소득")] = None,
+    amount: Annotated[float | None, Field(description="그 과세기간 인출액(원, 부득이한 인출분 제외, 선택) — 연금수령한도와 비교")] = None,
+    annual_private_total: Annotated[float | None, Field(description="그 과세기간 사적연금 연금수령 합계(원, 이연퇴직소득 연금수령분·부득이한 인출분 제외, 선택) — 분리과세 기준(1천200만원·1천500만원) 판정")] = None,
+    start_requested: Annotated[bool | None, Field(description="연금계좌취급자에게 연금수령 개시를 신청한 후 인출했는지(선택)")] = None,
+    account_value: Annotated[float | None, Field(description="과세기간 개시일(개시 신청 연도는 신청일) 현재 연금계좌 평가액(원, 선택) — 연금수령한도 계산")] = None,
+    pension_year: Annotated[int | None, Field(description="연금수령연차(선택) — 11년차 이상이면 한도 없음")] = None,
+    reason: Annotated[Literal["천재지변", "사망", "해외이주", "3개월 이상 요양", "재난 15일 이상 입원", "파산·개인회생", "연금계좌취급자 영업정지 등", "본인 의료비"] | None,
+                      Field(description="부득이한 인출·의료비 인출 사유(선택, 시행령 제20조의2제1항)")] = None,
+    docs_within_6m: Annotated[bool | None, Field(description="사유 확인일(의료비는 지급일)부터 6개월 이내에 서류를 연금계좌취급자에게 냈는지(선택)")] = None,
+    lifetime_contract: Annotated[bool | None, Field(description="사망할 때까지 연금수령하고 중도 해지할 수 없는 종신계약인지(선택)")] = None,
+    actual_receipt_year: Annotated[int | None, Field(description="이연퇴직소득의 연금 실제 수령연차(선택) — 2020년부터 원천징수 비율 구분")] = None,
+    deposit_date: Annotated[str | None, Field(description="이연퇴직소득을 연금계좌에 입금한 날 YYYY-MM-DD(선택) — 해외이주 인출의 3년 요건")] = None,
+    emigration_date: Annotated[str | None, Field(description="해외이주일 YYYY-MM-DD(선택, 생략하면 수령일로 봄)")] = None,
+    public_benefit: Annotated[Literal["노령·퇴직연금", "유족연금", "장애·장해·상이연금", "산업재해보상보험 연금", "국군포로 연금", "일시금"] | None,
+                              Field(description="공적연금 급여 종류(선택) — 비과세 연금·퇴직소득(일시금) 판정")] = None,
+    public_fund: Annotated[Literal["국민연금", "그 밖의 공적연금"] | None, Field(description="공적연금 지급자(선택) — 과세기준금액 계산식 구분")] = None,
+) -> dict:
+    """Korean pension income requirements by receipt date (2016 to 2026) — public pensions versus pension accounts (pension savings and retirement pension accounts), conditions for pension-type withdrawal (age 55, five years, annual withdrawal limit), taxation of other withdrawals, medical and unavoidable withdrawals, the separate-taxation threshold for private pensions, withholding rates, tax-exempt pensions and the pension income deduction, checked against the text and transitional rules in force on the receipt date. It does not compute tax.
+
+    연금소득 요건 안내 — 수령일의 시행본으로 공적연금(소득세법 제20조의3제1항제1호 — 2002.1.1. 이후 기여·근로분만 과세, 시행령 제40조 과세기준금액)과 사적연금(연금계좌)을 나누고,
+    연금수령 요건(시행령 제40조의2제3항 — 55세 이후 개시 신청, 가입 5년 경과, 연금수령한도 = 평가액 ÷ (11 − 연금수령연차) × 120/100), 연금외수령 과세(기타소득 15% 분리과세·이연퇴직소득은 퇴직소득),
+    부득이한 인출과 의료비 인출(시행령 제20조의2), 사적연금 분리과세 기준(법 제14조제3항제9호)과 15% 분리 계산 선택(법 제64조의4), 원천징수세율(법 제129조제1항제5호의2·제5호의3), 비과세 연금(법 제12조제4호), 연금소득공제(법 제47조의2)를 판정한다.
+    언제: 연금저축·IRP에서 꺼낸 돈이 연금소득인지 기타소득인지, 55세 전·5년 전·한도 초과 인출이 어떻게 과세되는지, 요양·파산 등으로 중도 인출할 때 분리과세되는지, 사적연금이 연 1천200만원·1천500만원을 넘으면 어떻게 되는지, 나이·종신계약·퇴직소득 수령연차별 원천징수세율, 유족연금·장애연금이 비과세인지 확인할 때.
+    입력: receipt_date(수령일), pension_type, 그리고 아는 사실만(age, join_date, source(재원), amount, annual_private_total, start_requested, account_value, pension_year, reason, docs_within_6m, lifetime_contract, actual_receipt_year, deposit_date, public_benefit, public_fund). 생략한 사실은 '확인 필요'로 남김.
+    반환: {수령일, 과세기간, 연금 구분, 구분, 판정: [{항목, 판정(충족·미충족·연금수령·연금외수령·분리과세·종합과세·비과세·확인 필요 등), 사유, 근거}], 원천징수세율(연금수령)?, 분리과세 기준?, 연금소득공제, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 구분·날짜별 변화·입력 안내.
+    수령일에 따라 다름: 이연퇴직소득 해외이주 인출 3년 요건(2017.2.3. 이후 입금분), 퇴직소득 연금 원천징수 70%→실제 수령연차 10년 초과 60%(2020.1.1.), 재난 15일 이상 입원 인출 사유(2022.2.15.), 15% 분리 계산 선택(2023.1.1.), 분리과세 기준 1천200만원→1천500만원(2024.1.1. 이후 지급분), 종신계약 4%→3%·20년 초과 50%(2026.1.1. 이후 지급분).
+    세액을 계산하지 않는다(계산 MCP의 pension_income, pension_account_withdrawal). 시행규칙(요양·재난 인출 한도 금액)과 지방소득세는 대조하지 않아 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=수령일), 부칙은 article_addenda.
+    """
+    from . import pension_income as _pension
+    return _pension.guide(receipt_date, pension_type, age, join_date, source, amount, annual_private_total, start_requested, account_value, pension_year,
+                          reason, docs_within_6m, lifetime_contract, actual_receipt_year, deposit_date, emigration_date, public_benefit, public_fund)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def rnd_credit_requirements_guide(
     year: Annotated[int | None, Field(description="과세연도(2016~2026, 선택). 생략하면 연도별로 달라진 요건 목록")] = None,
     lab: Annotated[bool | None, Field(description="인정받은 기업부설연구소·연구개발전담부서(또는 창작연구소, 산업디자인전문회사)가 있는지(선택)")] = None,
@@ -900,6 +996,90 @@ def rnd_credit_requirements_guide(
     세액을 계산하지 않는다(계산 MCP의 rnd_tax_credit). 연구소 인정 여부와 활동의 실질은 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(article='별표 6').
     """
     return _rnd_requirements.guide(year, lab, sme, staff, costs, outsourced_to, grant_funded, activities)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def family_business_succession_guide(
+    inheritance_date: Annotated[str | None, Field(description="상속개시일 YYYY-MM-DD(2016-01-01~2026-12-31, 선택). 생략하면 상속개시일별로 달라진 요건 목록")] = None,
+    company_size: Annotated[str | None, Field(description="중소기업 | 중견기업 | 일반(선택). 상속개시일이 속하는 과세기간 직전 과세기간 말 기준")] = None,
+    avg_revenue: Annotated[float | None, Field(description="직전 3개 과세기간·사업연도 매출액 평균(원, 선택) — 2017년 이후 상속개시분의 중견기업 기준(3천억·4천억·5천억원) 판정")] = None,
+    prior_year_revenue: Annotated[float | None, Field(description="직전 사업연도 매출액(원, 선택) — 2016년 상속개시분의 '규모 확대로 중소기업에서 벗어난 기업' 기준(3천억원) 판정")] = None,
+    cross_shareholding_group: Annotated[bool | None, Field(description="상호출자제한기업집단 내 기업인지(선택) — 2016년 상속개시분 판정에 씀")] = None,
+    listed: Annotated[bool | None, Field(description="상장법인인지(선택) — 피상속인 지분율 기준(상장법인은 낮음)")] = None,
+    years_managed: Annotated[float | None, Field(description="피상속인이 가업을 계속 경영한 기간(년, 선택) — 10년 요건과 공제 한도 구간")] = None,
+    decedent_share_pct: Annotated[float | None, Field(description="피상속인과 특수관계인 합산 지분율(%, 의결권 없는 우선주 제외, 선택)")] = None,
+    share_holding_years: Annotated[float | None, Field(description="그 지분율 이상을 계속 보유한 기간(년, 선택)")] = None,
+    ceo_ratio: Annotated[float | None, Field(description="가업 영위기간 중 피상속인이 대표이사(대표자)로 재직한 기간의 비율(0~1, 선택)")] = None,
+    ceo_years: Annotated[float | None, Field(description="피상속인의 대표이사 재직 연수(선택) — 10년 이상 요건은 상속인이 대표이사직을 승계한 경우만")] = None,
+    ceo_years_in_last10: Annotated[float | None, Field(description="상속개시일부터 소급한 10년 중 대표이사 재직 연수(선택)")] = None,
+    heir_succeeded_ceo: Annotated[bool | None, Field(description="상속인이 피상속인의 대표이사직을 승계해 상속개시일까지 계속 재직했는지(선택)")] = None,
+    decedent_age_at_death: Annotated[float | None, Field(description="피상속인 사망 당시 나이(선택) — 65세 전 사망이면 상속인 2년 종사 요건 예외")] = None,
+    unavoidable_death: Annotated[bool | None, Field(description="천재지변·인재 등 부득이한 사유로 사망했는지(선택)")] = None,
+    heir_age: Annotated[float | None, Field(description="상속개시일 현재 상속인 나이(선택)")] = None,
+    heir_years_in_business: Annotated[float | None, Field(description="상속개시일 전 상속인이 직접 가업에 종사한 기간(년, 선택)")] = None,
+    heir_officer_by_deadline: Annotated[bool | None, Field(description="상속세 신고기한까지 임원으로 취임했는지(선택)")] = None,
+    heir_ceo_within_2y: Annotated[bool | None, Field(description="신고기한부터 2년 이내 대표이사등으로 취임했는지(선택)")] = None,
+    spouse_qualifies: Annotated[bool | None, Field(description="상속인의 배우자가 상속인 요건을 모두 갖췄는지(선택)")] = None,
+    business_property_value: Annotated[float | None, Field(description="가업상속 재산가액(원, 사업무관자산 제외 후, 선택) — 한도를 적용한 공제액 표시")] = None,
+    other_property_exceeds_twice_tax: Annotated[bool | None, Field(description="중견기업: 가업상속재산 외 상속재산이 그 상속인 상속세액의 2배를 넘는지(선택)")] = None,
+    assessed_before_2023: Annotated[bool | None, Field(description="2022년 이전 상속개시분: 2023.1.1. 전에 사후관리 위반으로 상속세·이자상당액이 이미 부과됐는지(선택)")] = None,
+    post_events: Annotated[list | None, Field(description="사후관리 사유 [{event(가업용 자산 처분 | 가업 미종사 | 지분 감소 | 고용 미달 | 조세포탈·회계부정 형 확정), date?(YYYY-MM-DD), ratio?(자산 처분 비율 %), employment_ratio?(정규직 수 평균 비율 %), payroll_ratio?(총급여액 평균 비율 %), justified?(시행령의 정당한 사유이면 true)}]")] = None,
+) -> dict:
+    """Requirements for the Korean family business inheritance deduction by date of inheritance — qualifying company and revenue cap, decedent shareholding and CEO tenure, heir age and involvement, deduction cap by years managed, post-inheritance management and recapture, and the 2023 payment deferral — checked against the text and transitional rules in force. It does not compute tax.
+
+    가업상속공제 요건 안내 — 상속개시일별 요건(중소기업·중견기업과 매출액 기준, 피상속인 10년 이상 경영, 최대주주 지분과 보유기간, 대표이사 재직, 상속인 나이·종사·임원·대표이사 취임, 공제 한도, 사후관리와 추징, 납부유예 개요)과 사실관계 판정(상속세 및 증여세법 제18조의2, 2022년까지 제18조제2항제1호, 시행령 제15조, 제72조의2).
+    언제: 회사를 물려받을 때 가업상속공제를 받을 수 있는지, 매출액이 기준을 넘는지, 공제 한도가 얼마인지, 상속 후 자산 처분·지분 감소·고용 감소가 추징 사유인지, 2023년 개정 전 상속분에 5년 사후관리가 적용되는지 확인할 때.
+    입력: inheritance_date(상속개시일)와 아는 사실만. 생략한 사실은 판정하지 않고 요건만 보여 줌.
+    반환: {상속개시일, 조문, 요건: [{구분, 요건, 내용, 근거}], 공제액(한도 적용)?, 판정?: [{항목, 판정(충족·미충족·확인 필요·추징 사유·해당 없음), 사유, 근거}], 사후관리 적용, 한계, 관련 해석, 다음 단계, 확인 시행본}.
+    상속개시일별로 다름: 중견기업 매출액 기준(2021년까지 3천억원, 2022년 4천억원, 2023년부터 5천억원), 한도(2017년까지 200·300·500억원(15년·20년 구간), 2018~2022년 200·300·500억원, 2023년부터 300·400·600억원), 사후관리 기간(10년·7년·5년, 2023.1.1. 당시 사후관리 중이면 5년), 자산 처분 기준(20%·10% → 40%), 고용 기준(→ 5년 평균 90%), 납부유예(2023년부터).
+    세액·추징세액·이자상당액을 계산하지 않는다. 영농상속공제와 조세특례제한법 가업승계 증여세 과세특례는 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=상속개시일), 부칙은 article_addenda.
+    """
+    from . import family_business_succession as _fbs
+    return _fbs.guide(inheritance_date, company_size, avg_revenue, prior_year_revenue, cross_shareholding_group, listed, years_managed, decedent_share_pct,
+                      share_holding_years, ceo_ratio, ceo_years, ceo_years_in_last10, heir_succeeded_ceo, decedent_age_at_death, unavoidable_death, heir_age,
+                      heir_years_in_business, heir_officer_by_deadline, heir_ceo_within_2y, spouse_qualifies, business_property_value,
+                      other_property_exceeds_twice_tax, assessed_before_2023, post_events)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def business_income_guide(
+    year: Annotated[int | None, Field(description="과세기간(2016~2026, 선택). 생략하면 과세기간별로 달라진 기준과 업종 구분 목록")] = None,
+    industry: Annotated[str | None, Field(description="업종(선택) — 농업·임업·어업 | 작물재배업 | 곡물·식량작물 재배업 | 광업 | 도매·소매업 | 부동산매매업 | 비주거용 건물 건설업 | 그 밖의 사업 | 제조업 | 숙박·음식점업 | "
+                                                     "전기·가스·증기·공기조절 공급업 | 수도·하수·폐기물처리·원료재생업 | 건설업 | 주거용 건물 개발·공급업 | 운수·창고업 | 정보통신업 | 금융·보험업 | 상품중개업 | "
+                                                     "부동산임대업 | 부동산업(매매업 제외) | 전문·과학·기술서비스업 | 사업시설관리·사업지원·임대서비스업 | 교육서비스업 | 보건업·사회복지서비스업 | "
+                                                     "예술·스포츠·여가 관련 서비스업 | 협회·단체 | 수리·기타 개인서비스업 | 수리·기타 개인서비스업(인적용역) | 가구내 고용활동 | "
+                                                     "논·밭 임대(작물 생산) | 농어가부업 | 전통주 제조 | 조림(임목 벌채·양도) | 연근해·내수면어업 | 양식어업. 주택 수만 주면 부동산임대업")] = None,
+    revenue_prev: Annotated[float | None, Field(description="직전 과세기간 수입금액(원, 선택) — 복식부기·단순경비율 판정")] = None,
+    revenue_curr: Annotated[float | None, Field(description="해당 과세기간 수입금액(원, 선택) — 성실신고확인 판정, 2019년부터 단순경비율 판정, 작물재배업 10억원 판정")] = None,
+    new_business: Annotated[bool | None, Field(description="해당 과세기간에 신규로 사업을 개시했는지(선택) — 직전 과세기간 수입금액이 있으면 false")] = None,
+    professional: Annotated[bool | None, Field(description="의료업·수의업·약국 또는 부가가치세법 시행령 제109조제2항제7호 전문직 사업자인지(선택) — 항상 복식부기, 단순경비율 제외")] = None,
+    business_service: Annotated[bool | None, Field(description="가·나목 업종 중 시행령 별표 3의3 사업서비스업을 영위하는지(선택) — 성실신고확인은 5억원 기준")] = None,
+    asset_sale_prev: Annotated[float | None, Field(description="직전 과세기간 수입금액 중 복식부기의무자의 사업용 유형자산(차량·운반구 등) 양도 수입금액(원, 선택) — 2020년부터 복식부기 판정에서 뺌")] = None,
+    asset_sale_curr: Annotated[float | None, Field(description="해당 과세기간 수입금액 중 사업용 유형자산 양도 수입금액(원, 선택) — 2019년 과세기간 신고분부터 성실신고확인 판정에서 뺌")] = None,
+    exempt_income: Annotated[float | None, Field(description="비과세 업종의 해당 과세기간 소득금액(원, 선택) — 농어가부업 3천만원, 전통주 1천200만원, 조림 600만원(2026년 3천만원), 어로·양식어업 5천만원 판정")] = None,
+    house_count: Annotated[int | None, Field(description="소유 주택 수(선택) — 본인·배우자 합산, 국외주택 포함, 시행령 제8조의2제3항(다가구·공동소유·전대)대로 센 수")] = None,
+    house_prices: Annotated[list | None, Field(description="주택별 기준시가(원) 목록(선택) — 1주택이면 그 주택 기준시가(9억원·12억원 판정), 2026년 2주택 간주임대료는 주택 수만큼")] = None,
+    overseas_house: Annotated[bool | None, Field(description="1주택이 국외에 있는지(선택) — 국외주택 임대소득은 비과세 제외")] = None,
+    small_house_count: Annotated[int | None, Field(description="간주임대료 주택 수에서 빼는 소형주택 수(선택) — 2016년 85㎡·3억원, 2017~2018년 60㎡·3억원, 2019년부터 40㎡·2억원 이하")] = None,
+    deposit_total: Annotated[float | None, Field(description="주택 임대보증금·전세금 합계(원, 선택) — 간주임대료 3억원·12억원 판정")] = None,
+    rental_revenue: Annotated[float | None, Field(description="해당 과세기간 주거용 건물 임대업 수입금액 합계(원, 선택, 공동사업은 손익분배비율로 나눈 몫 합산) — 2천만원 판정")] = None,
+    registered_rental: Annotated[bool | None, Field(description="등록임대주택(민간임대주택법 등록 + 법 제168조 사업자등록 + 임대료 등 증가율 5% 이하)인지(선택) — 분리과세 필요경비율 60%·50%")] = None,
+    other_income: Annotated[float | None, Field(description="분리과세 주택임대소득을 뺀 종합소득금액(원, 선택) — 2천만원 이하면 400만원·200만원 추가 공제")] = None,
+) -> dict:
+    """Requirements for Korean business income by tax year — scope of business income, non-taxable items (farmland lease, one-house rental, farm side business, traditional liquor, afforestation, crop farming, fishing), house rental taxation (separate taxation of rent up to 20 million won, deemed rent on deposits), bookkeeping duty, sincere-filing confirmation, estimated assessment with standard or simple expense ratios, business account and cash receipt duties — checked against the statute and enforcement decree texts and transitional rules in force each year. It does not compute tax.
+
+    사업소득 요건 안내 — 과세기간별 사업소득 범위(소득세법 제19조), 비과세(제12조제2호 — 논밭 임대, 1주택 주택임대(기준시가 9억원 → 12억원, 국외주택 제외), 농어가부업, 전통주, 조림, 작물재배업, 어로·양식어업), 주택임대소득 과세 방식(2천만원 이하 분리과세, 간주임대료 주택 수·소형주택 기준, 등록임대주택 필요경비율 60%·50%와 공제 400만원·200만원), 기장 의무(복식부기의무자·간편장부대상자, 시행령 제208조제5항), 성실신고확인대상(제70조의2, 시행령 제133조), 추계와 기준경비율·단순경비율 적용 대상(시행령 제143조), 사업용계좌·현금영수증 의무 개요를 판정한다.
+    언제: 개인사업자가 그 해 복식부기의무자인지 간편장부대상자인지, 성실신고확인 대상인지, 추계신고하면 단순경비율을 쓸 수 있는지, 주택 임대소득이 비과세인지·분리과세를 고를 수 있는지·보증금에 간주임대료가 붙는지 확인할 때.
+    입력: year(과세기간)와 industry, 수입금액(revenue_prev 직전, revenue_curr 해당), 주택임대 사실(house_count, house_prices 기준시가, deposit_total 보증금 합계, rental_revenue, registered_rental). 생략한 사실은 판정하지 않고 '확인 필요'.
+    반환: {과세기간, 업종, 업종 구분, 판정: [{항목, 판정, 사유, 근거}], 그 해 기준, 한계, 관련 해석, 다음 단계, 확인 시행본}. year를 생략하면 과세기간별 변화와 업종 목록.
+    과세기간에 따라 다름: 1주택 비과세 고가주택(2022년까지 9억원, 2023년부터 12억원), 2천만원 이하(2018년까지 비과세, 2019년부터 분리과세), 소형주택(2016년 85㎡·3억원, 2017~2018년 60㎡·3억원, 2019년부터 40㎡·2억원), 간주임대료 2주택 기준(2026년부터), 성실신고확인(2017년까지 20억·10억·5억원, 2018년부터 15억·7억5천만·5억원), 단순경비율 해당연도 수입금액 요건(2019년부터), 인적용역 3천600만원(2023년부터), 조림 비과세 3천만원(2026년부터), 어로어업(2020년)·양식어업(2024년) 비과세.
+    세액·소득금액은 계산하지 않는다(계산 MCP의 estimated_business_income, housing_rental_income, housing_deemed_rent_income, income_tax). 업종 겸영 환산, 시행규칙·별표 업종표는 대조하지 않아 '한계'에 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=과세기간 말일).
+    """
+    from . import business_income as _bi
+    return _bi.guide(year, industry, revenue_prev, revenue_curr, new_business, professional, business_service, asset_sale_prev, asset_sale_curr,
+                     exempt_income, house_count, house_prices, overseas_house, small_house_count, deposit_total, rental_revenue, registered_rental, other_income)
 
 
 @mcp.tool(annotations=RO)
@@ -929,6 +1109,66 @@ def employment_credit_requirements_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def one_house_exemption_guide(
+    transfer_date: Annotated[str | None, Field(description="양도일 YYYY-MM-DD(2016-01-01 이후). 생략하면 양도일·취득일별로 달라진 요건 목록")] = None,
+    acquisition_date: Annotated[str | None, Field(description="양도하는 주택의 취득일 YYYY-MM-DD(선택) — 보유기간, 2017.8.3. 거주요건 기준일")] = None,
+    adjusted_area_at_acquisition: Annotated[bool | None, Field(description="양도하는 주택이 취득 당시 조정대상지역에 있었는지(선택) — 거주 2년 요건")] = None,
+    residence_periods: Annotated[list | None, Field(description="거주 기간 [{from: 전입일, to: 전출일 또는 양도일}] (선택, 주민등록 기준)")] = None,
+    contract_date: Annotated[str | None, Field(description="양도하는 주택의 매매계약·계약금 지급일 YYYY-MM-DD(선택) — 2017.8.2. 이전 계약 경과조치")] = None,
+    homeless_at_contract: Annotated[bool | None, Field(description="계약금 지급일 현재 세대가 무주택이었는지(선택)")] = None,
+    contract_before_designation: Annotated[bool | None, Field(description="조정대상지역 공고일 이전에 매매계약·계약금 지급을 했는지(선택) — 시행령 제154조제1항제5호")] = None,
+    transfer_price: Annotated[float | None, Field(description="양도가액(주택과 부수토지 전체의 실지거래가액, 원, 선택) — 고가주택 9억원·12억원 판정")] = None,
+    other_houses_disposed_date: Annotated[str | None, Field(description="2주택 이상을 보유하다 다른 주택을 모두 처분해 1주택이 된 날 YYYY-MM-DD(선택) — 2021.1.1.~2022.5.9. 양도분 보유기간 기산")] = None,
+    new_house_acquisition_date: Annotated[str | None, Field(description="일시적 2주택의 신규 주택 취득일 YYYY-MM-DD(선택) — 양도하는 주택이 종전 주택")] = None,
+    new_house_contract_date: Annotated[str | None, Field(description="신규 주택(분양권 포함) 매매계약·계약금 지급일 YYYY-MM-DD(선택) — 2018.9.13.·2019.12.16.·2026.8.3. 경과조치")] = None,
+    both_adjusted_at_new_acquisition: Annotated[bool | None, Field(description="신규 주택 취득일 현재 종전 주택과 신규 주택이 모두 조정대상지역인지(선택) — 처분기한 단축")] = None,
+    moved_in_date: Annotated[str | None, Field(description="신규 주택에 세대전원이 전입한 날 YYYY-MM-DD(선택) — 2019.12.17. 이후 취득분의 1년 이내 전입요건")] = None,
+    special: Annotated[Literal["상속주택", "동거봉양", "혼인", "농어촌주택"] | None, Field(description="특례 사유(선택)")] = None,
+    special_date: Annotated[str | None, Field(description="특례 기준일 YYYY-MM-DD(선택) — 상속개시일, 동거봉양 합가일, 혼인일")] = None,
+) -> dict:
+    """Korean capital gains tax exemption for a one-house household as in force on the transfer date — household definition, holding and residence periods (two-year residence for houses acquired in adjustment areas), temporary two-house disposal deadlines, the high-priced house threshold and main special cases. It does not compute tax.
+
+    1세대 1주택 양도소득세 비과세 요건 안내 — 양도일의 시행본과 개정 부칙으로 1세대 범위(소득세법 제88조제6호, 시행령 제152조의3), 1주택·보유기간·거주기간(시행령 제154조), 일시적 2주택 처분기한과 상속·동거봉양·혼인·농어촌주택 특례(제155조), 고가주택 기준(법 제89조제1항제3호, 시행령 제156조)을 판정한다.
+    언제: 집을 팔 때 비과세인지 — 보유 2년·거주 2년을 채웠는지, 조정대상지역 거주요건이 붙는지, 이사하면서 두 채가 된 경우 종전 집을 언제까지 팔아야 하는지, 양도가액이 고가주택 기준을 넘는지 확인할 때.
+    입력: transfer_date(필수), 취득일·조정대상지역 여부·거주 기간, 신규 주택 취득일·조정대상지역 여부(일시적 2주택), 양도가액, 특례 사유와 기준일.
+    반환: {양도일, 요건: [{요건, 내용, 근거}], 판정?: [{항목, 판정, 사유, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. transfer_date를 생략하면 양도일별 변화.
+    양도일에 따라 다름: 거주요건(2017.8.3. 이후 취득·2017.9.19. 이후 양도), 다른 주택 처분일 기산(2021.1.1.~2022.5.9. 양도), 조정대상지역 간 일시적 2주택 처분기한(2018.10.23. 2년, 2020.2.11. 1년, 2022.5.10. 2년, 2023.1.12. 3년, 2026.10.1. 2년 — 그 밖은 3년), 고가주택 12억원(2021.12.8. 이후 양도), 혼인 합가 10년(2024.11.12. 이후 양도).
+    세액과 장기보유특별공제는 계산하지 않는다(계산 MCP의 capital_gains_income·capital_gains_tax). 1세대 구성·주택 해당 여부·조정대상지역 지정은 사실 판단이라 입력값으로 본다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=양도일).
+    """
+    return _one_house.guide(transfer_date, acquisition_date, adjusted_area_at_acquisition, residence_periods, contract_date, homeless_at_contract,
+                            contract_before_designation, transfer_price, other_houses_disposed_date, new_house_acquisition_date, new_house_contract_date,
+                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def wage_income_guide(
+    year: Annotated[int | None, Field(description="귀속연도(2016~2026). 생략하고 payment_date도 없으면 연도별 변화 목록")] = None,
+    payment_date: Annotated[str | None, Field(description="지급일 YYYY-MM-DD(선택) — 식사대(2023.1.1.)·출산·보육 급여(2024.1.1.·2026.1.1.)·출산지원금·직무발명보상금처럼 지급일로 갈리는 개정에 씀. year를 생략하면 지급일의 연도를 귀속연도로 봄")] = None,
+    items: Annotated[list | None, Field(description="판정할 항목 [{항목, 월금액|연금액|금액, 지급일?, 조건}] — 항목: 식대(식사제공) | 자가운전보조금(차량: 본인소유|본인명의임차|기타, 업무사용, 실제여비수령) | "
+                                                    "연구보조비(연구기관: 교원|연구기관|기업부설연구소|기타) | 보육수당(자녀출생일 목록 또는 자녀수 — 과세기간 개시일 현재 6세 이하) | 출산지원금(금액, 자녀출생일, 지급차수, 특수관계) | "
+                                                    "야간근로수당(연금액, 생산직직종, 월정액급여, 직전연도총급여, 광산일용) | 국외근로(국외유형: 일반|원양어업|선박|건설현장|공무원등, 설계) | "
+                                                    "직무발명보상금(연금액, 퇴직후, 특수관계, 같은해근로비과세) | 임직원 할인(할인금액, 시가합계, 재판매제한, 공통기준) | 주식매수선택권(재직중행사, 금액) | 임원 퇴직소득 한도 초과액(퇴직일)")] = None,
+    employee: Annotated[dict | None, Field(description="근로자 사실(선택) {일급_시급(날·시간 단위로 급여 계산), 업종(건설|하역|기타), 계속고용개월(동일 고용주), 관리기술업무, 정기지급(하역), "
+                                                       "외국인, 최초근로일(국내 최초 근로 제공일 YYYY-MM-DD), 특수관계기업} — 일용근로자 판정과 외국인 단일세율(조세특례제한법 제18조의2)")] = None,
+) -> dict:
+    """Korean wage (employment) income requirements by tax year and payment date — scope of wage income, tax-exempt allowances and their caps (meals, own-car allowance, childcare, childbirth support, overtime for production workers, overseas work, employee invention compensation, employee discounts), daily-worker status and the flat-rate option for foreign employees — checked against the text and transitional rules in force. It does not compute tax.
+
+    근로소득 요건 안내 — 귀속연도·지급일의 시행본과 개정 부칙으로 근로소득 범위(소득세법 제20조, 임원 퇴직소득 한도 초과액 제22조제3항, 주식매수선택권 행사이익 시행령 제38조제1항제17호, 직무발명보상금의 근로·기타 구분),
+    비과세 근로소득(법 제12조제3호, 시행령 제12조·제16조·제17조~제17조의5)의 항목별 한도와 과세분, 일용근로자 판정(시행령 제20조), 외국인근로자 단일세율 특례(조세특례제한법 제18조의2)를 판정한다.
+    언제: 식대·자가운전보조금·보육수당·출산지원금·야간근로수당·국외근로수당·직무발명보상금이 그 해 얼마까지 비과세인지, 일용근로자로 분리과세되는지, 외국인 직원이 19% 단일세율을 고를 수 있는지, 퇴직 후 받은 보상금이나 스톡옵션 이익이 근로소득인지 확인할 때.
+    입력: year(귀속연도) 또는 payment_date(지급일), items(항목·금액·조건), employee(일용·외국인 판정용 사실). 생략한 조건은 판정하지 않고 요건만 보여 줌.
+    반환: {귀속연도, 지급일, 조문, 요건: [{구분, 내용, 근거}], 판정?: [{항목, 판정(비과세·일부 과세·과세·확인 필요·근로소득·기타소득), 사유, 근거, 한도, 비과세(월|연), 과세(월|연), 소득구분?}], 합계?, 일용근로자?, 외국인 단일세율?, 한계, 관련 해석, 다음 단계, 확인 시행본}.
+    연도·지급일에 따라 다름: 식사대 월 10만원 → 20만원(2023.1.1. 이후 받는 분), 출산·보육 월 10만원 → 20만원(2024.1.1. 이후 지급분) → 자녀 1명당 20만원(2026.1.1. 이후 지급분), 출산지원금 전액(2025.1.1. 이후 신고·연말정산, 2024년 지급분 포함),
+    직무발명보상금 2016년 지급분까지 비과세 기타소득 → 연 300만원(2017)·500만원(2019)·700만원(2024), 국외 건설현장 등 월 300만원 → 500만원(2024), 생산직 월정액급여 150만원 → 190만원(2018)·210만원(2019)·260만원(2026)과 직전 총급여 2,500만원 → 3천만원(2020)·3,700만원(2026), 외국인 단일세율 17% → 19%(2017)·적용 기간 5년 → 20년(2023).
+    세액·총급여는 계산하지 않는다(계산 MCP의 earned_income_gross_pay·wage_income_tax·daily_worker_withholding). 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=지급일), 부칙은 article_addenda.
+    """
+    from . import wage_income as _wage_income
+    return _wage_income.guide(year, payment_date, items, employee)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def tax_crime_guide(
     act_date: Annotated[str | None, Field(description="행위일 YYYY-MM-DD(2016-01-01 이후). 조세포탈은 기수 시기(신고·납부기한이 지난 때 등). 생략하면 범칙행위 목록과 행위일별 변화")] = None,
     offense: Annotated[str | None, Field(description="조세포탈 | 면세유 부정유통 | 면세유류 구입카드 부정발급 | 가짜석유제품 | 무면허 주류 | 체납처분 면탈 | 장부 소각·파기 | 성실신고 방해 | 세금계산서 미발급·거짓기재 | 세금계산서 미수취·거짓수취 | 실물거래 없는 세금계산서 | 명의대여 | 납세증명표지 불법사용 | 원천징수 불이행 | 거짓 근로소득 원천징수영수증 | 해외금융계좌 비밀유지 위반 | 해외금융계좌 신고의무 불이행")] = None,
@@ -949,6 +1189,39 @@ def tax_crime_guide(
     형량·벌금액·통고처분 금액을 정하지 않는다. 고의와 부정한 행위의 실질, 정당한 사유, 영리 목적은 판정하지 않는다. 2016.1.1. 전 행위와 지방세·관세 포탈은 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=행위일).
     """
     return _tax_crime.guide(act_date, offense, evaded_tax, tax_due, annual_evaded_tax, supply_amount_total, for_profit, unreported_amount, document)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def retirement_income_guide(
+    retirement_date: Annotated[str | None, Field(description="퇴직일 YYYY-MM-DD(2016-01-01~2026-12-31). 중간정산은 지급받은 날, 퇴직판정 특례는 사유 발생일. 생략하면 퇴직일별로 달라진 요건 목록")] = None,
+    executive: Annotated[bool | None, Field(description="임원(법인세법 시행령 제40조제1항 각 호의 직무 종사자)인지(선택) — 임원 퇴직소득 한도 판정")] = None,
+    event: Annotated[Literal["퇴직", "종업원이 임원", "조직변경·전출", "상근임원이 비상근임원", "비정규직이 정규직", "중간정산"] | None, Field(description="사유(선택, 기본 퇴직) — 시행령 제43조 퇴직판정 특례·중간정산")] = None,
+    benefit_paid: Annotated[bool | None, Field(description="퇴직판정 특례 사유에서 퇴직급여를 실제로 받았는지(선택)")] = None,
+    interim_reason: Annotated[Literal["근로자퇴직급여보장법 시행령 제3조제1항 사유", "퇴직연금제도 폐지", "그 밖의 사유"] | None, Field(description="중간정산 사유(선택) — 시행령 제43조제2항")] = None,
+    service_start_date: Annotated[str | None, Field(description="임원 한도 계산 근무기간 시작일 YYYY-MM-DD(선택) — 임원 취임 때 퇴직금을 정산받았으면 임원 근무 시작일")] = None,
+    retirement_income: Annotated[float | None, Field(description="퇴직소득금액(원, 비과세·공적연금 일시금 제외, 선택) — 임원 한도 초과분 판정")] = None,
+    salary_3y_to_2019: Annotated[float | None, Field(description="2019.12.31.부터 소급 3년(2012.1.1.~2019.12.31. 근무기간이 3년 미만이면 그 기간) 총급여 합계(원, 비과세 제외, 선택) — 2020.1.1. 이후 퇴직 임원의 3배 구간")] = None,
+    salary_3y_before_retirement: Annotated[float | None, Field(description="퇴직일부터 소급 3년(2020.1.1. 이후 근무기간, 2019년 이전 퇴직은 전체 근무기간이 3년 미만이면 그 기간) 총급여 합계(원, 비과세 제외, 선택)")] = None,
+    pre2012_retirement_income: Annotated[float | None, Field(description="2011.12.31.에 퇴직했다고 가정할 때 퇴직소득금액(원, 선택) — 생략하면 근무기간 비율로 계산(시행령 제42조의2제6항)")] = None,
+    years_of_service: Annotated[int | None, Field(description="근속연수(년, 1년 미만은 1년, 선택) — 근속연수공제 종전표·개정표 판정", ge=1)] = None,
+    deferral: Annotated[Literal["퇴직일 현재 연금계좌", "연금계좌로 지급", "지급 후 연금계좌 입금", "이연 안 함"] | None, Field(description="과세이연 방식(선택) — 법 제146조제2항")] = None,
+    paid_date: Annotated[str | None, Field(description="퇴직소득을 지급받은 날 YYYY-MM-DD(선택) — 60일 이내 연금계좌 입금 판정")] = None,
+    pension_deposit_date: Annotated[str | None, Field(description="연금계좌에 입금한 날 YYYY-MM-DD(선택)")] = None,
+) -> dict:
+    """Korean retirement income requirements as in force on the retirement date — scope of retirement income, actual retirement and deemed non-retirement, interim settlement, the executive retirement income cap (3x for 2012-2019 service, 2x from 2020, pre-2012 accrual excluded; excess is wage income), retirement income deductions, tax deferral via pension accounts, timing and exemptions. It does not compute tax.
+
+    퇴직소득 요건 안내 — 퇴직일의 시행본과 개정 부칙으로 퇴직소득 범위(소득세법 제22조, 시행령 제42조의2), 현실적 퇴직과 퇴직으로 보지 않는 경우·중간정산(시행령 제43조), 임원 퇴직소득 한도(법 제22조제3항 — 근무기간 구간별 배수, 초과분 근로소득), 퇴직소득공제(근속연수공제·환산급여공제, 법 제48조)와 세액계산 개요, 과세이연(법 제146조제2항, 이연퇴직소득), 수입시기(시행령 제50조제2항), 비과세(법 제12조제3호)를 판정한다.
+    언제: 퇴직금이 퇴직소득인지, 임원으로 승진·전출·중간정산 때 퇴직으로 보는지, 임원 퇴직금 중 한도를 넘어 근로소득이 되는 금액이 얼마인지, 근속연수공제가 어느 표로 적용되는지, 연금계좌로 옮기면 과세이연되는지 확인할 때.
+    입력: retirement_date(필수), 임원 여부·근무 시작일·구간별 총급여·퇴직소득금액(임원 한도), 사유·퇴직급여 수령 여부·중간정산 사유, 근속연수, 과세이연 방식·지급일·입금일.
+    반환: {퇴직일, 사유, 요건: [{항목, 내용, 기간별 배수?, 근거}], 판정?: [{항목, 판정, 사유, 기간별 배수?, 한도액?, 근로소득으로 보는 금액?, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. retirement_date를 생략하면 퇴직일별 변화.
+    퇴직일에 따라 다름: 임원 한도(2020.1.1. 이후 퇴직은 2012~2019년 근무 3배·2020년 이후 근무 2배, 그 전 퇴직은 2012년 이후 근무 3배), 해외 파견 급여 포함·비정규직 정규직 전환 특례(2020.2.11.), 근속연수공제 개정표(2023.1.1. 이후 퇴직), 2016~2019년 퇴직의 종전·개정 세액 혼합 비율.
+    세액은 계산하지 않는다(계산 MCP의 retirement_income_tax). 현실적 퇴직·임원 해당 여부는 사실 판단이라 입력값으로 본다. 근로자퇴직급여 보장법의 중간정산 세부 사유는 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=퇴직일).
+    """
+    from . import retirement_income as _retirement_income
+    return _retirement_income.guide(retirement_date, executive, event, benefit_paid, interim_reason, service_start_date, retirement_income,
+                                    salary_3y_to_2019, salary_3y_before_retirement, pre2012_retirement_income, years_of_service, deferral,
+                                    paid_date, pension_deposit_date)
 
 
 @mcp.tool(annotations=RO)
@@ -985,6 +1258,63 @@ def tax_crime_procedure_guide(
     return _tax_crime_proc.guide(decision_date, offense_article, evasion_proviso, annual_reported_revenue, annual_suspected_evasion, expected_evaded_tax,
                                  filed_return, registered, in_progress, flight_or_destroy_risk, prison_likely, cannot_pay, unreachable,
                                  investigation_end_date, committee_resolution_date, notice_date, notice_served_date, paid_date, accused_date)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def nominee_trust_guide(
+    trust_type: Annotated[str | None, Field(description="타인명의(명의자 명의로 등기등·명의개서) | 명의개서해태(취득 후 실제소유자 명의로 개서하지 않음). 생략하면 날짜별 변화와 입력 구분값")] = None,
+    asset_type: Annotated[str | None, Field(description="비상장주식 | 상장주식 | 출자지분 | 사채 | 차량 | 선박 | 항공기 | 건설기계 | 기타등록재산 | 토지 | 건물 | 예금·금전")] = None,
+    registration_date: Annotated[str | None, Field(description="명의자 명의로 등기등·명의개서를 한 날 YYYY-MM-DD(타인명의 유형의 증여의제일)")] = None,
+    acquisition_date: Annotated[str | None, Field(description="실제소유자의 소유권취득일 YYYY-MM-DD(명의개서해태 유형 — 다음 해 말일의 다음 날이 증여의제일, 평가기준일)")] = None,
+    agreement: Annotated[str | None, Field(description="명의신탁 합의 여부(선택): 합의 | 명의도용 | 모름")] = None,
+    exception: Annotated[str | None, Field(description="적용 제외·추정 배제 사유(선택): 신탁재산 | 비거주자_법정대리인 | 양도세신고_변경신고 | 상속세신고_포함 | 양도담보")] = None,
+    origin: Annotated[str | None, Field(description="재산의 내력(선택): 최초 | 매도대금_재취득 | 합병신주 | 유상증자신주 | 신탁자사망_상속 | 기존수탁주식_양수 | 수탁자사망_상속인명의")] = None,
+    nominee_kind: Annotated[str | None, Field(description="명의자: 개인 | 영리법인 | 비영리법인(선택)")] = None,
+    avoided_taxes: Annotated[list | None, Field(description="명의신탁으로 회피될 수 있던 조세 목록(선택) — 예: 배당 종합과세, 과점주주 간주취득세, 과점주주 제2차 납세의무, 양도소득세 대주주")] = None,
+    non_tax_purposes: Annotated[list | None, Field(description="조세 외 목적 목록(선택) — 예: 발기인 수 충족, 대주주 공시요건 회피, 체류자격")] = None,
+    inheritance_return_date: Annotated[str | None, Field(description="상속세 신고일 YYYY-MM-DD(선택) — 상속세신고_포함 추정 배제는 2016.1.1. 이후 신고분")] = None,
+    inheritance_return_type: Annotated[str | None, Field(description="정기 | 수정 | 기한후(선택)")] = None,
+    foreknown: Annotated[bool | None, Field(description="결정·경정을 미리 알고 한 수정신고·기한 후 신고인지(선택)")] = None,
+    no_shareholder_register: Annotated[bool | None, Field(description="주주명부·사원명부가 없는지(선택) — 주식등변동상황명세서로 판정, 증여일 규정")] = None,
+    restored_to: Annotated[str | None, Field(description="실명 환원 상대(선택): 실제소유자 | 제3자")] = None,
+    restored_date: Annotated[str | None, Field(description="환원·이전일 YYYY-MM-DD(선택)")] = None,
+    filed: Annotated[bool | None, Field(description="증여세 신고 여부(선택) — 부과제척기간 10년·15년")] = None,
+    asset_value: Annotated[float | None, Field(description="재산 가액(원, 선택) — 계산 MCP 인자 미리 채움")] = None,
+) -> dict:
+    """Korean deemed gift on nominee-held (title-trusted) property — Inheritance and Gift Tax Act Article 45-2 — as in force on the deemed gift date: covered assets, presumption of a tax-avoidance purpose and rebuttal, failure to transfer title, timing and valuation date, taxpayer (actual owner for deemed gifts on or after 2019-01-01, nominee's secondary property liability), aggregation and tax base, filing deadline, assessment period, restoration, case law on repeated taxation, corporate links, and the Real Estate Real Name Act for land and buildings. It does not compute tax.
+
+    명의신탁재산의 증여 의제 안내 — 상속세 및 증여세법 제45조의2를 증여의제일의 시행본으로: 대상 재산(등기등이 필요한 재산, 토지·건물 제외), 조세회피목적 추정과 반증, 명의개서 해태 의제, 증여시기·평가기준일, 납세의무자(2019.1.1. 이후 의제분은 실제소유자, 명의자 물적납세의무), 합산배제·과세표준(증여재산공제 없음), 신고기한, 부과제척기간, 실명 환원, 반복 과세 제한 판례, 법인 쪽(주식등변동상황명세서, 과점주주 제2차 납세의무·간주취득세), 토지·건물이면 부동산실명법 안내.
+    언제: 차명주식·차명 등록재산이 증여의제에 걸리는지, 누가 증여세를 내는지, 언제가 증여일·평가기준일인지, 조세회피목적을 반증할 수 있는지, 합병신주·매도대금 재취득·유상증자 신주가 다시 과세되는지, 제척기간이 몇 년인지 확인할 때.
+    입력: trust_type, asset_type, registration_date(타인명의) 또는 acquisition_date(명의개서해태), 선택으로 agreement, exception, origin, nominee_kind, avoided_taxes, non_tax_purposes, filed.
+    반환: {증여의제일, 적용 규정, 증여의제: {판정, 사유}, 증여시기, 납세의무, 세액 계산 요소, 부과제척기간, 판정: [{항목, 판정, 사유, 근거?, 판례?}], 실명 환원?, 법인 연계?, 계산 다음 단계?, 한계, 다음 단계, 확인 시행본}. 토지·건물이면 {증여의제, 부동산}.
+    날짜에 따라 다름: 2019.1.1. 이후 의제분 납세의무자·연대·물적납세의무·관할·합산배제(2018.12.31. 이전 취득 해태분은 부칙 제6조로 종전), 2016.1.1. 상속세 신고 추정 배제, 2020.1.1. 주주명부 없는 경우 증여일.
+    세액은 계산 MCP의 nominee_gift_tax. 조세회피목적·합의의 실질은 판정하지 않는다. 부동산실명법 과징금 부과기준은 원문 대조를 못해 계산·안내하지 않는다. 읽기 전용, 외부 호출 없음.
+    """
+    return _nominee_trust.guide(trust_type, asset_type, registration_date, acquisition_date, agreement, exception, origin, nominee_kind,
+                                avoided_taxes, non_tax_purposes, inheritance_return_date, inheritance_return_type, foreknown,
+                                no_shareholder_register, restored_to, restored_date, filed, asset_value)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def other_income_guide(
+    date: Annotated[str | None, Field(description="지급일(수입시기) YYYY-MM-DD(2016-01-01~2026-12-31) — 서화·골동품은 양도일, 투표권 환급금·슬롯머신은 원인 발생일. 생략하면 날짜별 변화와 입력값 목록")] = None,
+    income_item: Annotated[str | None, Field(description="기타소득 항목: 상금 | 공익상금 | 복권 | 경품 | 사행행위 | 투표권환급금 | 저작권양도 | 영화필름등 | 산업재산권등 | 일시대여 | 통신판매중개대여 | 지역권지상권 | 위약금배상금 | 주택입주지체상금 | 유실물 | 무주물 | 특수관계경제적이익 | 슬롯머신 | 원고료인세 | 알선수수료 | 사례금 | 공제부금해지 | 일시적인적용역 | 기타소득처분 | 연금외수령 | 주식매수선택권 | 직무발명보상금 | 뇌물 | 알선수재 | 서화골동품 | 종교인소득 | 가상자산 (강연료·원고료·위약금·서화 같은 별칭도 됨)")] = None,
+    amount: Annotated[float | None, Field(description="받은 금액(원, 건별, 선택) — 의제 필요경비·기타소득금액·과세최저한·원천징수세액 계산")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택) — recurring(계속·반복), deposit_forfeited(계약금이 위약금으로 대체), holding_10y(서화 보유 10년 이상), living_domestic_artist(생존 국내 원작자), business_premises(서화 사업장·사업자등록), national_heritage, to_museum, nontaxable_award(시행령 제18조제1항 상 등), retired(직무발명 퇴직 후), related_party, employment_exempt_used(원), religious_as_wage(종교인소득 근로소득 선택), unpaid_committee(무보수 위원 수당), actual_expense(원), annual_rent_8_2(원), ticket_total(원), refund_per_vote(원), refund_multiple, annual_separable_income(원), withheld")] = None,
+) -> dict:
+    """Korean other income (Income Tax Act Article 21) as in force on the payment date (2016-2026): which item applies, deemed necessary expense rate by date (80% to 70% from 2018-04-01 to 60% from 2019), minimum taxable threshold (Article 84), separate taxation (elective up to KRW 3 million or mandatory), withholding rate (Article 129), and non-taxable other income (Article 12(5)). It does not compute final tax.
+
+    기타소득 요건 안내 — 소득세법 제21조를 지급일(수입시기)의 시행본으로: 소득 구분(각 호), 필요경비(의제율 연도별), 과세최저한(제84조), 분리과세(제14조제3항제8호 — 300만원 이하 선택·복권 등 무조건), 원천징수세율(제129조제1항제6호 — 20%, 복권 등 3억원 초과분 30%, 연금외수령·공제부금 해지 15%), 비과세(제12조제5호), 종교인소득 근로소득 선택, 가상자산 시행 유예를 판정한다.
+    언제: 강연료·원고료·위약금·상금·서화 양도대금 등이 기타소득인지, 필요경비를 몇 % 인정하는지, 과세최저한에 드는지, 분리과세를 고를 수 있는지, 원천징수세율이 얼마인지, 비과세인지 확인할 때.
+    입력: date(지급일·수입시기), income_item, 선택으로 amount, facts(사실관계 플래그).
+    반환: {기준일, 과세기간, 소득, 판정: [{항목(소득 구분·필요경비·과세최저한·분리과세·원천징수세율·비과세 등), 판정, 사유, 근거}], 원천징수세액?, 계산 다음 단계?, 관련 해석, 한계, 다음 단계, 확인 시행본}. date·income_item을 생략하면 날짜별 변화와 입력값 목록.
+    날짜에 따라 다름: 의제율 80%(~2018.3.31.)·70%(2018.4.1.~)·60%(2019 과세기간~), 서화 필요경비(2020)·소득 구분(2021.1.1. 양도분), 투표권·슬롯머신 과세최저한(2016.7.1.), 복권 과세최저한 200만원(2023.1.1.), 분리과세 선택 대상 호(2018·2019·2020), 직무발명 비과세 한도(300만·500만·700만원), 가상자산(2027.1.1. 이후 양도분).
+    세액 계산은 계산 MCP의 other_income_aggregate(종교인소득은 religious_income). 일시적·계속적 등 사실 판단은 입력값으로만 쓴다. 종교인소득 필요경비 표는 원문 대조를 못해 계산하지 않는다. 읽기 전용, 외부 호출 없음.
+    """
+    from . import other_income as _other_income
+    return _other_income.guide(date, income_item, amount, facts)
 
 
 @mcp.tool(annotations=RO)
@@ -1628,6 +1958,34 @@ def residency_report(
         "AI 생성 표시": "이 결과의 판단·요약·번역 문장은 생성형 AI(Upstage Solar Pro 4)가 작성했습니다. 근거 원문과 대조해 확인하세요.",
         "주의": "보고서는 서술만 제공할 뿐 residency_check의 판정 결과를 바꾸지 않는다. 판정은 코드(규칙 기반)로 고정된다.",
     }
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def dividend_income_guide(
+    date: Annotated[str | None, Field(description="배당 지급일 YYYY-MM-DD(2016-01-01~2026-12-31). 생략하면 지급일별로 달라진 요건 목록과 배당 유형")] = None,
+    dividend_type: Annotated[Literal["이익배당", "법인으로보는단체", "법인과세신탁재산", "의제배당_감자", "의제배당_자본전입", "의제배당_해산", "의제배당_합병",
+                                     "의제배당_자기주식지분증가", "의제배당_분할", "인정배당", "집합투자기구", "파생결합증권", "수익증권·투자계약증권",
+                                     "외국법인배당", "국조법간주배당", "출자공동사업자", "유사배당"] | None,
+                             Field(description="배당 유형(선택) — 소득세법 제17조제1항 각 호·제2항 각 호. 인정배당은 법인세법 제67조에 따라 배당으로 처분된 금액")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택) — corp_tax_paid: 지급 법인의 해당 소득(감자 재원 등)에 법인세가 과세되었는지(true/false) / "
+                                                    "reduced_corp: '전액감면'(법인세법 제51조의2, 조세특례제한법 제100조의16·제104조의31 적용 법인) 또는 '일부감면'(조세특례제한법 제63조의2·제121조의2·제121조의4·제121조의8·제121조의9 적용 법인) / "
+                                                    "capitalization_source: 자본전입 재원 '이익잉여금'·'자본준비금'·'자기주식소각이익'·'재평가적립금_토지'·'재평가적립금_토지외' / "
+                                                    "reserve_reduction: 감액 배당 재원 '자본준비금'·'재평가적립금' / institutional_pef: 기관전용 사모집합투자기구 배당인지(true/false) / "
+                                                    "total_financial_income: 그 해 이자·배당 합계(원, 배당가산액 제외) / withheld: 원천징수되었는지(true/false) / real_name_unverified: 실지명의 미확인인지(true/false)")] = None,
+    accrual_date: Annotated[str | None, Field(description="수입시기 YYYY-MM-DD(선택) — 잉여금 처분결의일·감자 결정일·결산확정일 등. 주면 귀속연도를 표시")] = None,
+) -> dict:
+    """Korean dividend income guide as in force on the payment date — scope of dividend income and deemed dividends (Income Tax Act Article 17), whether the gross-up applies and its rate (11 percent for payments up to 2023, 10 percent from 2024), separate versus global taxation around the 20 million won threshold, withholding rates, receipt timing and an outline of the dividend tax credit. It does not compute tax.
+
+    배당소득 요건 안내 — 지급일의 시행본과 개정 부칙으로 배당소득 범위(소득세법 제17조제1항 각 호)와 의제배당(제17조제2항: 감자·자본전입·해산·합병·자기주식 보유 중 자본전입·분할), 인정배당(법인세법 제67조), 배당가산(Gross-up) 대상과 제외(제17조제3항, 시행령 제27조의3), 가산율, 분리과세·비과세(제12조제1호, 제14조제3항), 금융소득 종합과세기준 2천만원(제14조제3항제6호, 제62조), 원천징수세율(제129조)·원천징수시기(제131조), 수입시기(시행령 제46조), 배당세액공제 개요(제56조, 시행령 제116조의2)를 판정한다.
+    언제: 받은 배당이 배당소득인지·의제배당인지, 배당가산(Gross-up)과 배당세액공제 대상인지, 가산율이 11%인지 10%인지, 2천만원 기준으로 종합과세되는지, 원천징수세율과 수입시기(귀속연도)가 무엇인지 확인할 때.
+    입력: date(지급일), dividend_type, facts(법인세 과세 여부·감면 법인·자본전입 재원·감액 배당·기관전용 사모집합투자기구·연간 이자배당 합계·원천징수·실지명의), accrual_date(수입시기).
+    반환: {지급일, 귀속연도?, 배당 유형?, 요건: [{요건, 내용, 근거}], 판정?: [{항목, 판정, 사유, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. date를 생략하면 지급일별 변화와 배당 유형.
+    지급일에 따라 다름: 가산율(2023.12.31. 이전 지급 11%, 2024.1.1.~2026.12.31. 지급 10%, 2027.1.1. 이후 11%), 2025.1.1. 이후 가산 제외 추가(법인세 미과세 감자 의제배당·재평가적립금·자본준비금 감액 배당), 실지명의 미확인 세율(38%·40%·42%·45%), 배당소득 범위(파생결합증권 2018, 법인과세 신탁재산 2021, 수익증권·투자계약증권 2025.7.1.), 조세특례제한법 고배당기업 특례(2015~2017 사업연도, 2026.1.1. 이후).
+    세액·배당가산액·배당세액공제액은 계산하지 않는다(계산 MCP의 dividend_tax_credit·financial_income_aggregate·deemed_dividend_*). 사실관계는 입력값으로 본다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=지급일), 적용례는 article_addenda.
+    """
+    from . import dividend_income as _dividend_income
+    return _dividend_income.guide(date, dividend_type, facts, accrual_date)
 
 
 def main():

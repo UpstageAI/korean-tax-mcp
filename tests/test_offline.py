@@ -56,7 +56,7 @@ def test_tools():
                 "tax_treaty", "search_nts_publications", "search_local_documents", "treaty_withholding_rates", "search_forms",
                 "article_history", "article_addenda", "compare_outcomes",
                 "residency_check", "residency_report", "find_article", "verify_statement", "judge_options", "timing_rules",
-                "search_rulings_by_issue", "search_tribunal_decisions", "get_tribunal_decision", "transfer_pricing_guide", "oecd_tp_guidelines", "transfer_pricing_report", "transfer_pricing_far", "transfer_pricing_cases", "sme_tax_incentives_guide", "rnd_credit_requirements_guide", "employment_credit_requirements_guide", "tax_crime_guide", "tax_crime_procedure_guide"}
+                "search_rulings_by_issue", "search_tribunal_decisions", "get_tribunal_decision", "transfer_pricing_guide", "oecd_tp_guidelines", "transfer_pricing_report", "transfer_pricing_far", "transfer_pricing_cases", "sme_tax_incentives_guide", "rnd_credit_requirements_guide", "employment_credit_requirements_guide", "tax_crime_guide", "tax_crime_procedure_guide", "nominee_trust_guide", "one_house_exemption_guide", "family_business_succession_guide", "vat_exempt_zero_rate_guide", "interest_income_guide", "dividend_income_guide", "wage_income_guide", "business_income_guide", "pension_income_guide", "other_income_guide", "retirement_income_guide"}
     assert names == expected, f"도구 목록 불일치: Extra={names-expected}, Missing={expected-names}"
 
 
