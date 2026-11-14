@@ -906,6 +906,50 @@ def rnd_credit_requirements_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def family_business_succession_guide(
+    inheritance_date: Annotated[str | None, Field(description="상속개시일 YYYY-MM-DD(2016-01-01~2026-12-31, 선택). 생략하면 상속개시일별로 달라진 요건 목록")] = None,
+    company_size: Annotated[str | None, Field(description="중소기업 | 중견기업 | 일반(선택). 상속개시일이 속하는 과세기간 직전 과세기간 말 기준")] = None,
+    avg_revenue: Annotated[float | None, Field(description="직전 3개 과세기간·사업연도 매출액 평균(원, 선택) — 2017년 이후 상속개시분의 중견기업 기준(3천억·4천억·5천억원) 판정")] = None,
+    prior_year_revenue: Annotated[float | None, Field(description="직전 사업연도 매출액(원, 선택) — 2016년 상속개시분의 '규모 확대로 중소기업에서 벗어난 기업' 기준(3천억원) 판정")] = None,
+    cross_shareholding_group: Annotated[bool | None, Field(description="상호출자제한기업집단 내 기업인지(선택) — 2016년 상속개시분 판정에 씀")] = None,
+    listed: Annotated[bool | None, Field(description="상장법인인지(선택) — 피상속인 지분율 기준(상장법인은 낮음)")] = None,
+    years_managed: Annotated[float | None, Field(description="피상속인이 가업을 계속 경영한 기간(년, 선택) — 10년 요건과 공제 한도 구간")] = None,
+    decedent_share_pct: Annotated[float | None, Field(description="피상속인과 특수관계인 합산 지분율(%, 의결권 없는 우선주 제외, 선택)")] = None,
+    share_holding_years: Annotated[float | None, Field(description="그 지분율 이상을 계속 보유한 기간(년, 선택)")] = None,
+    ceo_ratio: Annotated[float | None, Field(description="가업 영위기간 중 피상속인이 대표이사(대표자)로 재직한 기간의 비율(0~1, 선택)")] = None,
+    ceo_years: Annotated[float | None, Field(description="피상속인의 대표이사 재직 연수(선택) — 10년 이상 요건은 상속인이 대표이사직을 승계한 경우만")] = None,
+    ceo_years_in_last10: Annotated[float | None, Field(description="상속개시일부터 소급한 10년 중 대표이사 재직 연수(선택)")] = None,
+    heir_succeeded_ceo: Annotated[bool | None, Field(description="상속인이 피상속인의 대표이사직을 승계해 상속개시일까지 계속 재직했는지(선택)")] = None,
+    decedent_age_at_death: Annotated[float | None, Field(description="피상속인 사망 당시 나이(선택) — 65세 전 사망이면 상속인 2년 종사 요건 예외")] = None,
+    unavoidable_death: Annotated[bool | None, Field(description="천재지변·인재 등 부득이한 사유로 사망했는지(선택)")] = None,
+    heir_age: Annotated[float | None, Field(description="상속개시일 현재 상속인 나이(선택)")] = None,
+    heir_years_in_business: Annotated[float | None, Field(description="상속개시일 전 상속인이 직접 가업에 종사한 기간(년, 선택)")] = None,
+    heir_officer_by_deadline: Annotated[bool | None, Field(description="상속세 신고기한까지 임원으로 취임했는지(선택)")] = None,
+    heir_ceo_within_2y: Annotated[bool | None, Field(description="신고기한부터 2년 이내 대표이사등으로 취임했는지(선택)")] = None,
+    spouse_qualifies: Annotated[bool | None, Field(description="상속인의 배우자가 상속인 요건을 모두 갖췄는지(선택)")] = None,
+    business_property_value: Annotated[float | None, Field(description="가업상속 재산가액(원, 사업무관자산 제외 후, 선택) — 한도를 적용한 공제액 표시")] = None,
+    other_property_exceeds_twice_tax: Annotated[bool | None, Field(description="중견기업: 가업상속재산 외 상속재산이 그 상속인 상속세액의 2배를 넘는지(선택)")] = None,
+    assessed_before_2023: Annotated[bool | None, Field(description="2022년 이전 상속개시분: 2023.1.1. 전에 사후관리 위반으로 상속세·이자상당액이 이미 부과됐는지(선택)")] = None,
+    post_events: Annotated[list | None, Field(description="사후관리 사유 [{event(가업용 자산 처분 | 가업 미종사 | 지분 감소 | 고용 미달 | 조세포탈·회계부정 형 확정), date?(YYYY-MM-DD), ratio?(자산 처분 비율 %), employment_ratio?(정규직 수 평균 비율 %), payroll_ratio?(총급여액 평균 비율 %), justified?(시행령의 정당한 사유이면 true)}]")] = None,
+) -> dict:
+    """Requirements for the Korean family business inheritance deduction by date of inheritance — qualifying company and revenue cap, decedent shareholding and CEO tenure, heir age and involvement, deduction cap by years managed, post-inheritance management and recapture, and the 2023 payment deferral — checked against the text and transitional rules in force. It does not compute tax.
+
+    가업상속공제 요건 안내 — 상속개시일별 요건(중소기업·중견기업과 매출액 기준, 피상속인 10년 이상 경영, 최대주주 지분과 보유기간, 대표이사 재직, 상속인 나이·종사·임원·대표이사 취임, 공제 한도, 사후관리와 추징, 납부유예 개요)과 사실관계 판정(상속세 및 증여세법 제18조의2, 2022년까지 제18조제2항제1호, 시행령 제15조, 제72조의2).
+    언제: 회사를 물려받을 때 가업상속공제를 받을 수 있는지, 매출액이 기준을 넘는지, 공제 한도가 얼마인지, 상속 후 자산 처분·지분 감소·고용 감소가 추징 사유인지, 2023년 개정 전 상속분에 5년 사후관리가 적용되는지 확인할 때.
+    입력: inheritance_date(상속개시일)와 아는 사실만. 생략한 사실은 판정하지 않고 요건만 보여 줌.
+    반환: {상속개시일, 조문, 요건: [{구분, 요건, 내용, 근거}], 공제액(한도 적용)?, 판정?: [{항목, 판정(충족·미충족·확인 필요·추징 사유·해당 없음), 사유, 근거}], 사후관리 적용, 한계, 관련 해석, 다음 단계, 확인 시행본}.
+    상속개시일별로 다름: 중견기업 매출액 기준(2021년까지 3천억원, 2022년 4천억원, 2023년부터 5천억원), 한도(2017년까지 200·300·500억원(15년·20년 구간), 2018~2022년 200·300·500억원, 2023년부터 300·400·600억원), 사후관리 기간(10년·7년·5년, 2023.1.1. 당시 사후관리 중이면 5년), 자산 처분 기준(20%·10% → 40%), 고용 기준(→ 5년 평균 90%), 납부유예(2023년부터).
+    세액·추징세액·이자상당액을 계산하지 않는다. 영농상속공제와 조세특례제한법 가업승계 증여세 과세특례는 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=상속개시일), 부칙은 article_addenda.
+    """
+    from . import family_business_succession as _fbs
+    return _fbs.guide(inheritance_date, company_size, avg_revenue, prior_year_revenue, cross_shareholding_group, listed, years_managed, decedent_share_pct,
+                      share_holding_years, ceo_ratio, ceo_years, ceo_years_in_last10, heir_succeeded_ceo, decedent_age_at_death, unavoidable_death, heir_age,
+                      heir_years_in_business, heir_officer_by_deadline, heir_ceo_within_2y, spouse_qualifies, business_property_value,
+                      other_property_exceeds_twice_tax, assessed_before_2023, post_events)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def employment_credit_requirements_guide(
     year: Annotated[int | None, Field(description="과세연도(2018~2026, 선택). 생략하면 연도별로 달라진 요건 목록")] = None,
     credit: Annotated[str | None, Field(description="고용증대 | 통합고용(선택). 생략하면 2022년까지 고용증대, 2023년부터 통합고용 기준")] = None,
