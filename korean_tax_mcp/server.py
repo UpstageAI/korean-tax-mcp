@@ -48,6 +48,7 @@ mcp = MCPServer(
                  "귀속·공급시기·성립시기는 직접 정하기 전에 timing_rules를 먼저 본다. "
                  "계산 도구(korean-tax-calc-mcp) 결과가 직접 계산이나 기억과 다르면 바로 어느 쪽을 고르지 말고, 두 값을 가르는 조문을 law_article로 열어 요건을 사실관계에 하나씩 대조한다. "
                  "도구가 틀렸다는 조문 근거를 찾지 못하면 도구 값을 따르고, 다른 값을 쓸 때는 그 조문 번호를 밝힌다. "
+                 "세무 질문의 출발점은 이 서버다: 거래·사안에 맞는 요건 안내 도구(이름이 _guide로 끝나는 도구 — 예: 외국에 지급하는 사용료는 royalty_withholding_guide)를 먼저 불러 따질 요건과 확인할 사실을 받고, 사용자 자료에서 그 사실을 확인한 뒤, 안내가 알려 주는 계산 도구(korean-tax-calc-mcp)로 금액을 구한다. 요건·소득 구분·적용 세율 판단은 이 서버가, 금액 계산은 계산 서버가 맡는다. "
                  "세무 메모·의견서·검토 보고(Word)를 원하면 tax_memo_guide로 따지는 순서와 구조를 받고 → 이 서버의 요건·조약·조문 도구로 근거를, korean-tax-calc-mcp 계산기로 숫자를 받아 구조를 채운 뒤 → build_tax_memo로 만들고 경고를 고쳐 다시 만든다(엑셀 계산서는 korean-tax-calc-mcp의 export_workbook). 도구 결과나 사용자가 준 사실에 없는 내용은 단정하지 않는다. "
                  "도구 결과는 한국어로 나오지만, 답변은 사용자가 질문한 언어로 작성한다(국문 용어는 괄호로 병기). "
                  "Tool results are mostly in Korean; always answer in the language the user asked in, keeping key Korean terms in parentheses.")
@@ -1455,9 +1456,11 @@ def treaty_withholding_rates(
 ) -> dict:
     """Treaty withholding tax caps on dividends, interest and royalties for a country, with the clause text. 조세조약 원천징수 제한세율(배당·이자·사용료).
     언제: "미국 법인에 배당하면 몇 %?" 같은 질문. 세율과 지분 요건을 조약 원문에서 뽑고 근거 조항((a)·(b)…)을 함께 준다. 조문 전체는 tax_treaty.
-    반환: {국가, 발효일(현행 협정), 최초 협정 발효일?, 제한세율: [{소득, 조문, 세율: [{세율(%), 근거}], 요건·기타: [{지분요건(%), 근거}], 개정 문서 언급, 주의}], 지방소득세: {대상조세 포함, 근거, 안내}, 주의, 링크}.
+    반환: {국가, 발효일(현행 협정), 최초 협정 발효일?, 제한세율: [{소득, 조문, 세율: [{세율(%), 항, 근거, 근거(국문)?}], 요건·기타: [{지분요건(%), 근거} | {구분, 조항, 근거, 근거(국문)?}], 세율 안내?, 다음 단계?, 개정 문서 언급, 주의}], 지방소득세: {대상조세 포함, 근거, 안내}, 주의, 링크}.
+    세율마다 그 세율이 적힌 항·목의 문장만 근거로 붙인다(예: 한미 제14조 15%는 (1)항, 10%는 (2)항). 요건·기타에는 같은 조의 고정사업장 실질 관련 항·특수관계 초과분 항·원천 규칙과, 따로 있는 소득의 원천 조·혜택 배제 조(예: 한미 제6조(3)·제17조)를 문언 그대로 싣는다.
     자동 추출이라 개정 의정서·교환각서가 조문을 바꿨으면 '개정 문서 언급'에 표시 — 적용 전 확인.
-    지방소득세: 대상조세에 한국 지방소득세(주민세)가 있는 조약은 제한세율이 법인세+지방소득세 합계 상한(법인세법 제98조의7제1항제2호), 없으면 지방소득세는 따로(제1항제1호).
+    지방소득세: 대상조세에 한국 지방소득세(주민세)가 있는 조약은 제한세율이 법인세+지방소득세 합계 상한(법인세법 제98조의7제1항제2호), 없으면 지방소득세는 따로(제1항제1호). 징수 근거는 지방세법 제103조의52제1항.
+    사용료는 어느 세율이 적용되는지·국내원천인지·신청 절차를 royalty_withholding_guide로 이어서 확인.
     읽기 전용. 국세법령정보시스템 공개 조회(키 불필요), 같은 요청은 1일 캐시.
     """
     try: return ntis.withholding_rates(country, _INCOME_EN.get(income, income))
@@ -2048,6 +2051,50 @@ def permanent_establishment_guide(
     """
     return _pe.guide(year, taxpayer, fixed_place, place_types, construction_months, service_months_in_12, similar_service_years, specific_activities,
                      preparatory_or_auxiliary, related_pe_complementary, combined_not_preparatory, agent_contract_authority, agent_principal_role, agent_types, treaty_country)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def royalty_withholding_guide(
+    payment_date: Annotated[str | None, Field(description="사용료 지급일 YYYY-MM-DD(2016-01-01~2026-12-31). 생략하면 요소 목록·지급일별 변화·결정 트리·미등록 특허 판례")] = None,
+    recipient_country: Annotated[str | None, Field(description="수취인 거주지국(한글). 예: '미국', '일본', '싱가포르'. 조세조약 사용료 조문을 조회해 세율·요건에 씀")] = None,
+    recipient_type: Annotated[Literal["법인", "개인", "corporation", "individual"], Field(description="수취인이 외국법인인지 비거주자 개인인지. 개인은 소득세법을 대조하지 못해 조약 부분만 참고")] = "법인",
+    licensed: Annotated[list[Literal["특허", "노하우", "상표", "저작권", "소프트웨어", "용역", "권리 양도",
+                                     "patent", "know-how", "trademark", "copyright", "software", "services", "sale of the right"]] | None,
+                        Field(description="지급 대상(여러 개면 혼합계약). 용역은 노하우 이전이 없는 순수 기술·경영 용역, 권리 양도는 특허권 등의 매각")] = None,
+    allocation: Annotated[dict | None, Field(description="혼합계약의 대상별 대가 비율(선택). 예: {'특허': 0.7, '용역': 0.3} — 입력값을 그대로 씀")] = None,
+    patent_registered_in_korea: Annotated[bool | None, Field(description="대상 특허가 한국에 등록되어 있는지(선택)")] = None,
+    used_in_korea: Annotated[bool | None, Field(description="권리·기술이 국내 제조·생산·판매에 사실상 사용되는지(선택). 전부 국외 사용이면 false")] = None,
+    services_performed_in_korea: Annotated[bool | None, Field(description="용역을 국내에서 수행했는지(선택, 지급 대상에 용역이 있을 때)")] = None,
+    sale_price_contingent: Annotated[bool | None, Field(description="권리 양도 대가가 생산성·사용·처분에 따라 달라지는 조건부 변동대가인지(선택). 확정 고정대가면 false")] = None,
+    attributable_to_korean_pe: Annotated[bool | None, Field(description="권리가 수취인의 국내 고정사업장(국내사업장)과 실질적으로 관련되는지(선택)")] = None,
+    application_before_payment: Annotated[bool | None, Field(description="제한세율 적용신청서를 지급 전에 받았는지(선택)")] = None,
+    application_date: Annotated[str | None, Field(description="제한세율 적용신청서를 받은 날 YYYY-MM-DD(선택) — 2026.1.1. 이후 신청분이면 세무서 제출의무 판정에 씀")] = None,
+    beneficial_owner_confirmed: Annotated[bool | None, Field(description="수취인이 국내원천소득의 실질귀속자임을 확인했는지(선택)")] = None,
+    related_party: Annotated[bool | None, Field(description="수취인이 지급자의 국외특수관계인인지(선택)")] = None,
+    net_of_tax: Annotated[Literal["없음", "법인세", "법인세+지방소득세", "none", "corporate_tax", "corporate_and_local_tax"] | None,
+                          Field(description="세금부담 약정(순액 지급) — 지급자가 부담하는 세금 범위(선택)")] = None,
+    accrued_unpaid: Annotated[bool | None, Field(description="미지급비용으로 계상만 하고 아직 지급하지 않았는지(선택)")] = None,
+    payer_vat_exempt_business: Annotated[bool | None, Field(description="지급자에게 부가가치세 면세사업이 있어 사용료가 거기에 쓰이는지(선택)")] = None,
+    related_to_imported_goods: Annotated[bool | None, Field(description="사용료가 지급자가 수입하는 물품과 관련되는지(선택) — 관세 과세가격 가산 검토")] = None,
+    amount_krw: Annotated[int | None, Field(description="지급액(원, 선택) — 국제거래명세서 면제 기준(무형자산거래 1억원 이하)과 지급명세서 가산세 안내에만 씀. 세액은 계산하지 않음", ge=0)] = None,
+) -> dict:
+    """Requirement guide for cross-border royalties paid from Korea to a foreign corporation or nonresident, in the order a tax examiner checks them — characterization (royalty, know-how, software, services, sale of the right), Korean source (Corporate Tax Act Article 93 item 8, including sub-item (c) for payments from 1 January 2020, and the treaty source rule), domestic rate of 20 percent, treaty cap (for the Korea-US treaty 15 percent under Article 14(1) or 10 percent under Article 14(2); other countries from the treaty text), local income tax, procedure (reduced-rate application before payment, filing duty from 2026, refund claim within five years, payment by the 10th of the following month, payment statement), gross-up for net-of-tax clauses, transfer pricing, VAT reverse charge and customs value. It returns a decision path to 0, 10, 15, 20 percent or other, the Supreme Court en banc decision of 18 September 2025 (2021Du59908) on patents not registered in Korea, and confidence labels. It does not compute tax.
+
+    국외 지급 사용료 원천징수 요건 안내 — 내국법인 등이 외국법인·비거주자에게 지급하는 특허·노하우·상표·저작권·소프트웨어 사용료(용역·권리 양도 포함)에 사실을 대어 조사 순서대로 요소별 판정, 확인할 사실, 근거, 확신도(확인함·유추·미확인)를 돌려준다.
+    언제: "미국 모회사에 주는 기술 사용료, 몇 %를 떼야 하나", "국내 미등록 특허 사용료도 원천징수하나", "신청서를 지급 뒤에 받았는데 15%로 해도 되나", "순액으로 송금하기로 했는데 과세표준은" 같은 질문.
+    입력: payment_date(지급일), recipient_country, recipient_type, licensed(여러 개면 혼합계약)와 allocation, 사실(patent_registered_in_korea, used_in_korea, services_performed_in_korea, sale_price_contingent, attributable_to_korean_pe, application_before_payment, application_date, beneficial_owner_confirmed, related_party, net_of_tax, accrued_unpaid, payer_vat_exempt_business, related_to_imported_goods), amount_krw. 모르는 사실은 비워 두면 그 요소가 '확인 필요'로 나오고 추정하지 않는다.
+    반환: {지급일, 수취인, 지급 대상, 결정: {결론, 구분(0%·10%·15%·20%·기타·확인 필요), 법인세율·지방소득세율·합계, 경로, 전제, 막힌 사실?, 가능한 결과?}, 판정: [{항목, 판정, 사유, 근거, 확신도}], 확인할 사실, 미등록 특허 판례, 결정 트리, 다음에 부를 도구, 미확인, 한계, 확인 시행본, 기준일 주의?}.
+    판정 순서: 소득 구분 → 국내원천(법인세법 제93조제8호, 조약 원천 조항) → 국내 세율(제98조제1항제6호) → 조약 제한세율 → 지방소득세(제98조의7, 지방세법 제103조의52) → 절차(제98조의6, 지급명세서 제120조의2) → 세금부담 약정(기본통칙 98-0…2) → 이전가격(국제조세조정에 관한 법률 제7조·제13조, 시행령 제36조) → 부가가치세 대리납부·관세 과세가격.
+    지급일에 따라 다름: 제93조제8호 다목은 2020.1.1. 이후 지급분부터(그 전은 단서 후문), 신청서 세무서 제출(제98조의6제4항)은 2026.1.1. 이후 신청분부터, 경정청구는 2026.1.1.부터 제5항. 국내 미등록 특허는 대법원 2025. 9. 18. 선고 2021두59908 전원합의체 판결로 종전 판례 8건이 변경됨.
+    한미 조세조약은 원문으로 확인한 값, 다른 나라는 조약 원문 자동 추출값이라 tax_treaty로 조문을 읽어야 한다. 조문 번호·세율은 2026년 시행본 기준 — 2025년 이전 지급분은 law_article(as_of)로 확인. 세액 계산은 계산 MCP nonresident_withholding, 서면 메모는 tax_memo_guide.
+    읽기 전용. recipient_country를 주면 국세법령정보시스템 공개 조회로 조약 조문을 읽음(키 불필요, 1일 캐시) — 조회에 실패하면 조약 부분만 '확인 필요'.
+    """
+    from . import royalty_withholding as _royalty
+    return _royalty.guide(payment_date, recipient_country, recipient_type, licensed, allocation, patent_registered_in_korea, used_in_korea,
+                          services_performed_in_korea, sale_price_contingent, attributable_to_korean_pe, application_before_payment, application_date,
+                          beneficial_owner_confirmed, related_party, net_of_tax, accrued_unpaid, payer_vat_exempt_business, related_to_imported_goods,
+                          amount_krw, treaty_lookup=lambda c: ntis.withholding_rates(c, "사용료"))
 
 
 @mcp.tool(annotations=RO)

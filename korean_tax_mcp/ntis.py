@@ -20,7 +20,7 @@ import urllib.request
 from functools import lru_cache
 from pathlib import Path
 
-from . import _mask_oc, net
+from . import _mask_oc, net, overruled
 
 BASE = "https://taxlaw.nts.go.kr"
 CTX = ssl.create_default_context(); CTX.verify_flags &= ~ssl.VERIFY_X509_STRICT
@@ -224,9 +224,9 @@ def _search(query, kinds=("해석", "판례"), tax=None, sort="최신", n=10, st
     for c in d["searchResultVO"]["collectionList"]:
         for r in c.get("resultList") or []:
             did = r.get("DOC_ID") or ""
-            out.append({"구분": r.get("LBL1_TTL") or c.get("nameKr"), "문서번호": re.sub(r"\(\d{4}\.\s?\d{1,2}\.\s?\d{1,2}\.?\)$", "", _clean(r.get("NTST_DCM_DSCM_CNTN", ""))).strip(), "제목": _clean(r.get("TTL")),
+            out.append(overruled.mark({"구분": r.get("LBL1_TTL") or c.get("nameKr"), "문서번호": re.sub(r"\(\d{4}\.\s?\d{1,2}\.\s?\d{1,2}\.?\)$", "", _clean(r.get("NTST_DCM_DSCM_CNTN", ""))).strip(), "제목": _clean(r.get("TTL")),
                         "요지": _clean(r.get("GIST_CNTN"))[:400], "세목": r.get("NTST_TLAW_CL_NM", ""), "일자": _date(r.get("NTST_DCM_RGT_DT", "")),
-                        "id": did, "링크": f"{BASE}/qt/USEQTA002P.do?ntstDcmId={did}", "전체건수": c.get("totalCount")})
+                        "id": did, "링크": f"{BASE}/qt/USEQTA002P.do?ntstDcmId={did}", "전체건수": c.get("totalCount")}))
     if sort == "최신": out.sort(key=lambda x: x["일자"], reverse=True)   # 종류(해석·판례)를 섞어 등록일 내림차순
     return out
 
@@ -238,9 +238,9 @@ def document(doc_id, limit=20000):
     v = d.get("dcmDVO") or {}
     body = next((x["dcmFleByte"] for x in d.get("dcmHwpEditorDVOList") or [] if x.get("dcmFleByte")), "") or v.get("ntstDcmCntn", "")
     rel = [x.get("ntstTextNm") for x in d.get("dcmRltnStttList") or [] if x.get("ntstTextNm")]
-    return {"문서번호": v.get("ntstDcmDscmCntn", ""), "제목": _clean(v.get("ntstDcmTtl")), "요지": _clean(v.get("ntstDcmGistCntn")),
-            "등록일": _date(v.get("ntstDcmRgtDt", "")), "관련조문": rel, "본문": _clean(body)[:limit],
-            "링크": f"{BASE}/qt/USEQTA002P.do?ntstDcmId={doc_id}"}
+    return overruled.mark({"문서번호": v.get("ntstDcmDscmCntn", ""), "제목": _clean(v.get("ntstDcmTtl")), "요지": _clean(v.get("ntstDcmGistCntn")),
+                           "등록일": _date(v.get("ntstDcmRgtDt", "")), "관련조문": rel, "본문": _clean(body)[:limit],
+                           "링크": f"{BASE}/qt/USEQTA002P.do?ntstDcmId={doc_id}"})
 
 
 def _latest(action, key, lid, years):
@@ -450,23 +450,94 @@ INCOME = {"배당": "DIVIDEND", "이자": "INTEREST", "사용료": "ROYALT"}
 _PCT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:per\s*cent|percent|%)", re.I)
 
 
-def _rate_items(txt):
-    """세율(총액의 %)과 지분 요건(자본·의결권의 %)을 문맥으로 구분. 근거는 그 항목 절((a)·(b)…) 전체."""
+_PARA = re.compile(r"(?m)^[ \t]*(?:\((\d+)\)|(\d+)\.)[ \t]+")
+_BASIS_MAX = 600
+
+
+def _paragraphs(txt):
+    """조문 본문을 항 단위로 나눔 — 줄 머리의 '(1)'·'1.' 표시 기준. 표시가 없으면 전체를 한 항으로. → [(항 번호 '1'…, 본문)]"""
+    txt = re.sub(r"<[^>]+>", "", txt or "")
+    ms = list(_PARA.finditer(txt))
+    if not ms: return [("", txt.strip())] if txt.strip() else []
+    return [(m.group(1) or m.group(2), txt[m.end():(ms[i + 1].start() if i + 1 < len(ms) else len(txt))].strip()) for i, m in enumerate(ms)]
+
+
+def _ko_map(en_txt, ko_txt):
+    """국문 본문의 항 번호 → 본문. 영문과 항 번호 순서가 똑같을 때만 돌려준다(국문 쪽 목 번호가 항으로 잘못 나뉘면 다른 문장이 붙으므로)."""
+    en, ko = _paragraphs(en_txt), _paragraphs(ko_txt)
+    if not ko or [a for a, _ in en] != [a for a, _ in ko]: return {}
+    return {a: b for a, b in ko if a}
+
+
+def _flat(s, n=_BASIS_MAX):
+    s = re.sub(r"\s+", " ", s or "").strip(" ;")
+    return s if len(s) <= n else s[:n].rstrip() + "…"
+
+
+def _rate_items(txt, ko_txt=""):
+    """세율(총액의 %)과 지분 요건(자본·의결권의 %)을 문맥으로 구분.
+    근거는 그 세율이 적힌 항 안의 문장만 — 항 안에 (a)·(b) 목이 있으면 그 목까지. 다른 항의 문장을 이어 붙이지 않는다
+    (한미조약 제14조에서 15%와 10%가 같은 문장으로 잘려 나오던 문제). 국문 본문에 같은 번호의 항이 있으면 '근거(국문)'으로 붙인다."""
     rates, thresholds = [], []
-    marks = [m.start() for m in re.finditer(r"\(\s*[a-z]\s*\)|\n\s*\d+\.\s|;", txt)] + [len(txt)]
-    for m in _PCT.finditer(txt):
-        st = max([x for x in marks if x <= m.start()] or [0]); en = min([x for x in marks if x > m.end()] or [len(txt)])
-        if txt[en:en + 1] == ";": en += 1
-        clause = re.sub(r"\s+", " ", txt[st:min(en + 250, len(txt))]).strip(" ;")[:400]
-        right = txt[m.end():m.end() + 60].lower()
-        v = float(m.group(1))
-        if re.match(r"\s*of the (?:voting|capital|shares|stock|issued|outstanding)", right) or re.search(r"(?:owns|holds|holding)\D{0,40}$", txt[max(0, m.start() - 60):m.start()].lower()):
-            thresholds.append({"지분요건(%)": v, "근거": clause})
-        elif "gross amount" in clause.lower() or "shall not exceed" in clause.lower():
-            rates.append({"세율(%)": v, "근거": clause})
-        else:
-            thresholds.append({"기타(%)": v, "근거": clause})
+    ko = _ko_map(txt, ko_txt)
+    for label, ptxt in _paragraphs(txt):
+        marks = [m.start() for m in re.finditer(r"\(\s*[a-z]\s*\)|(?<=\s)[a-z]\)\s|;", ptxt)] + [len(ptxt)]
+        for m in _PCT.finditer(ptxt):
+            st = max([x for x in marks if x <= m.start()] or [0]); en = min([x for x in marks if x > m.end()] or [len(ptxt)])
+            clause = _flat(ptxt[st:en])
+            right = ptxt[m.end():m.end() + 60].lower()
+            v = float(m.group(1))
+            extra = {"항": f"({label})"} if label else {}
+            if label and ko.get(label): extra["근거(국문)"] = _flat(ko[label])
+            if re.match(r"\s*of the (?:voting|capital|shares|stock|issued|outstanding)", right) or re.search(r"(?:owns|holds|holding)\D{0,40}$", ptxt[max(0, m.start() - 60):m.start()].lower()):
+                thresholds.append({"지분요건(%)": v, "근거": clause})
+            elif "gross amount" in clause.lower() or "shall not exceed" in clause.lower():
+                rates.append({"세율(%)": v, **extra, "근거": clause})
+            else:
+                thresholds.append({"기타(%)": v, "근거": clause})
     return rates, thresholds
+
+
+_COND_SAME = (
+    ("고정사업장 실질 관련 — 제한세율 대신 사업소득 과세", re.compile(r"shall not apply.{0,600}permanent establishment.{0,400}effectively connected", re.I | re.S)),
+    ("특수관계 — 정상 대가 초과분은 제한세율 밖", re.compile(r"special relationship|related person", re.I)),
+    ("원천 규칙", re.compile(r"deemed to arise|treated as income from sources", re.I)),
+)
+_SOURCE_TITLE = re.compile(r"SOURCE", re.I)
+_BENEFIT_TITLE = re.compile(r"INVESTMENT OR HOLDING|LIMITATION ON BENEFITS|LIMITATION OF BENEFITS|LIMITATION OF RELIEF|ENTITLEMENT TO BENEFITS", re.I)
+
+
+def _conditions(rows, art, en):
+    """제한세율 조문의 적용 요건 — 같은 조의 고정사업장·특수관계·원천 항, 따로 있는 '소득의 원천' 조와 혜택 배제 조.
+    문언을 그대로 옮길 뿐 해당 여부는 판단하지 않는다. → [{구분, 조항, 근거(영문), 근거(국문)?}]"""
+    out = []
+
+    def add(kind, row, label, text, ko):
+        e = {"구분": kind, "조항": f"{(row.get('txaAgrmTextUqnm') or '').strip()}{f'({label})' if label else ''}", "근거": _flat(text)}
+        if ko: e["근거(국문)"] = _flat(ko)
+        out.append(e)
+
+    ko = _ko_map(art.get("txaAgrmTextEnglCntn") or "", art.get("txaAgrmTextCntn") or "")
+    for label, ptxt in _paragraphs(art.get("txaAgrmTextEnglCntn") or ""):
+        if _PCT.search(ptxt) and re.search(r"gross amount|shall not exceed", ptxt, re.I): continue   # 세율 항은 '세율'에 있음
+        for kind, pat in _COND_SAME:
+            if pat.search(ptxt): add(kind, art, label, ptxt, ko.get(label) if label else ""); break
+    for r in rows:
+        if r is art or "의정서" in (r.get("txaAgrmTextUqnm") or ""): continue
+        title = r.get("txaAgrmTextEnglNm") or ""
+        rko = _ko_map(r.get("txaAgrmTextEnglCntn") or "", r.get("txaAgrmTextCntn") or "")
+        if _SOURCE_TITLE.search(title):
+            for label, ptxt in _paragraphs(r.get("txaAgrmTextEnglCntn") or ""):
+                if re.match(en, ptxt, re.I): add("원천 규칙", r, label, ptxt, rko.get(label) if label else "")
+        elif _BENEFIT_TITLE.search(title):
+            body = re.sub(r"<[^>]+>", "", r.get("txaAgrmTextEnglCntn") or "")
+            if body.strip(): add("혜택 배제(조약 혜택 제한)", r, "", body, re.sub(r"<[^>]+>", "", r.get("txaAgrmTextCntn") or ""))
+    return out
+
+
+_LOCAL_BASIS = " 지방소득세를 징수하는 근거는 지방세법 제103조의52제1항(외국법인 국내원천소득에 대한 법인세 원천징수액의 100분의 10을 법인지방소득세로 특별징수)."
+ROYALTY_NEXT = ("사용료는 royalty_withholding_guide(payment_date, recipient_country, licensed, …)로 소득 구분·국내원천·제한세율 적용 요건·절차를 요소별로 확인 "
+                "— 어느 세율이 적용되는지는 지급 대상(특허·노하우·상표·저작권·소프트웨어)과 신청서 수령 여부에 따라 달라짐")
 
 
 def withholding_rates(country, income=None):
@@ -483,13 +554,19 @@ def withholding_rates(country, income=None):
         if income and income != ko: continue
         art = next((r for r in rows if en in (r.get("txaAgrmTextEnglNm") or "").upper() and "의정서" not in (r.get("txaAgrmTextUqnm") or "")), None)
         if not art: out.append({"소득": ko, "조문": None, "세율": [], "주의": "조약에 별도 조문 없음 — 국내법 세율 적용 여부 확인"}); continue
-        rates, others = _rate_items(art.get("txaAgrmTextEnglCntn") or "")
+        rates, others = _rate_items(art.get("txaAgrmTextEnglCntn") or "", art.get("txaAgrmTextCntn") or "")
         no = art.get("txaAgrmTextUqnm")
         touched = [f"{p.get('txaAgrmTextNm')}" for p in prot
                    if re.search(rf"(?:Article|제)\s*{re.sub(r'[^0-9]', '', no or '')}(?!\d)|{en.title()}", (p.get("txaAgrmTextEnglCntn") or "") + (p.get("txaAgrmTextCntn") or ""))]
-        out.append({"소득": ko, "조문": no, "제목": art.get("txaAgrmTextNm"), "세율": rates, "요건·기타": others[:6],
-                    "개정 문서 언급": touched, "주의": "개정 의정서·교환각서가 이 조문을 바꿨을 수 있음 — 언급된 문서 확인" if touched else ""})
-    return {"국가": name, **meta, "제한세율": out, "지방소득세": local_tax_coverage(rows),
+        item = {"소득": ko, "조문": no, "제목": art.get("txaAgrmTextNm"), "세율": rates, "요건·기타": others[:6] + _conditions(rows, art, en),
+                "개정 문서 언급": touched, "주의": "개정 의정서·교환각서가 이 조문을 바꿨을 수 있음 — 언급된 문서 확인" if touched else ""}
+        if len({x["세율(%)"] for x in rates}) > 1:
+            item["세율 안내"] = "세율이 둘 이상 — 각 세율의 '근거' 문장이 정한 대상(권리·수취인 요건)에 따라 갈림. 항 전체는 tax_treaty(country, article)로 확인"
+        if ko == "사용료": item["다음 단계"] = ROYALTY_NEXT
+        out.append(item)
+    local = local_tax_coverage(rows)
+    local["안내"] = local.get("안내", "") + _LOCAL_BASIS
+    return {"국가": name, **meta, "제한세율": out, "지방소득세": local,
             "주의": "조약 원문에서 자동 추출 — 적용 전 원문·개정 의정서·교환각서 확인. 지방소득세를 제한세율 안에 넣을지는 '지방소득세' 항목 참고",
             "링크": f"{BASE}/st/USESTC002M.do?txaAgrmBscId={t[name]['id']}"}
 

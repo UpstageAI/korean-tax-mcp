@@ -47,6 +47,7 @@ KEYS = {
     "서명일": "signed", "최초 협정 발효일": "original_treaty_in_force", "발효일 주의": "in_force_note",
     "관련 문서": "related_documents", "종전 협정 문서": "superseded_treaty_documents",
     "지방소득세": "local_income_tax", "대상조세 포함": "covered_by_treaty",
+    "조항": "clause", "근거(국문)": "basis_ko", "세율 안내": "rates_note", "판례 변경": "overruled_by",
     # verify_citations · casebook_search
     "형식 미인식": "unrecognized", "생략": "omitted", "사례집에 없는 말": "terms_not_in_casebook",
     # residency_check

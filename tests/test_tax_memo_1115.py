@@ -71,7 +71,7 @@ def test_tools_teach_the_logic_line_only(tmp_path):
     texts.append(Path(M.__file__).read_text("utf-8")); texts.append(Path(M.__file__).with_name("memo_docx.py").read_text("utf-8"))
     fixtures = Path(__file__).parent / "fixtures"
     texts += [f.read_text("utf-8") for f in sorted(fixtures.glob("tax_memo*"))]          # 테스트 자료에도 실제 사례를 두지 않는다
-    assert len(list(fixtures.glob("tax_memo*"))) == 2 and not list(fixtures.glob("*royalt*"))
+    assert len(list(fixtures.glob("tax_memo*"))) == 2          # 메모 자료는 지어낸 사례 2개뿐(다른 도구의 조약 자료는 대상 아님)
     for text in texts:
         for word in banned: assert word.lower() not in text.lower(), word
     for name in ("tax_memo_example_en.json", "tax_memo_example_ko.json"):
@@ -281,7 +281,7 @@ def _call(name, args):
 def test_tools_registered_after_verify_citations(tmp_path):
     names = [t.name for t in asyncio.run(mcp.list_tools())]
     i = names.index("verify_citations")
-    assert names[i + 1:i + 3] == ["tax_memo_guide", "build_tax_memo"] and len(names) == 51
+    assert names[i + 1:i + 3] == ["tax_memo_guide", "build_tax_memo"] and len(names) == 52
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
     assert tools["tax_memo_guide"].annotations.read_only_hint and not tools["build_tax_memo"].annotations.read_only_hint
     assert not tools["build_tax_memo"].annotations.destructive_hint

@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/UpstageAI/korean-tax-mcp/blob/main/LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [한국어](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README.md)
 
-**Korea (South Korea) tax law for AI agents.** Ask a Korean tax question and this MCP server returns **the statute as in force on the relevant date, NTS rulings, court cases and Tax Tribunal decisions, with document numbers and links** (51 tools — 50 read-only; `build_tax_memo` alone writes one Word file). It covers addenda and annexes, NTS basic rules and execution standards, 96 tax treaties and treaty withholding rates, a 3-step residency test, a permanent establishment (PE) test, transfer pricing, and 16 requirement guides whose conditions change by tax year (tax credits and incentives, income types, one-house exemption, family business succession, VAT exemption, nominee property, tax crimes). Every tool takes `lang="en"`. Amounts and statutory forms come from the companion server [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp) (139 tools).
+**Korea (South Korea) tax law for AI agents.** Ask a Korean tax question and this MCP server returns **the statute as in force on the relevant date, NTS rulings, court cases and Tax Tribunal decisions, with document numbers and links** (52 tools — 51 read-only; `build_tax_memo` alone writes one Word file). It covers addenda and annexes, NTS basic rules and execution standards, 96 tax treaties and treaty withholding rates, a 3-step residency test, a permanent establishment (PE) test, transfer pricing, and 17 requirement guides whose conditions change by tax year (tax credits and incentives, income types, one-house exemption, family business succession, VAT exemption, nominee property, tax crimes). Every tool takes `lang="en"`. Amounts and statutory forms come from the companion server [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp) (139 tools).
 
 ![Demo: facts in → issue-by-issue legal analysis (related party, company-house exception, denial of unfair transactions) → similar Tax Tribunal decisions → draft review memo (HWPX)](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
@@ -42,7 +42,7 @@ flowchart LR
   Q --> A["Statutes<br/>version in force, delegation<br/>addenda, annexes, admin rules"]
   Q --> B["Rulings and cases<br/>rulings, court and tribunal decisions<br/>basic rules, execution standards"]
   Q --> C["Base year<br/>bundle per tax type<br/>timing rules"]
-  Q --> D["16 requirement guides<br/>credits, incentives, income types<br/>one-house, succession, VAT exemption"]
+  Q --> D["17 requirement guides<br/>credits, incentives, income types<br/>one-house, succession, VAT exemption"]
   Q --> E["Transfer pricing<br/>methods, FAR analysis<br/>local file outline, decisions, OECD"]
   Q --> F["Foreign companies and expats<br/>96 treaties, withholding caps<br/>residency test, permanent establishment"]
   Q --> G["Compare and verify<br/>statements, options, citations<br/>against the text"]
@@ -76,6 +76,7 @@ Judgment and conclusions stay with your AI and a professional. This server fetch
 | *"Find recent NTS rulings on deemed interest for loans to related parties (lang=en)."* | `search_tax_rulings` → `get_tax_ruling` |
 | *"Show Corporate Tax Act Enforcement Rule Art. 43 as in force on 2023-12-31."* | `law_article` (`as_of`) |
 | *"What is the treaty cap on royalties a Korean subsidiary pays to its US parent? Quote the clause."* | `treaty_withholding_rates` |
+| *"We pay patent royalties to our US parent and the patent is not registered in Korea. What rate do we withhold, and when must the reduced-rate application be received?"* | `royalty_withholding_guide` → `treaty_withholding_rates` |
 | *"A US citizen seconded to Seoul spent 200 days in Korea last year; family stays in the US. Is she a Korean tax resident?"* | `residency_check` → `residency_report` |
 | *"Our US engineers will install equipment at a Korean plant for 7 months. Does that create a permanent establishment?"* | `permanent_establishment_guide` → `tax_treaty` |
 | *"Which transfer pricing method applies to sales to our US distributor? Show decisions too."* | `transfer_pricing_guide` → `transfer_pricing_cases` |
@@ -130,7 +131,8 @@ If you are a foreign parent company with a Korean subsidiary, a Korean company p
 | Am I (or my seconded employee) a Korean tax resident? Which country wins under the treaty tie-breaker? | `residency_check` (rules, no key), then `residency_report` for a written review |
 | Does a foreign company or non-resident have a permanent establishment in Korea under domestic law? | `permanent_establishment_guide` (Corporate Tax Act Art. 94 and 94-2, Income Tax Act Art. 120, by year 2016–2026), then `tax_treaty` for the treaty PE article |
 | What does the Korea–X treaty say on residence, business profits, permanent establishment, etc.? | `tax_treaty` — 96 treaties, official English text where available |
-| What is the treaty cap on dividends, interest or royalties paid to country X, and does it include local income tax? | `treaty_withholding_rates` — rate, shareholding condition and the clause text |
+| What is the treaty cap on dividends, interest or royalties paid to country X, and does it include local income tax? | `treaty_withholding_rates` — each rate with its own clause, shareholding condition, and the PE, related-party, source-rule and benefit-limitation clauses |
+| What rate applies to royalties (patent, know-how, trademark, copyright, software) paid to a foreign company, and what is the procedure? | `royalty_withholding_guide` — element-by-element judgment (characterization → Korean source → rate → procedure → gross-up → transfer pricing) and a decision path to 0, 10, 15 or 20 percent; compute the tax with `nonresident_withholding` in the calculation MCP |
 | Which transfer pricing rule and method applies to an intercompany transaction? How do I write the Local File? | `transfer_pricing_guide`, `transfer_pricing_far`, `transfer_pricing_report`, `transfer_pricing_cases`, `oecd_tp_guidelines` |
 | What do the NTS guidebooks say? | `search_nts_publications` — full text of NTS publications, including the 2026 tax guidebook for companies expanding overseas (해외진출기업을 위한 세무 가이드북), the tax guide for foreign corporations and foreign-invested companies (외국법인 및 외국인투자기업 납세안내) and the year-end tax settlement guide for foreigners |
 | Flat tax rate for foreign employees, overseas work allowance, dividend and interest withholding, VAT zero-rating for services to foreign businesses | `wage_income_guide`, `dividend_income_guide`, `interest_income_guide`, `vat_exempt_zero_rate_guide` |
@@ -169,7 +171,7 @@ Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for
 </details>
 
 <details>
-<summary><b>All tools (51)</b></summary>
+<summary><b>All tools (52)</b></summary>
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -221,6 +223,7 @@ Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for
 | | `residency_check` | 3-stage residence determination (rules) |
 | | `residency_report` | review report (your own AI by default, Solar optional) |
 | | `permanent_establishment_guide` | Korean PE test under domestic law (CITA Art. 94, ITA Art. 120) by element and year, 2016-2026 |
+| | `royalty_withholding_guide` | withholding on cross-border royalties: characterization, Korean source (CITA Art. 93 item 8), treaty cap, local income tax, procedure (Art. 98-6), gross-up, transfer pricing, by payment date 2016-2026, with the 2025 en banc decision on unregistered patents |
 | Documents (3) | `search_forms` | annexes and official forms |
 | | `search_nts_publications` | NTS guidebooks |
 | | `search_local_documents` | PDFs on your PC (`KOREAN_TAX_MCP_DOCS`) |
