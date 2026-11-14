@@ -23,4 +23,4 @@ Tool inputs use Korean values for some enums (for example `income_kind: "사용�
 
 These pages are not tax advice. They show how to find and compute with the sources. Check the statute in force for your tax year (`law_article` with `as_of`), read the full treaty clause and the rulings cited, and confirm your facts with a qualified professional.
 
-[Back to README](../../README-EN.md)
+[Site home](../) · [README (English)](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README-EN.md) · [README (한국어)](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README.md)

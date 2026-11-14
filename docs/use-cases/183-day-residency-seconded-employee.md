@@ -45,7 +45,7 @@ Result outline (0.15.1):
 
 Values like `permanent_home` and `center_of_vital_interests` are your judgment of the facts. The tool does not decide them. Change them to see where the outcome turns.
 
-> With `lang="en"`, case B failed in 0.15.1 (`KeyError` on the tie-breaker label). The fix is in the same pull request as these pages. Until it is released, call `residency_check` without `lang` and have your AI translate the result.
+> Fixed in 0.15.2: case B now also works with `lang="en"` (in 0.15.1 it stopped with a `KeyError` on the tie-breaker label). Re-run with 0.15.2 and `lang="en"`: final outcome `non-resident`, decided at the center-of-vital-interests step, as above.
 
 ## Seconded staff: what the NTS has said
 

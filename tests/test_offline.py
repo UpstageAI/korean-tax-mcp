@@ -85,6 +85,24 @@ def test_descriptions_complete():
         assert all(v.get("description") for v in t.input_schema["properties"].values()), t.name
 
 
+def test_instructions_answer_in_user_language():
+    """도구 결과가 한국어라도 답변은 질문한 언어로 — 일본어 질문에 한국어 답이 나온 사례(2026-11-14)."""
+    assert "language the user asked" in (mcp.instructions or "")
+    assert "질문한 언어" in (mcp.instructions or "")
+
+
+def test_descriptions_start_in_english():
+    """llms.txt는 '도구 설명이 영어로 시작한다'고 밝힌다 — 첫 줄 앞부분(괄호 밖에서 한글이 나오기 전)이 영어 낱말 3개 이상이어야 한다."""
+    import re
+    bad = []
+    for t in asyncio.run(mcp.list_tools()):
+        d = (t.description or "").strip()
+        head = re.split(r"[가-힣]", re.sub(r"\([^)]*\)", "", d), maxsplit=1)[0]   # 괄호 속 한국어 용어는 건너뜀
+        if not (d[:1].isascii() and d[:1].isalpha() and len(re.findall(r"[A-Za-z]{2,}", head)) >= 3):
+            bad.append(t.name)
+    assert not bad, f"영어로 시작하지 않는 도구 설명: {bad}"
+
+
 def test_base_date_and_cite_parse():
     from korean_tax_mcp import timeline, cite
     assert timeline.base_date("2023")[0] == "20231231" and timeline.base_date("2023-1", "부가")[0] == "20230630"
