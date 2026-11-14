@@ -33,7 +33,7 @@ LABELS = {
         "rule": "Rule.", "application": "Application.", "conclusion": "Conclusion.", "confirm": "To confirm.",
         "decision": "How the facts change the result", "item": "Item", "basis_col": "Basis", "amount": "Amount",
         "priority": "Priority", "point": "Point", "why": "Why it matters · what to check", "check": "Check:",
-        "see": "See note {n}.", "if_not": "If not: see Section {n} — {p}.", "how": "How this memo was prepared.",
+        "see_section": "(Section {n}).", "if_not": "If not: see Section {n} — {p}.", "how": "How this memo was prepared.",
         "owner": "Owner", "by": "By",
         "key_figures": "Key figures", "recommended": "recommended", "review": "Review of the handling to date", "severity": "Severity",
         "finding": "Finding", "fix": "Action", "action_list": "Action list", "no": "#", "action": "Action",
@@ -49,7 +49,7 @@ LABELS = {
         "rule": "근거 규정", "application": "적용", "conclusion": "결론", "confirm": "확인할 점",
         "decision": "사실관계별 결과", "item": "항목", "basis_col": "근거", "amount": "금액",
         "priority": "우선순위", "point": "사항", "why": "왜 중요한지 · 확인할 것", "check": "확인:",
-        "see": "주 {n} 참조.", "if_not": "달라지면 {n}. 위험과 확인할 점 — {p}", "how": "작성 방법.",
+        "see_section": "({n}절 표).", "if_not": "달라지면 {n}. 위험과 확인할 점 — {p}", "how": "작성 방법.",
         "owner": "담당", "by": "기한",
         "key_figures": "핵심 수치", "recommended": "권고", "review": "기존 처리 검토 결과", "severity": "위험도",
         "finding": "발견 사항", "fix": "조치", "action_list": "조치 목록", "no": "번호", "action": "할 일",
@@ -85,9 +85,10 @@ SCHEMA = {
     "limitations": "{text: str(optional paragraph), items: [str]} — optional section collecting what could not be confirmed; required when any field or footnote is "
                    "marked not verified. Cite a not-verified footnote here as [^id]",
     "authorities": "[str] — optional closing list of principal authorities; leave out by default (the footnotes already carry the sources)",
-    "footnotes": "[{id: str, text: str}] — referenced in any text field as [^id]; numbered in reading order by the server, repeats become 'See note N.'",
+    "footnotes": "[{id: str, text: str}] — referenced in any text field as [^id]; numbered in reading order by the server; a repeated source reuses its first note number",
     "notice": "str(optional footer line; a default is used when empty)",
     "prepared_how": "str(required: tools used, date, which text governs)",
+    "target_pages": "int(optional, default 5) — the length the memo should fit in (A4 pages); build_tax_memo estimates the length and warns when it is over, naming the longest blocks",
     "inline": "**bold** and [^footnote-id] may be used inside any text field",
 }
 
@@ -108,14 +109,20 @@ Nothing may be asserted that is not in a tool result or in the user's facts; any
 - 4 Analysis: issues in the order an examiner tests requirements. Give each issue a stage and keep this order: characterization (what the payment or transaction is) → taxability (whether and where it is taxed) → rate (rate and base under domestic law) → treaty → procedure (filing, documents) → related_taxes (local income tax, VAT, penalties). Skip a stage that does not arise; never reorder. At least 3 issues. Each issue: a heading that states the conclusion (not just the topic), then rule (statute, treaty or ruling, with article or case number as a footnote) → application to the facts → conclusion, and optionally what to confirm.
 - An issue may carry one table (analysis[].table) for a short computation or comparison that belongs to that issue.
 - Optional decision table: fact pattern → result (which facts lead to which outcome).
-- Review of the handling to date (review): required when the question asks whether something already done was right ("have we handled it correctly so far"). verdict = one bold sentence; findings = one item per problem with what is wrong, the amount at stake, severity (HIGH / MEDIUM / LOW) and the action that fixes it. The verdict and the list of findings are printed under the short answer, the full table after the analysis. Leave it out when the question is only about the future.
-- 5 Calculation: rows of item, basis, amount. Mark the rows that add up with role="component" and the sum with role="total". Every amount in the executive summary and short answer must appear here; put alternatives under scenarios.
-- 6 Risks and open points: priority HIGH / MEDIUM / LOW, the point, why it matters, what to check.
+- Review of the handling to date (review): required when the question asks whether something already done was right ("have we handled it correctly so far"). verdict = one bold sentence; findings = one item per problem with what is wrong, the amount at stake, severity (HIGH / MEDIUM / LOW) and the action that fixes it. The verdict and the names of the findings are printed under the short answer, the full table (amounts and actions) once, after the analysis. Leave it out when the question is only about the future.
+- 5 Calculation: rows of item, basis, amount. Mark the rows that add up with role="component" and the sum with role="total". Every amount in the executive summary and short answer must appear here or in a table (key_figures, an issue table); put alternatives under scenarios.
+- 6 Risks and open points: priority HIGH / MEDIUM / LOW, the point, why it matters, what to check. Only what is still open — a problem already set out as a review finding is not repeated here.
 - 7 Recommended next steps: numbered actions, with an owner or deadline if known. Or action_list: the same as a table (#, action, owner, by) — every item then needs a deadline.
 - Limitations and unverified points (limitations): collect in one place everything you could not confirm. Required as soon as any field or footnote says "not verified"; cite such a footnote here as [^id] so the two agree. Do not call something verified in a footnote and unconfirmed here.
 - Principal authorities (authorities): optional closing list; off by default because the footnotes carry the sources.
-- Footnotes: primary sources first — statute article, treaty article, case number and date. For Korean law give the original term once in parentheses, e.g. Example Tax Act (예시세법), Art. 00(0). Put [^id] where the source is used; the server numbers notes in reading order and prints "See note N." for a repeated source.
+- Footnotes: primary sources first — statute article, treaty article, case number and date. For Korean law give the original term once in parentheses, e.g. Example Tax Act (예시세법), Art. 00(0). Put [^id] where the source is used; the server numbers notes in reading order and reuses the same note number for a repeated source.
 - Footer notice line, and a closing "How this memo was prepared" paragraph (prepared_how): tools used, date, and that the original-language text governs.
+[Length — say each thing once]
+- Target: target_pages (default 5 A4 pages; pass another number to build_tax_memo or set structure.target_pages when the reader asked for one). build_tax_memo returns length {estimated_pages, target_pages, blocks} and warns when the estimate is over, naming the longest blocks and the issues over budget.
+- Budget per field: summary basis 1-2 sentences; short_answer.conditions up to 3 sentences; a fact bullet up to 3 sentences; per issue rule 1-2 sentences, application 2-3, conclusion 1, confirm 1 (about 90 words for the whole issue); a risk = why in 1-2 sentences + one check sentence; an action = one line.
+- A number is worked out in one place. What a table shows (key_figures, an issue table, the calculation) is not spelled out again in prose — name the result and point to the table. A table is printed once: do not repeat an issue table under calculation.scenarios.
+- A point is argued in one place. A review finding carries the problem, the amount and the fix; the analysis issue on the same point gives the rule and the reasoning and does not restate the amounts; a risk item or an action only names it. The summary and the short answer give the answer, not the derivation.
+- Something not confirmed is stated once where it arises (confirm or the footnote) and listed in limitations in a few words. Leave authorities out unless the reader asked for a list of sources.
 [Writing rules]
 - Conclusions before reasons. One idea per paragraph (under about 120 words).
 - Numbers carry units and currency (KRW 1,000,000; 3 percent).
@@ -138,14 +145,20 @@ GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버
 - 4 검토: 심사하는 사람이 요건을 따지는 차례대로 쟁점을 둔다. 쟁점마다 stage를 달고 이 순서를 지킨다: characterization(소득·거래의 구분) → taxability(과세 여부·원천) → rate(국내 세법의 세율·과세표준) → treaty(조세조약) → procedure(절차·신고·서류) → related_taxes(지방소득세·부가가치세·가산세). 해당 없는 단계는 건너뛰되 순서를 바꾸지 않는다. 쟁점은 3개 이상. 쟁점마다 결론을 말하는 소제목(주제만 쓰지 않음), 근거 규정(법령·조약·판례를 조문·사건 번호와 함께 각주로) → 사실관계에 적용 → 결론, 필요하면 확인할 점.
 - 쟁점 안에 표 하나(analysis[].table)를 둘 수 있다 — 그 쟁점에 딸린 짧은 계산·비교.
 - 선택: 사실관계별 결과 표(어떤 사실이면 어떤 결과가 되는지).
-- 기존 처리 검토 결과(review): 이미 한 처리가 맞았는지를 묻는 질문("지금까지 맞게 처리했나")이면 필수. verdict = 굵은 한 문장 판정, findings = 문제마다 무엇이 문제인지·걸린 금액·위험도(긴급 / 높음 / 보통)·바로잡는 조치. 판정과 발견 사항 목록은 결론 아래에, 전체 표는 검토 뒤에 찍힌다. 앞으로의 처리만 묻는 질문이면 넣지 않는다.
-- 5 계산: 항목·근거·금액 행. 더해서 합계가 되는 행은 role="component", 합계 행은 role="total". 핵심 요약과 결론에 쓴 금액은 모두 여기에 있어야 하고, 다른 경우는 scenarios에 둔다.
-- 6 위험과 확인할 점: 우선순위 긴급 / 높음 / 보통, 사항, 왜 중요한지, 확인할 것.
+- 기존 처리 검토 결과(review): 이미 한 처리가 맞았는지를 묻는 질문("지금까지 맞게 처리했나")이면 필수. verdict = 굵은 한 문장 판정, findings = 문제마다 무엇이 문제인지·걸린 금액·위험도(긴급 / 높음 / 보통)·바로잡는 조치. 판정과 발견 사항 이름은 결론 아래에, 전체 표(금액·조치)는 검토 뒤에 한 번만 찍힌다. 앞으로의 처리만 묻는 질문이면 넣지 않는다.
+- 5 계산: 항목·근거·금액 행. 더해서 합계가 되는 행은 role="component", 합계 행은 role="total". 핵심 요약과 결론에 쓴 금액은 모두 여기나 표(key_figures, 쟁점 안의 표)에 있어야 하고, 다른 경우는 scenarios에 둔다.
+- 6 위험과 확인할 점: 우선순위 긴급 / 높음 / 보통, 사항, 왜 중요한지, 확인할 것. 아직 열려 있는 것만 — 검토 결과의 발견 사항으로 이미 적은 문제를 여기에 되풀이하지 않는다.
 - 7 다음 단계: 번호 붙은 할 일. 담당·기한을 알면 적는다. 또는 action_list: 같은 내용을 표(번호·할 일·담당·기한)로 — 이때는 항목마다 기한이 필요하다.
 - 한계와 미확인 사항(limitations): 확인하지 못한 것을 한곳에 모은다. 어느 칸이나 각주에 "미확인"이라고 적었다면 필수이고, 그런 각주는 여기서 [^id]로 가리켜 둘이 어긋나지 않게 한다. 각주에서는 확인했다고 하고 여기서는 미확인이라고 쓰지 않는다.
 - 주요 근거(authorities): 끝에 붙이는 선택 목록. 각주에 출처가 있으므로 기본은 넣지 않는다.
-- 각주: 1차 자료 먼저 — 법령 조문, 조약 조문, 사건 번호와 선고일. 출처를 쓴 자리에 [^id]를 넣으면 번호는 서버가 읽는 순서로 매기고, 같은 출처가 다시 나오면 "주 N 참조."로 찍는다.
+- 각주: 1차 자료 먼저 — 법령 조문, 조약 조문, 사건 번호와 선고일. 출처를 쓴 자리에 [^id]를 넣으면 번호는 서버가 읽는 순서로 매기고, 같은 출처가 다시 나오면 처음 번호를 다시 쓴다.
 - 바닥글 안내 한 줄과 "작성 방법" 맺음 문단(prepared_how): 쓴 도구, 날짜, 법령 원문이 기준임을 적는다.
+[분량 — 같은 말은 한 번만]
+- 목표: target_pages(기본 A4 5쪽. 읽는 사람이 분량을 정했으면 build_tax_memo에 그 숫자를 넘기거나 structure.target_pages에 적는다). build_tax_memo는 length {estimated_pages, target_pages, blocks}를 돌려주고, 어림 쪽수가 목표를 넘으면 가장 긴 블록과 기준을 넘은 쟁점을 짚어 경고한다.
+- 칸마다 기준: 요약 basis 1~2문장, short_answer.conditions 3문장까지, 사실 항목 하나는 3문장까지, 쟁점마다 근거 규정 1~2문장·적용 2~3문장·결론 1문장·확인할 점 1문장(쟁점 하나에 280자 안쪽), 위험 항목은 why 1~2문장 + check 한 문장, 할 일은 한 줄.
+- 숫자는 한 곳에서만 푼다. 표(key_figures, 쟁점 안의 표, 계산)에 있는 숫자를 글로 다시 풀어 쓰지 않는다 — 결과만 말하고 표를 가리킨다. 표도 한 번만: 쟁점 안의 표를 calculation.scenarios에 다시 넣지 않는다.
+- 논점도 한 곳에서만 따진다. 검토 결과(review)의 발견 사항이 문제·금액·조치를 맡고, 같은 논점의 쟁점(analysis)은 근거 규정과 이유만 쓰며 금액을 되풀이하지 않는다. 위험 항목과 할 일은 이름만 가리킨다. 요약과 결론에는 답만 쓰고 계산 과정은 쓰지 않는다.
+- 미확인 사항은 생긴 자리(confirm 또는 각주)에 한 번 쓰고 한계 절에는 몇 낱말로 적는다. 주요 근거(authorities)는 읽는 사람이 출처 목록을 원할 때만 넣는다.
 [작성 규칙]
 - 결론을 이유보다 먼저. 한 문단에 한 가지(문단은 400자 안쪽).
 - 숫자에는 단위와 통화를 붙인다(1,000,000원, 3%).
@@ -178,7 +191,7 @@ MARK = re.compile(r"\[\^([^\]\s]+)\]")
 _HANGUL = re.compile(r"[가-힣]")
 _TOP_KEYS = {"lang", "head", "summary", "background", "question", "short_answer", "facts", "analysis", "decision_table",
              "calculation", "risks", "next_steps", "footnotes", "notice", "prepared_how", "title",
-             "key_figures", "review", "action_list", "limitations", "authorities"}
+             "key_figures", "review", "action_list", "limitations", "authorities", "target_pages"}
 HEAD_KEYS = ("to", "prepared_by", "date", "re", "scope", "basis", "workings")
 
 
@@ -431,7 +444,60 @@ _SHAPES = (("head", dict), ("summary", list), ("short_answer", (dict, str)), ("f
            ("key_figures", dict), ("review", dict), ("action_list", list), ("limitations", (dict, list, str)), ("authorities", list))
 
 
-def check(structure, lang=""):
+TARGET_PAGES = 5          # 기본 권고 분량(A4 쪽)
+PAGE_SLACK = 0.25         # 어림값이라 이만큼 넘는 것까지는 넘지 않은 것으로 본다
+ISSUE_BUDGET = {"en": 90, "ko": 280}          # 쟁점 하나(근거·적용·결론·확인)의 낱말 수(영문)·글자 수(국문)
+BLOCK_TIP = {
+    "en": {"analysis": "keep each issue to rule 1-2 sentences, application 2-3, conclusion 1; drop amounts a table already shows",
+           "calculation": "do not repeat a table that an issue or key_figures already shows; keep only the rows needed to rebuild the total",
+           "risks": "why in 1-2 sentences + one check sentence; drop what the review findings already cover",
+           "facts": "only the facts the answer rests on, up to 3 sentences a bullet",
+           "review": "finding = short name; detail one sentence; amount and action in a few words",
+           "footnotes": "cite the article only; no explanation inside the footnote", "authorities": "leave it out — the footnotes carry the sources",
+           "limitations": "a few words per item", "next_steps": "one line per action", "summary": "basis in 1-2 sentences",
+           "short_answer": "conditions in up to 3 sentences", "head": "shorten scope and basis", "key_figures": "only the rows that carry the answer",
+           "question": "1-2 sentences", "prepared_how": "tools, date, governing text — two sentences"},
+    "ko": {"analysis": "쟁점마다 근거 규정 1~2문장·적용 2~3문장·결론 1문장으로, 표에 있는 금액은 글에서 뺌",
+           "calculation": "쟁점 안의 표나 key_figures에 있는 표를 되풀이하지 않고, 합계를 다시 낼 수 있는 행만 둠",
+           "risks": "why 1~2문장 + check 한 문장, 검토 결과의 발견 사항과 겹치는 항목은 뺌",
+           "facts": "답의 바탕이 되는 사실만, 항목 하나는 3문장까지",
+           "review": "finding은 짧은 이름, detail 한 문장, 금액·조치는 몇 낱말",
+           "footnotes": "각주에는 조문만 적고 설명을 넣지 않음", "authorities": "뺌 — 출처는 각주에 있음",
+           "limitations": "항목마다 몇 낱말", "next_steps": "할 일은 한 줄", "summary": "basis 1~2문장",
+           "short_answer": "conditions 3문장까지", "head": "scope·basis를 줄임", "key_figures": "답을 담은 행만",
+           "question": "1~2문장", "prepared_how": "쓴 도구·날짜·기준 원문 두 문장"},
+}
+
+
+def _size(text, lang):
+    t = plain(text)
+    return len(t) if lang == "ko" else len(t.split())
+
+
+def _table_amounts(tb):
+    out = set()
+    for row in (tb or {}).get("rows", []):
+        for cell in row["cells"][1:]: out |= _amounts(cell)
+    return out
+
+
+def length(s, target_pages=0):
+    """분량 어림 — {estimated_pages, target_pages, blocks}. 그리는 코드(memo_docx)가 문단·표 높이를 어림해 블록별로 쌓은 값."""
+    from . import memo_docx
+    est = memo_docx.Doc(s).build().length()
+    return {"estimated_pages": est["pages"], "target_pages": target_pages or TARGET_PAGES, "blocks": est["blocks"]}
+
+
+def _target_pages(structure, target_pages=0):
+    for v in (target_pages, structure.get("target_pages") if isinstance(structure, dict) else 0):
+        try:
+            if v and float(v) >= 1: return int(float(v))
+        except (TypeError, ValueError):
+            pass
+    return TARGET_PAGES
+
+
+def check(structure, lang="", target_pages=0):
     """(lang, 정리된 구조, 오류, 고칠 점). 오류는 구조가 깨져 파일을 만들 수 없는 것, 고칠 점은 파일은 만들되 고쳐서 다시 만들 것.
     문구는 lang에 맞추고 앞에 규칙 번호를 단다([E..] 오류, [M..] 메모 형식, [T..] 세무 논리)."""
     if not isinstance(structure, dict):
@@ -573,13 +639,14 @@ def check(structure, lang=""):
         if not MARK.search(it["conclusion"] + it["basis"]): W("T04", f"summary[{k}]: no footnote — each summary item needs at least one source", f"summary[{k}]: 각주 없음 — 요약 항목마다 출처가 1개 이상 필요")
     if not calc: W("T05", "calculation: required — rows of item, basis, amount with a total row", "calculation: 필수 — 항목·근거·금액 행과 합계 행")
     else:
-        have = set()
+        have = _table_amounts(s["key_figures"])          # 숫자 표(결론 아래 표, 쟁점 안의 표)에 있는 금액도 표에 있는 것으로 본다
+        for it in s["analysis"]: have |= _table_amounts(it["table"])
         for _, rows in _tables(calc):
             for row in rows: have |= _amounts(row["amount"])
         for where, text in [(f"summary[{k}]", it["conclusion"] + " " + it["basis"]) for k, it in enumerate(s["summary"])] + \
                            [("short_answer", s["short_answer"]["answer"] + " " + s["short_answer"]["conditions"])]:
             for a in sorted(_amounts(text) - have, key=int):
-                W("T06", f"{where}: amount {int(a):,} is not in the calculation table — add a row or a scenario", f"{where}: 금액 {int(a):,}이 계산 표에 없음 — 행이나 scenarios에 넣음")
+                W("T06", f"{where}: amount {int(a):,} is not in the calculation table (or in key_figures or an issue table) — add a row or a scenario", f"{where}: 금액 {int(a):,}이 계산 표(또는 key_figures·쟁점 안의 표)에 없음 — 행이나 scenarios에 넣음")
     if not ko and any(_KOREAN_LAW_EN.search(t) for t in fn_text.values()) and not any(_HANGUL.search(t) for t in fn_text.values()):
         W("T07", "footnotes: give the original Korean name of each Korean statute once in parentheses, e.g. Corporate Tax Act (법인세법)", "footnotes: 한국 법령은 원어를 한 번 괄호로 적음")
     # ── 선택 블록 ──
@@ -647,6 +714,33 @@ def check(structure, lang=""):
         cited = set(MARK.findall(lim["text"] + " " + " ".join(lim["items"])))
         for i in flagged_notes:
             if i not in cited: W("T13", f"limitations: footnote '{i}' is marked not verified but is not cited here — add the point with [^{i}]", f"limitations: 각주 '{i}'는 미확인으로 적었는데 여기에 없음 — 그 점을 [^{i}]와 함께 적음")
+    # M27 같은 표를 두 번 찍지 않는다 — 쟁점 안의 표와 금액이 모두 같은 계산 표(scenarios)
+    if calc:
+        for k, sc in enumerate(calc["scenarios"]):
+            mine = set()
+            for row in sc["rows"]: mine |= _amounts(row["amount"])
+            for j, it in enumerate(s["analysis"]):
+                if len(mine) >= 2 and mine <= _table_amounts(it["table"]):
+                    W("M27", f"calculation.scenarios[{k}]: every amount is already in analysis[{j}].table — print the table once (drop the scenario or the issue table)",
+                      f"calculation.scenarios[{k}]: 금액이 모두 analysis[{j}].table에 이미 있음 — 표는 한 번만 찍는다(scenarios나 쟁점 안의 표 중 하나를 뺌)")
+                    break
+    # M26 분량 — 어림 쪽수가 목표를 넘으면 가장 긴 블록과 기준을 넘은 쟁점을 짚는다
+    target = _target_pages(structure, target_pages)
+    if not e:
+        s["length"] = length(s, target)
+        if s["length"]["estimated_pages"] > target + PAGE_SLACK:
+            top = sorted(s["length"]["blocks"].items(), key=lambda x: -x[1])[:3]
+            over = [(k, _size(" ".join(it[f] for f in ("rule", "application", "conclusion", "confirm")), lang)) for k, it in enumerate(s["analysis"])]
+            over = sorted([x for x in over if x[1] > ISSUE_BUDGET[lang]], key=lambda x: -x[1])[:5]
+            tips = BLOCK_TIP[lang]
+            W("M26", f"length: about {s['length']['estimated_pages']} pages against target_pages {target} — longest blocks: "
+                     + "; ".join(f"{b} {v} p. ({tips[b]})" for b, v in top)
+                     + (". Issues over about %d words: " % ISSUE_BUDGET["en"] + ", ".join(f"analysis[{k}] {n}" for k, n in over) if over else "")
+                     + ". Say each thing once (see [Length] in tax_memo_guide), or raise target_pages if the reader wants a longer memo",
+              f"분량: 어림 {s['length']['estimated_pages']}쪽으로 목표(target_pages) {target}쪽을 넘음 — 가장 긴 블록: "
+              + "; ".join(f"{b} {v}쪽({tips[b]})" for b, v in top)
+              + (". %d자를 넘는 쟁점: " % ISSUE_BUDGET["ko"] + ", ".join(f"analysis[{k}] {n}자" for k, n in over) if over else "")
+              + ". 같은 말은 한 번만 쓴다(tax_memo_guide의 [분량] 참고). 읽는 사람이 더 긴 메모를 원하면 target_pages를 올림")
     if not s["prepared_how"]: W("T08", "prepared_how: required — name the tools used and the date, and say the original-language text governs", "prepared_how: 필수 — 쓴 도구와 날짜, 원어 조문이 기준임을 적음")
     return lang, s, e, w
 
@@ -662,13 +756,15 @@ RULES = [
     "M20 every footnote is referenced", "M21 paragraph length", "M22 no hedging filler", "M23 unknown keys",
     "T01 at least 3 issues", "T02 issues follow the stage order " + " → ".join(STAGES),
     "T03 each issue cites a statute, treaty or ruling with article or case number", "T04 footnote per summary item",
-    "T05 calculation required, with total and component rows", "T06 amounts in the summary and short answer appear in the calculation",
+    "T05 calculation required, with total and component rows", "T06 amounts in the summary and short answer appear in the calculation (or in key_figures or an issue table)",
     "T07 original-language term for Korean law (lang=en)", "T08 prepared_how names tools and date",
     "M24 optional tables (key_figures, analysis[].table): columns, cell counts, at most 3 scenario columns",
     "M25 review: one-sentence verdict; each finding has what is wrong, amount, severity, action",
     "T09 a question about past handling needs the review section", "T10 every amount in key_figures is in the calculation or the analysis",
     "T11 every action_list item has a deadline", "T12 two or more scenarios: name the recommended one and the condition for each",
     "T13 whatever is marked not verified is collected under limitations (not-verified footnotes cited there)",
+    "M26 length: the estimated pages stay within target_pages (default 5); the warning names the longest blocks and the issues over budget",
+    "M27 a table is printed once: no calculation scenario that repeats an issue table",
 ]
 
 
@@ -697,12 +793,13 @@ def _target(s, output_dir, filename):
     return d / name
 
 
-def build(structure, output_dir=".", filename=None, lang="", check_only=False):
-    """구조를 점검하고 Word 파일을 쓴다. {path, ok, lang, errors, warnings, footnotes?, next}.
+def build(structure, output_dir=".", filename=None, lang="", check_only=False, target_pages=0):
+    """구조를 점검하고 Word 파일을 쓴다. {path, ok, lang, errors, warnings, length?, footnotes?, next}.
     errors가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고, 고쳐서 다시 만들라고 돌려준다."""
-    lang, s, errors, warnings = check(_as_structure(structure), lang)
+    lang, s, errors, warnings = check(_as_structure(structure), lang, target_pages)
     ko = lang == "ko"
     out = {"path": "", "ok": not errors and not warnings, "lang": lang, "errors": errors, "warnings": warnings}
+    if s.get("length"): out["length"] = s["length"]
     if errors:
         out["next"] = "오류를 고쳐 다시 호출 — 파일을 만들지 않았음" if ko else "Fix the errors and call again — no file was written."
         return out

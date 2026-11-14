@@ -5,7 +5,6 @@
 """
 import asyncio
 import copy
-import hashlib
 import json
 import re
 import zipfile
@@ -28,6 +27,8 @@ def _blend(base, lang):
     s["head"].update(o["head"]); s["key_figures"] = o["key_figures"]; s["review"] = o["review"]; s["limitations"] = o["limitations"]
     s["authorities"] = o["authorities"]; s.pop("next_steps"); s["action_list"] = o["action_list"]
     next(a for a in s["analysis"] if a["stage"] == "procedure")["table"] = o["analysis_table"]
+    calc = s["calculation"]          # 쟁점 안의 표와 같은 숫자의 계산 표는 한 번만(M27) — 표에 든 경우는 scenarios에서 뺀다
+    if calc.get("scenarios"): calc["scenarios"] = [sc for sc in calc["scenarios"] if not {r["amount"] for r in sc["rows"]} <= {c for r in o["analysis_table"]["rows"] for c in (r["cells"] if isinstance(r, dict) else r)}]
     return s
 
 
@@ -63,18 +64,25 @@ def _text(doc):
 
 
 # ── 블록이 없으면 기존 출력 그대로 ──
-BEFORE = {"en": "c0bc7bbbd3fe6c9036a02cea5a69f213e709a9fbd321705ebfdf59a14882ed36",          # 블록을 넣기 전 코드(0.16.0)로 만든 파일의 내용 해시
-          "ko": "fb4e8f4af5d7e69c742952264445845244d5d15833003c84083f4cac2d4796b1"}
+def _words(doc):
+    """문서에 찍힌 글자만(문단 순서대로) — 서식이 바뀌어도 글은 같아야 한다."""
+    return [t for t in (re.sub(r"<[^>]+>", "", p) for p in re.findall(r"<w:p>.*?</w:p>", doc)) if t]
 
 
 @pytest.mark.parametrize("lang", ["en", "ko"])
 def test_without_blocks_the_file_is_unchanged(tmp_path, lang):
     r = M.build(EX[lang], str(tmp_path), f"fx_{lang}")
     assert r["ok"] and r["warnings"] == []
-    h = hashlib.sha256()
-    with zipfile.ZipFile(r["path"]) as z:
-        for n in sorted(z.namelist()): h.update(n.encode()); h.update(z.read(n))
-    assert h.hexdigest() == BEFORE[lang]
+    doc = _parts(r["path"])["word/document.xml"]
+    L = M.LABELS[lang]
+    for label in (L["key_figures"], L["review"], L["action_list"], L["limitations"], L["authorities"], dict(L["head"])["basis"].upper(), dict(L["head"])["workings"].upper()):
+        assert label not in _text(doc), label          # 선택 블록의 제목·머리 줄은 찍히지 않는다
+    assert doc.count("<w:tbl>") == 6 and len(_h1(doc)) == 8          # 머리 표 + 계산 표 3 + 사실관계별 결과 + 위험 = 0.16.0의 표 5개에 머리 표 하나
+    # 기존 구조에 든 글은 하나도 빠지지 않는다(촘촘한 서식으로 바뀌었을 뿐)
+    body = " ".join(_words(doc)).replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    for where, text in M._texts(M.check(EX[lang])[1]):
+        for piece in re.split(r"\[\^[^\]]+\]", M.plain(text) if "[^" not in text else text.replace("**", "")):
+            assert piece.strip() in body, (where, piece)
     # 빈 블록을 넣어도 같다
     empty = dict(EX[lang], key_figures={}, review={}, action_list=[], limitations={}, authorities=[])
     assert _parts(M.build(empty, str(tmp_path), "empty")["path"]) == _parts(r["path"])
@@ -86,7 +94,7 @@ def test_all_blocks_pass_every_rule(tmp_path, lang):
     assert _codes(FULL[lang]) == []
     assert _codes(_blend(M.example(lang), lang)) == []          # 안내가 돌려주는 예시 + 선택 블록 예시도 그대로 통과
     g = M.guide(lang)
-    assert g["optional_blocks"] == M.optional_blocks(lang) and len(g["checks"]) == len(M.RULES) == 40
+    assert g["optional_blocks"] == M.optional_blocks(lang) and len(g["checks"]) == len(M.RULES) == 42
     assert set(g["optional_blocks"]["example"]) == {"head", "key_figures", "analysis_table", "review", "action_list", "limitations", "authorities"}
     for key in ("key_figures", "review", "action_list", "limitations", "authorities"):
         assert key in g["schema"] and key in g["guide"], key
@@ -116,9 +124,9 @@ def test_key_figures_table_under_short_answer(tmp_path):
     a, b, c = text.index("2. Short answer"), text.index("A. No reduction"), text.index("3. Facts and assumptions")
     assert a < b < c
     assert "A. No reduction · recommended" in text and "B. Reduction granted · recommended" not in text
-    tbl = re.findall(r"<w:tbl>.*?</w:tbl>", doc)[0]
+    tbl = re.findall(r"<w:tbl>.*?</w:tbl>", doc)[1]          # 0번은 머리 표
     assert "Total charge" in tbl and 'w:fill="E3EAF2"' in tbl and tbl.count("<w:tr>") == 4          # 머리 + 3행, 합계 행 음영
-    assert tbl.count('<w:jc w:val="right"/>') == 8 and '<w:gridCol w:w="2150"/>' in tbl          # 숫자 열(머리 포함)은 오른쪽 맞춤
+    assert tbl.count('<w:jc w:val="right"/>') == 8 and '<w:gridCol w:w="2300"/>' in tbl          # 숫자 열(머리 포함)은 오른쪽 맞춤
     total = [r for r in re.findall(r"<w:tr>.*?</w:tr>", tbl) if "Total charge" in r][0]
     assert total.count("<w:b/>") == 3
     assert "B applies only if an application is filed" in text[b:c] and "<w:i/>" in doc          # 표 아래 조건 주석
@@ -141,9 +149,12 @@ def test_review_section(tmp_path):
     assert _h1(doc) == ["Executive summary", "1. Question presented", "2. Short answer", "3. Facts and assumptions", "4. Analysis",
                         "5. Review of the handling to date", "6. Calculation", "7. Risks and open points", "8. Recommended next steps"]
     text = _text(doc)
-    assert text.count(rv["verdict"]) == 2          # 결론부의 굵은 한 줄 판정 + 검토 결과 절
+    assert text.count(rv["verdict"]) == 1          # 판정은 결론부에 한 번 — 검토 결과 절의 표 앞에서 되풀이하지 않는다
     assert text.index("2. Short answer") < text.index(rv["verdict"]) < text.index("Days counted from the notice") < text.index("3. Facts and assumptions")
-    assert "Days counted from the notice, not from the bank record — KRW 1,000" in text          # 결론부의 발견 사항 요약
+    assert "Days counted from the notice, not from the bank record (Section 5)." in text          # 결론부에는 발견 사항 이름과 절 번호만
+    assert text.count("KRW 1,000") == _text(base).count("KRW 1,000") + 1 and "KRW 1,000" not in text[text.index(rv["verdict"]):text.index("3. Facts and assumptions")]          # 금액·조치는 표에 한 번
+    only = _text(_doc(_mut(lambda s: s.update(review={"verdict": rv["verdict"]}), base=EX["en"]), tmp_path, "only")[1])
+    assert only.count(rv["verdict"]) == 2          # 발견 사항이 없으면 검토 결과 절에 판정을 적는다
     assert doc.count("<w:tbl>") == base.count("<w:tbl>") + 1
     tbl = [x for x in re.findall(r"<w:tbl>.*?</w:tbl>", doc) if "Severity" in x][0]
     for word in ("Severity", "Finding", "Amount", "Action", "LOW", "KRW 1,000", "Pay the one-day difference", "The earlier computation used 29 days."):
@@ -172,7 +183,9 @@ def test_limitations_and_authorities(tmp_path):
     text = _text(doc)
     assert text.index("8. Limitations and unverified points") < text.index("was not confirmed.") < text.index("Principal authorities") < text.index("How this memo was prepared.")
     assert "Example Tax Act (예시세법), Arts. 10(1), 11(2) and 12(1)" in text
-    assert r["footnotes"] == M.build(EX["en"], str(tmp_path), "b")["footnotes"] + 1          # 한계 항목의 [^a12]가 각주로 찍힘('주 N 참조')
+    assert r["footnotes"] == M.build(EX["en"], str(tmp_path), "b")["footnotes"]          # 한계 항목의 [^a12]는 이미 나온 출처 — 각주를 새로 만들지 않고 처음 번호를 다시 씀
+    lim = [p for p in re.findall(r"<w:p>.*?</w:p>", doc) if "was not confirmed." in p][0]
+    assert re.search(r'<w:rStyle w:val="FootnoteReference"/></w:rPr><w:t>\d+</w:t>', lim)
     # 문자열·목록도 받는다
     for v in ("One plain paragraph of limits.", ["First limit.", "Second limit."]):
         assert "Limitations and unverified points" in _text(_doc(_mut(lambda s: s.update(limitations=v), base=EX["en"]), tmp_path, "v")[1])
@@ -183,7 +196,7 @@ def test_limitations_and_authorities(tmp_path):
 @pytest.mark.parametrize("lang", ["en", "ko"])
 def test_all_blocks_file(tmp_path, lang):
     r, doc = _doc(FULL[lang], tmp_path, f"full_{lang}")
-    assert r["ok"] and doc.count("<w:tr>") == doc.count("<w:cantSplit/>") and doc.count("<w:tblHeader/>") == doc.count("<w:tbl>") == 9
+    assert r["ok"] and doc.count("<w:tr>") == doc.count("<w:cantSplit/>") and doc.count("<w:tblHeader/>") + 1 == doc.count("<w:tbl>") == 9          # 머리 표 + 숫자 표·쟁점 안의 표·검토 결과·조치 목록 + 계산 2·사실관계별 결과·위험
     heads = (["Executive summary", "1. Question presented", "2. Short answer", "3. Facts and assumptions", "4. Analysis", "5. Review of the handling to date",
               "6. Calculation", "7. Risks and open points", "8. Action list", "9. Limitations and unverified points"] if lang == "en" else
              ["핵심 요약", "1. 쟁점", "2. 결론", "3. 사실관계와 전제", "4. 검토", "5. 기존 처리 검토 결과", "6. 계산", "7. 위험과 확인할 점", "8. 조치 목록", "9. 한계와 미확인 사항"])
@@ -289,7 +302,7 @@ def test_new_rules_pass_side():
     for q in ("다음 지급분에서 얼마를 원천징수해야 하는가?",): assert not M._PAST["ko"].search(q)
     for q in ("그동안 원천징수를 제대로 했는가?", "지금까지의 처리가 맞았는지 검토", "기존 처리가 적정했는지"): assert M._PAST["ko"].search(q), q
     # T10: 숫자 표의 금액이 계산 표의 다른 경우·쟁점 안의 표·검토 결과 가운데 한 곳에만 있어도 통과
-    assert _codes(_mut(lambda s: next(a for a in s["analysis"] if a.get("table")).pop("table"))) == []          # 계산 표의 경우(scenarios)에 있음
+    assert _codes(_mut(lambda s: (next(a for a in s["analysis"] if a.get("table")).pop("table"), s["calculation"].update(scenarios=copy.deepcopy(EX["en"]["calculation"]["scenarios"]))))) == []          # 계산 표의 경우(scenarios)에 있음
     def only_in_issue_table(s):          # 계산 표에는 없고 쟁점 안의 표에만 있는 금액
         s["key_figures"]["rows"].insert(0, ["Half-month charge", "15,000", "15,000"])
         next(a for a in s["analysis"] if a.get("table"))["table"]["rows"].insert(0, ["Half-month charge", "15,000", "15,000"])

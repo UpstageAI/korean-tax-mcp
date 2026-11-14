@@ -810,18 +810,19 @@ def build_tax_memo(
     filename: Annotated[str | None, Field(description="File name (optional; '.docx' is added). Default: Tax_Memo_<subject>.docx, 국문은 세무메모_<제목>.docx")] = None,
     lang: Annotated[Literal["", "en", "ko"], Field(description="Memo language: 'en' | 'ko'. Empty = structure.lang, else detected from the subject. 메모 언어(비우면 structure.lang 또는 제목으로 판단)")] = "",
     check_only: Annotated[bool, Field(description="True = validate only, write no file. True면 점검만 하고 파일을 만들지 않음")] = False,
+    target_pages: Annotated[int, Field(ge=0, le=50, description="Length the memo should fit in, in A4 pages. 0 = structure.target_pages, else the recommended 5. A warning names the longest blocks when the estimate is over. 목표 분량(A4 쪽). 0이면 structure.target_pages, 없으면 권고값 5쪽 — 어림 쪽수가 넘으면 가장 긴 블록을 짚어 경고")] = 0,
 ) -> dict:
     """Produces a finished Word (.docx) tax memo file — use this instead of writing your own docx script or a generic document skill. It validates the structure from tax_memo_guide against the logic line, saves the file in output_dir (default: the server's working folder, or ~/korean-tax-mcp when that folder is not writable) and returns the full path of the saved file in `path`, plus errors and warnings to fix; rebuild until there are no warnings. For any memo work call tax_memo_guide first.
 
     Keywords: memo, tax memo, opinion, report, Word, docx, 메모, 세무 메모, 보고서, 의견서, 워드.
     세무 메모 구조를 논리선에 대어 점검하고 Word(.docx)로 만든다.
     언제: tax_memo_guide의 구조를 도구 결과로 채운 뒤. 경고가 있으면 고쳐서 다시 호출한다(경고 0건이 될 때까지).
-    점검: 머리 4칸, 요약 정확히 3개(결론 한 문장 + 근거 + 각주), 쟁점 1~2문장, 결론 = 답 + 조건, 답을 바꾸는 전제는 위험 항목과 연결, 쟁점 3개 이상·정해진 순서(stage), 쟁점마다 근거 규정·적용·결론과 조문·사건 번호 인용, 요약·결론의 금액이 계산 표에 있는지, 합계 = 구성 행의 합, 우선순위 값, 각주 id 일치(쓰인 것·정의된 것), 문단 길이, 군말, 작성 방법 문단. 선택 블록: 이미 한 처리가 맞았는지 묻는 질문이면 검토 결과 절, 결론 아래 숫자 표의 금액이 계산·검토에 있는지, 조치 목록 표의 항목마다 기한, 경우가 둘 이상이면 권고하는 쪽과 조건, 미확인으로 적은 것은 한계 절에도.
-    결과물: A4, 제목·머리, 번호 붙은 요약, 표(머리·합계 음영, 우선순위 색, 행이 쪽에서 갈라지지 않음), 실제 Word 각주(읽는 순서 번호, 같은 출처는 '주 N 참조'), 바닥글 안내와 쪽 번호. 한글 글꼴(맑은 고딕) 지정. 선택 블록은 넣었을 때만 찍힌다.
-    반환: {path, ok, lang, errors, warnings, footnotes(각주 수), next}. errors(구조가 깨짐)가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고 고칠 점을 돌려준다.
+    점검: 머리 4칸, 요약 정확히 3개(결론 한 문장 + 근거 + 각주), 쟁점 1~2문장, 결론 = 답 + 조건, 답을 바꾸는 전제는 위험 항목과 연결, 쟁점 3개 이상·정해진 순서(stage), 쟁점마다 근거 규정·적용·결론과 조문·사건 번호 인용, 요약·결론의 금액이 계산 표에 있는지, 합계 = 구성 행의 합, 우선순위 값, 각주 id 일치(쓰인 것·정의된 것), 문단 길이, 군말, 작성 방법 문단. 선택 블록: 이미 한 처리가 맞았는지 묻는 질문이면 검토 결과 절, 결론 아래 숫자 표의 금액이 계산·검토에 있는지, 조치 목록 표의 항목마다 기한, 경우가 둘 이상이면 권고하는 쪽과 조건, 미확인으로 적은 것은 한계 절에도. 분량: 어림 쪽수가 target_pages(기본 5쪽)를 넘으면 가장 긴 블록과 기준을 넘은 쟁점을 짚고, 쟁점 안의 표를 계산 표에 되풀이하면 알린다.
+    결과물: A4(본문 10pt), 제목·머리 표, 번호 붙은 요약, 표(머리·합계 음영, 우선순위 색, 행이 쪽에서 갈라지지 않고 작은 표는 통째로 한 쪽에), 실제 Word 각주(읽는 순서 번호, 같은 출처는 처음 번호를 다시 씀), 바닥글 안내와 쪽 번호. 한글 글꼴(맑은 고딕) 지정. 선택 블록은 넣었을 때만 찍힌다.
+    반환: {path, ok, lang, errors, warnings, length(estimated_pages·target_pages·blocks — 어림값), footnotes(각주 수), next}. errors(구조가 깨짐)가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고 고칠 점을 돌려준다.
     이 도구만 파일을 쓴다(지정한 폴더에 .docx 하나, 같은 이름이면 덮어씀). 외부 호출 없음. 엑셀 계산서는 korean-tax-calc-mcp의 export_workbook.
     """
-    try: return _tax_memo.build(structure, output_dir, filename, lang, check_only)
+    try: return _tax_memo.build(structure, output_dir, filename, lang, check_only, target_pages)
     except (ValueError, OSError) as e: return {"error": str(e)}
 
 

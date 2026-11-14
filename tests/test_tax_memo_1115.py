@@ -41,15 +41,15 @@ def test_examples_pass_every_rule(lang):
 def test_guide_returns_logic_line_schema_and_example():
     for lang in ("en", "ko"):
         g = M.guide(lang)
-        assert g["lang"] == lang and g["example"] == M.example(lang) and len(g["checks"]) == len(M.RULES) == 40
+        assert g["lang"] == lang and g["example"] == M.example(lang) and len(g["checks"]) == len(M.RULES) == 42
         assert g["example_note"] == M.EXAMPLE_NOTE[lang]
         assert [x["stage"] for x in g["stages"]] == list(M.STAGES) and g["priorities"] == list(M.PRIORITIES[lang])
         for key in ("head", "summary", "question", "short_answer", "facts", "analysis", "calculation", "risks", "next_steps", "footnotes", "prepared_how"):
             assert key in g["schema"]
     en, ko = M.guide("en")["guide"], M.guide("ko")["guide"]
-    for word in ("exactly 3", "characterization", "korean-tax-calc-mcp", "verify_citations", "Nothing may be asserted", "See note N", "issue lists", "no checklist"):
+    for word in ("exactly 3", "characterization", "korean-tax-calc-mcp", "verify_citations", "Nothing may be asserted", "reuses the same note number", "issue lists", "no checklist", "[Length", "target_pages", "about 90 words", "printed once"):
         assert word in en, word
-    for word in ("정확히 3개", "characterization", "korean-tax-calc-mcp", "verify_citations", "단정하지 않는다", "주 N 참조", "쟁점 목록", "점검 목록이 없다"):
+    for word in ("정확히 3개", "characterization", "korean-tax-calc-mcp", "verify_citations", "단정하지 않는다", "처음 번호를 다시 쓴다", "쟁점 목록", "점검 목록이 없다", "[분량", "target_pages", "280자", "한 번만"):
         assert word in ko, word
     with pytest.raises(ValueError): M.guide("jp")
 
@@ -66,7 +66,7 @@ def test_tools_teach_the_logic_line_only(tmp_path):
         assert "do not reuse" in g["example_note"] or "가져다 쓰지 말 것" in g["example_note"]
         assert "do not reuse" in g["example"]["head"]["scope"] or "가져다 쓰지 말 것" in g["example"]["head"]["scope"]
         r = M.build(g["example"], str(tmp_path), f"shape_{lang}")          # 예시는 그대로 넣으면 경고 0건
-        assert r["ok"] and r["footnotes"] == 9, r
+        assert r["ok"] and r["footnotes"] == len(g["example"]["footnotes"]) == 3, r          # 각주는 출처마다 하나
         texts.append(json.dumps(M.build({"lang": lang, "head": {}, "summary": [{}], "analysis": [{}]}, check_only=True), ensure_ascii=False))
     texts.append(Path(M.__file__).read_text("utf-8")); texts.append(Path(M.__file__).with_name("memo_docx.py").read_text("utf-8"))
     fixtures = Path(__file__).parent / "fixtures"
@@ -139,6 +139,7 @@ def test_each_rule_fails_when_broken(code, fn):
 def test_every_rule_has_a_failing_case():
     covered = {c for c, _ in FAIL} | {"E01", "E02", "E03", "M10"}      # E·M10은 아래 테스트
     covered |= {"M24", "M25", "T09", "T10", "T11", "T12", "T13"}      # 선택 블록 규칙은 test_tax_memo_blend_1115.py
+    covered |= {"M26", "M27"}      # 분량 규칙은 test_tax_memo_length_1115.py
     assert {r[:3] for r in M.RULES} <= covered, {r[:3] for r in M.RULES} - covered
 
 
@@ -218,12 +219,13 @@ def test_docx_is_well_formed_with_real_footnotes(tmp_path, lang):
     refs = [int(x) for x in re.findall(r'<w:footnoteReference w:id="(\d+)"/>', doc)]
     defined = [int(x) for x in re.findall(r'<w:footnote w:id="(\d+)">', notes)]
     n_marks = sum(len(M.MARK.findall(v)) for v in re.findall(r'"(?:basis|rule|why|check)": "([^"]*)"', json.dumps(EX[lang], ensure_ascii=False)))
-    assert refs == defined == list(range(1, r["footnotes"] + 1)) and r["footnotes"] == n_marks == 15
+    assert refs == defined == list(range(1, r["footnotes"] + 1)) and n_marks == 15 and r["footnotes"] == len(EX[lang]["footnotes"]) == 6
     assert 'w:type="separator" w:id="-1"' in notes and 'w:type="continuationSeparator" w:id="0"' in notes
     assert notes.count("<w:footnoteRef/>") == len(defined)
-    # 같은 출처가 다시 나오면 '주 N 참조'
-    see = "See note 1." if lang == "en" else "주 1 참조."
-    assert see in notes and notes.count(EX[lang]["footnotes"][0]["text"][:30]) == 1
+    # 같은 출처가 다시 나오면 각주를 새로 만들지 않고 처음 번호를 다시 쓴다(본문의 위첨자 수 = [^id] 수)
+    again = re.findall(r'<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:t>(\d+)</w:t></w:r>', doc)
+    assert len(refs) + len(again) == n_marks and set(map(int, again)) <= set(refs)
+    assert "See note" not in notes and "참조." not in notes and all(notes.count(f["text"][:30]) == 1 for f in EX[lang]["footnotes"])
     # 한글이 본문과 각주에 그대로 들어 있고, 모든 글자 조각에 동아시아 글꼴이 지정됨
     assert re.search(r"[가-힣]", notes) and "예시세법" in notes
     assert ("예시법원" in notes) and (lang == "en" or "핵심 요약" in doc)
@@ -232,18 +234,26 @@ def test_docx_is_well_formed_with_real_footnotes(tmp_path, lang):
         assert fonts and all('w:eastAsia="Malgun Gothic"' in f for f in fonts)
     assert 'w:eastAsia="Malgun Gothic"' in parts["word/styles.xml"] and 'w:eastAsia="ko-KR"' in parts["word/styles.xml"]
     # 쪽: A4, 여백, 바닥글(안내 + 쪽 번호)
-    assert '<w:pgSz w:w="11906" w:h="16838"/>' in doc and 'w:top="1300"' in doc and 'w:left="1440"' in doc
+    assert '<w:pgSz w:w="11906" w:h="16838"/>' in doc and 'w:top="1000"' in doc and 'w:left="1134"' in doc
     assert " PAGE " in parts["word/footer1.xml"] and M.LABELS[lang]["notice"][:20] in parts["word/footer1.xml"]
     # 표: 행이 쪽에서 갈라지지 않고 머리 행 반복, 머리·합계 음영, 우선순위 색
-    assert doc.count("<w:tr>") == doc.count("<w:cantSplit/>") and doc.count("<w:tblHeader/>") == doc.count("<w:tbl>") == 5
+    assert doc.count("<w:tr>") == doc.count("<w:cantSplit/>") and doc.count("<w:tblHeader/>") + 1 == doc.count("<w:tbl>") == 6          # 머리 표에는 반복할 머리 행이 없음
     for fill in ("F3F6F9", "FBE4E1", "FDF1D6", "E4F2E7"): assert f'w:fill="{fill}"' in doc
     # 번호 목록은 목록마다 1부터(요약, 다음 단계), 글머리표는 따로
     num = parts["word/numbering.xml"]
     assert num.count("<w:startOverride w:val=\"1\"/>") == 2 and '<w:numId w:val="2"/>' in doc and '<w:numId w:val="3"/>' in doc
     assert doc.count('<w:numId w:val="2"/>') == 3 and doc.count('<w:numId w:val="3"/>') == len(EX[lang]["next_steps"])
     assert doc.count('<w:numId w:val="1"/>') == len(EX[lang]["facts"])
-    # 머리 표: 내어쓰기, 제목 낱말, 소제목
-    assert 'w:left="1500" w:hanging="1500"' in doc
+    # 머리: 표 한 개(작성·일자·제목·범위), 본문 10pt·줄 간격 1.1, 작은 표는 통째로 한 쪽에(마지막 행을 뺀 문단에 '다음 문단과 함께')
+    head = re.findall(r"<w:tbl>.*?</w:tbl>", doc)[0]
+    for k in ("prepared_by", "date", "re", "scope"): assert M.plain(EX[lang]["head"][k]) in re.sub(r"<[^>]+>", "", head).replace("&amp;", "&")
+    assert "<w:tblHeader/>" not in head and doc.index("</w:tbl>") < doc.index('<w:pStyle w:val="Heading1"/>')
+    assert '<w:sz w:val="20"/>' in doc and 'w:line="264"' in doc
+    for para in re.findall(r"<w:p>.*?</w:p>", re.sub(r"<w:tbl>.*?</w:tbl>", "", doc)):          # 표 밖의 문단: 글머리표·번호 항목의 본문은 10pt 이상
+        if "<w:numPr>" in para and "<w:t" in para: assert max(int(x) for x in re.findall(r'<w:sz w:val="(\d+)"/>', para)) >= 20
+    for tbl in re.findall(r"<w:tbl>.*?</w:tbl>", doc)[1:]:
+        rows = re.findall(r"<w:tr>.*?</w:tr>", tbl)
+        assert all("<w:keepNext/>" in r for r in rows[:-1]) and "<w:keepNext/>" not in rows[-1]
     text = re.sub(r"<[^>]+>", "", doc)
     h1 = [re.sub(r"<[^>]+>", "", p) for p in re.findall(r"<w:p>.*?</w:p>", doc) if '<w:pStyle w:val="Heading1"/>' in p]
     heads = (["MEMORANDUM", "Executive summary", "1. Question presented", "2. Short answer", "3. Facts and assumptions", "4. Analysis",
