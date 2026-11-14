@@ -8,13 +8,14 @@ import re
 import ssl
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
 
-from . import _mask_oc, net
+from . import _mask_oc, net, scrub_oc
 
 DRF = "https://www.law.go.kr/DRF"
 CTX = ssl.create_default_context(); CTX.verify_flags &= ~ssl.VERIFY_X509_STRICT
@@ -32,9 +33,22 @@ def _oc():
 
 def _get(path, query):
     """법제처 DRF API 호출. 연결 끊김·시간 초과만 최대 3회 시도(지수 백오프 + 지터), 요청당 12초.
-    끝내 안 되면 net.Unreachable(OC 키 없는 안내문), 시간 예산을 다 쓰면 net.BudgetExceeded."""
+    끝내 안 되면 net.Unreachable(OC 키 없는 안내문), 시간 예산을 다 쓰면 net.BudgetExceeded.
+
+    인증키는 여기서 만드는 요청 주소에만 쓴다. 법제처는 응답의 링크(상세링크 등)에 OC=<키>를 되돌려 주므로,
+    받은 즉시 본문 전체(원문 문자열과 파싱한 중첩 값)를 OC=***로 가려 돌려준다 — 이 함수 위의 캐시·도구 결과·출처 링크·로그에 키가 남지 않게."""
     u = f"{DRF}/{path}?OC={_oc()}&type=JSON&{query}"
-    return json.loads(net.request(urllib.request.Request(u, headers={"User-Agent": net.USER_AGENT}), site="law", ctx=CTX))
+    try:
+        raw = net.request(urllib.request.Request(u, headers={"User-Agent": net.USER_AGENT}), site="law", ctx=CTX)
+    except urllib.error.HTTPError as e:      # 예외 객체가 들고 있는 요청 주소(e.url·e.filename)도 가린다
+        for attr in ("filename", "url"):
+            v = getattr(e, attr, None)
+            if isinstance(v, str):
+                try: setattr(e, attr, _mask_oc(v))
+                except AttributeError: pass
+        raise
+    if isinstance(raw, (bytes, bytearray)): raw = bytes(raw).decode(json.detect_encoding(raw), "surrogatepass")
+    return scrub_oc(json.loads(_mask_oc(raw, literal=False)))      # 파싱 실패 예외(JSONDecodeError.doc)에도 가린 본문만 남는다
 
 
 # 메모리 캐시용 TTL (기본 24시간)
