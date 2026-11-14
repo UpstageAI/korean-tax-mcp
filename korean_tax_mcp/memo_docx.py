@@ -2,6 +2,8 @@
 
 입력은 tax_memo.check가 정리한 구조. 모양: A4, 제목·머리 표, 번호 붙은 요약, 소제목, 표(머리·합계 음영, 우선순위 색),
 실제 Word 각주(읽는 순서로 번호, 같은 출처는 '주 N 참조'), 바닥글 안내와 쪽 번호.
+선택 블록(있을 때만 찍음): 머리의 수신·근거 자료·계산 파일, 결론 아래 숫자 표(경우 열 나란히), 쟁점 안의 표, 기존 처리 검토 결과,
+조치 목록 표, 한계와 미확인 사항, 주요 근거.
 한글이 어느 환경에서나 보이도록 모든 글자 조각에 동아시아 글꼴(맑은 고딕)을 지정한다.
 """
 import re
@@ -11,6 +13,7 @@ from xml.sax.saxutils import escape
 from . import tax_memo as M
 
 INK, MUTED, RULE, ACCENT, SOFT = "1F2933", "5F6B7A", "C9D1DA", "1F3A5F", "F3F6F9"
+EMPH = "E3EAF2"                        # 결론 아래 숫자 표의 합계 행
 PAGE_W, PAGE_H = 11906, 16838          # A4
 MARGIN_TB, MARGIN_LR = 1300, 1440
 W = PAGE_W - 2 * MARGIN_LR             # 본문 너비 9026
@@ -134,6 +137,39 @@ class Doc:
                         self.tc(r["amount"] or "—", ws[2], tot, fill, "right")])
         self.table(ws, out)
 
+    def grid(self, tb, key=False):
+        """선택 표 블록 — 첫 열은 항목, 숫자만 든 열은 오른쪽 맞춤, role='total' 행은 굵게·음영. key=True면 결론 아래 숫자 표(권고 열 표시)."""
+        L = self.L; n = len(tb["columns"])
+        if n < 1 or not tb["rows"]: return
+        rows = [(r["cells"] + [""] * n)[:n] for r in tb["rows"]]
+        numeric = [i > 0 and any(r[i] for r in rows) and all(M._NUMERIC.match(M.plain(r[i])) for r in rows if r[i]) for i in range(n)]
+        if n == 1: ws = [W]
+        elif all(numeric[1:]):
+            side = 2150 if n <= 3 else (1800 if n == 4 else (W - 2600) // (n - 1))
+            ws = [W - side * (n - 1)] + [side] * (n - 1)
+        else:
+            first = min(3600, W // n + 600); ws = [first] + [(W - first) // (n - 1)] * (n - 1); ws[-1] += W - sum(ws)
+        if tb["title"]:
+            self.add(self.p(self.inline(tb["title"], notes=False, font="sans", size=18, bold=True, color=MUTED), before=160, after=80, line=0, keep=True))
+        head = []
+        for i, c in enumerate(tb["columns"]):
+            runs = self.run(M.plain(c), "sans", 17, bold=True, color=MUTED)
+            if key and i > 0 and tb["recommended"] and c == tb["recommended"]:
+                runs += self.run(" · " + L["recommended"], "sans", 15, bold=True, color=ACCENT)
+            head.append(self.cell(runs or self.run(" ", "sans", 17), ws[i], SOFT, "right" if numeric[i] else ""))
+        out = [head]
+        for r, cells in zip(tb["rows"], rows):
+            tot = r["role"] == "total"; fill = (EMPH if key else SOFT) if tot else ""
+            out.append([self.tc(c or ("—" if i else ""), ws[i], tot, fill, "right" if numeric[i] else "") for i, c in enumerate(cells)])
+        self.table(ws, out)
+        if tb["note"]:
+            self.add(self.p(self.inline(tb["note"], italic=True, color=MUTED, size=self.z["body"] - 2), before=100))
+
+    def severity(self, value, width):
+        rank = M.PRIORITIES[self.lang].index(value) if value in M.PRIORITIES[self.lang] else 1
+        fill, color = TAG[rank]
+        return self.cell(self.run(value, "sans", 16, bold=True, color=color), width, fill)
+
     # ── 본문 ──
     def build(self):
         s, L, z = self.s, self.L, self.z
@@ -150,6 +186,10 @@ class Doc:
             self.h1(L["summary"]); n = self.new_list()
             for it in s["summary"]:
                 self.add(self.p(self.inline(it["conclusion"], bold=True) + self.run(" ") + self.inline(it["basis"]), after=110, num=n))
+        sa0, rv = s["short_answer"], s["review"]
+        # '위험과 확인할 점' 절 번호 — 앞 절이 모두 있고 검토 결과 절이 없으면 6
+        risk_no = 1 + sum(map(bool, (s["question"] or s["background"], sa0["answer"] or sa0["conditions"], s["facts"],
+                                     s["analysis"] or s["decision_table"], rv, s["calculation"])))
         k = 0
         if s["question"] or s["background"]:
             k += 1; self.h1(f'{k}. {L["background_question"] if s["background"] else L["question"]}')
@@ -159,13 +199,21 @@ class Doc:
         if sa["answer"] or sa["conditions"]:
             k += 1; self.h1(f'{k}. {L["short_answer"]}')
             self.add(self.p(self.inline(sa["answer"], bold=True) + self.run(" ") + self.inline(sa["conditions"])))
+        if s["key_figures"]:
+            if not (sa["answer"] or sa["conditions"]): k += 1; self.h1(f'{k}. {L["key_figures"]}')
+            self.grid(s["key_figures"], key=True)
+        if rv and (sa["answer"] or sa["conditions"]):          # 결론부: 굵은 한 줄 판정 + 발견 사항 요약(자세한 표는 검토 뒤)
+            self.add(self.p(self.inline(rv["verdict"], notes=False, bold=True), before=140, after=80, keep=bool(rv["findings"])))
+            for it in rv["findings"]:
+                amount = M.plain(it["amount"])
+                self.add(self.p(self.inline(it["finding"], notes=False, bold=True) + (self.run(" — " + amount) if amount.strip("—-– ") else ""), after=60, line=290, num=1))
         if s["facts"]:
             k += 1; self.h1(f'{k}. {L["facts"]}')
             point = {r["id"]: r["point"] for r in s["risks"]}
             for it in s["facts"]:
                 runs = self.inline(it["text"])
                 if it["changes_answer"] and point.get(it["risk"]):
-                    runs += self.run(" " + L["if_not"].format(p=M.plain(point[it["risk"]])), italic=True, color=MUTED, size=z["body"] - 2)
+                    runs += self.run(" " + L["if_not"].format(n=risk_no, p=M.plain(point[it["risk"]])), italic=True, color=MUTED, size=z["body"] - 2)
                 self.add(self.p(runs, after=80, line=290, num=1))
         if s["analysis"] or s["decision_table"]:
             k += 1; self.h1(f'{k}. {L["analysis"]}')
@@ -176,6 +224,7 @@ class Doc:
                     self.add(self.p(self.run(L[key] + ("  " if ko else " "), "sans" if ko else "body", bold=True,
                                              color=MUTED if key == "confirm" else INK, size=z["body"] - (1 if ko else 0))
                                     + self.inline(it[key]), after=90))
+                if it["table"]: self.grid(it["table"])
             dt = s["decision_table"]
             if dt and dt["columns"] and dt["rows"]:
                 self.h2(dt["title"] or L["decision"])
@@ -186,6 +235,16 @@ class Doc:
                 for r in dt["rows"]:
                     r = (r + [""] * n)[:n]
                     rows.append([self.tc(c, ws[i], bold=(i == n - 1)) for i, c in enumerate(r)])
+                self.table(ws, rows)
+        if rv:
+            k += 1; self.h1(f'{k}. {L["review"]}')
+            if rv["verdict"]: self.add(self.p(self.inline(rv["verdict"], bold=True), keep=bool(rv["findings"])))
+            if rv["findings"]:
+                ws = [1000, 3000, 2100, 2926]
+                rows = [[self.hd(L["severity"], ws[0]), self.hd(L["finding"], ws[1]), self.hd(L["amount"], ws[2]), self.hd(L["fix"], ws[3])]]
+                for it in rv["findings"]:
+                    what = self.inline(it["finding"], size=z["cell"], bold=True) + (self.run("", extra="<w:br/>") + self.inline(it["detail"], size=z["cell"]) if it["detail"] else "")          # 이름 아래 줄에 설명
+                    rows.append([self.severity(it["severity"], ws[0]), self.cell(what, ws[1]), self.tc(it["amount"] or "—", ws[2]), self.tc(it["action"], ws[3])])
                 self.table(ws, rows)
         calc = s["calculation"]
         if calc:
@@ -201,17 +260,29 @@ class Doc:
             ws = [1100, 2700, 5226]
             rows = [[self.hd(L["priority"], ws[0]), self.hd(L["point"], ws[1]), self.hd(L["why"], ws[2])]]
             for r in s["risks"]:
-                rank = M.PRIORITIES[self.lang].index(r["priority"]) if r["priority"] in M.PRIORITIES[self.lang] else 1
-                fill, color = TAG[rank]
                 why = r["why"] + ((" " if r["why"] else "") + L["check"] + " " + r["check"] if r["check"] else "")
-                rows.append([self.cell(self.run(r["priority"], "sans", 16, bold=True, color=color), ws[0], fill),
-                             self.tc(r["point"], ws[1]), self.tc(why, ws[2])])
+                rows.append([self.severity(r["priority"], ws[0]), self.tc(r["point"], ws[1]), self.tc(why, ws[2])])
             self.table(ws, rows)
-        if s["next_steps"]:
+        if s["action_list"]:
+            k += 1; self.h1(f'{k}. {L["action_list"]}')
+            ws = [620, 5006, 1700, 1700]
+            rows = [[self.hd(L["no"], ws[0]), self.hd(L["action"], ws[1]), self.hd(L["owner"], ws[2]), self.hd(L["by"], ws[3])]]
+            for j, it in enumerate(s["action_list"], 1):
+                rows.append([self.tc(str(j), ws[0]), self.tc(it["action"], ws[1]), self.tc(it["owner"] or "—", ws[2]), self.tc(it["deadline"] or "—", ws[3])])
+            self.table(ws, rows)
+        elif s["next_steps"]:
             k += 1; self.h1(f'{k}. {L["next_steps"]}'); n = self.new_list()
             for it in s["next_steps"]:
                 tail = "; ".join(x for x in ((f'{L["owner"]}: {it["owner"]}' if it["owner"] else ""), (f'{L["by"]}: {it["deadline"]}' if it["deadline"] else "")) if x)
                 self.add(self.p(self.inline(it["action"]) + (self.run(f" ({tail})", color=MUTED, size=z["body"] - 2) if tail else ""), after=110, num=n))
+        lim = s["limitations"]
+        if lim:
+            k += 1; self.h1(f'{k}. {L["limitations"]}')
+            if lim["text"]: self.add(self.p(self.inline(lim["text"])))
+            for x in lim["items"]: self.add(self.p(self.inline(x), after=80, line=290, num=1))
+        if s["authorities"]:
+            self.h2(L["authorities"])
+            for x in s["authorities"]: self.add(self.p(self.inline(x, notes=False, size=z["body"] - 1), after=60, line=280, num=1))
         if s["prepared_how"]:
             self.rule()
             self.add(self.p(self.run(L["how"] + " ", bold=True, size=18, color=MUTED) + self.inline(s["prepared_how"], notes=False, size=18, color=MUTED), line=280))
