@@ -1057,6 +1057,39 @@ def tax_crime_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def retirement_income_guide(
+    retirement_date: Annotated[str | None, Field(description="퇴직일 YYYY-MM-DD(2016-01-01~2026-12-31). 중간정산은 지급받은 날, 퇴직판정 특례는 사유 발생일. 생략하면 퇴직일별로 달라진 요건 목록")] = None,
+    executive: Annotated[bool | None, Field(description="임원(법인세법 시행령 제40조제1항 각 호의 직무 종사자)인지(선택) — 임원 퇴직소득 한도 판정")] = None,
+    event: Annotated[Literal["퇴직", "종업원이 임원", "조직변경·전출", "상근임원이 비상근임원", "비정규직이 정규직", "중간정산"] | None, Field(description="사유(선택, 기본 퇴직) — 시행령 제43조 퇴직판정 특례·중간정산")] = None,
+    benefit_paid: Annotated[bool | None, Field(description="퇴직판정 특례 사유에서 퇴직급여를 실제로 받았는지(선택)")] = None,
+    interim_reason: Annotated[Literal["근로자퇴직급여보장법 시행령 제3조제1항 사유", "퇴직연금제도 폐지", "그 밖의 사유"] | None, Field(description="중간정산 사유(선택) — 시행령 제43조제2항")] = None,
+    service_start_date: Annotated[str | None, Field(description="임원 한도 계산 근무기간 시작일 YYYY-MM-DD(선택) — 임원 취임 때 퇴직금을 정산받았으면 임원 근무 시작일")] = None,
+    retirement_income: Annotated[float | None, Field(description="퇴직소득금액(원, 비과세·공적연금 일시금 제외, 선택) — 임원 한도 초과분 판정")] = None,
+    salary_3y_to_2019: Annotated[float | None, Field(description="2019.12.31.부터 소급 3년(2012.1.1.~2019.12.31. 근무기간이 3년 미만이면 그 기간) 총급여 합계(원, 비과세 제외, 선택) — 2020.1.1. 이후 퇴직 임원의 3배 구간")] = None,
+    salary_3y_before_retirement: Annotated[float | None, Field(description="퇴직일부터 소급 3년(2020.1.1. 이후 근무기간, 2019년 이전 퇴직은 전체 근무기간이 3년 미만이면 그 기간) 총급여 합계(원, 비과세 제외, 선택)")] = None,
+    pre2012_retirement_income: Annotated[float | None, Field(description="2011.12.31.에 퇴직했다고 가정할 때 퇴직소득금액(원, 선택) — 생략하면 근무기간 비율로 계산(시행령 제42조의2제6항)")] = None,
+    years_of_service: Annotated[int | None, Field(description="근속연수(년, 1년 미만은 1년, 선택) — 근속연수공제 종전표·개정표 판정", ge=1)] = None,
+    deferral: Annotated[Literal["퇴직일 현재 연금계좌", "연금계좌로 지급", "지급 후 연금계좌 입금", "이연 안 함"] | None, Field(description="과세이연 방식(선택) — 법 제146조제2항")] = None,
+    paid_date: Annotated[str | None, Field(description="퇴직소득을 지급받은 날 YYYY-MM-DD(선택) — 60일 이내 연금계좌 입금 판정")] = None,
+    pension_deposit_date: Annotated[str | None, Field(description="연금계좌에 입금한 날 YYYY-MM-DD(선택)")] = None,
+) -> dict:
+    """Korean retirement income requirements as in force on the retirement date — scope of retirement income, actual retirement and deemed non-retirement, interim settlement, the executive retirement income cap (3x for 2012-2019 service, 2x from 2020, pre-2012 accrual excluded; excess is wage income), retirement income deductions, tax deferral via pension accounts, timing and exemptions. It does not compute tax.
+
+    퇴직소득 요건 안내 — 퇴직일의 시행본과 개정 부칙으로 퇴직소득 범위(소득세법 제22조, 시행령 제42조의2), 현실적 퇴직과 퇴직으로 보지 않는 경우·중간정산(시행령 제43조), 임원 퇴직소득 한도(법 제22조제3항 — 근무기간 구간별 배수, 초과분 근로소득), 퇴직소득공제(근속연수공제·환산급여공제, 법 제48조)와 세액계산 개요, 과세이연(법 제146조제2항, 이연퇴직소득), 수입시기(시행령 제50조제2항), 비과세(법 제12조제3호)를 판정한다.
+    언제: 퇴직금이 퇴직소득인지, 임원으로 승진·전출·중간정산 때 퇴직으로 보는지, 임원 퇴직금 중 한도를 넘어 근로소득이 되는 금액이 얼마인지, 근속연수공제가 어느 표로 적용되는지, 연금계좌로 옮기면 과세이연되는지 확인할 때.
+    입력: retirement_date(필수), 임원 여부·근무 시작일·구간별 총급여·퇴직소득금액(임원 한도), 사유·퇴직급여 수령 여부·중간정산 사유, 근속연수, 과세이연 방식·지급일·입금일.
+    반환: {퇴직일, 사유, 요건: [{항목, 내용, 기간별 배수?, 근거}], 판정?: [{항목, 판정, 사유, 기간별 배수?, 한도액?, 근로소득으로 보는 금액?, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. retirement_date를 생략하면 퇴직일별 변화.
+    퇴직일에 따라 다름: 임원 한도(2020.1.1. 이후 퇴직은 2012~2019년 근무 3배·2020년 이후 근무 2배, 그 전 퇴직은 2012년 이후 근무 3배), 해외 파견 급여 포함·비정규직 정규직 전환 특례(2020.2.11.), 근속연수공제 개정표(2023.1.1. 이후 퇴직), 2016~2019년 퇴직의 종전·개정 세액 혼합 비율.
+    세액은 계산하지 않는다(계산 MCP의 retirement_income_tax). 현실적 퇴직·임원 해당 여부는 사실 판단이라 입력값으로 본다. 근로자퇴직급여 보장법의 중간정산 세부 사유는 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=퇴직일).
+    """
+    from . import retirement_income as _retirement_income
+    return _retirement_income.guide(retirement_date, executive, event, benefit_paid, interim_reason, service_start_date, retirement_income,
+                                    salary_3y_to_2019, salary_3y_before_retirement, pre2012_retirement_income, years_of_service, deferral,
+                                    paid_date, pension_deposit_date)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def tax_crime_procedure_guide(
     decision_date: Annotated[str | None, Field(description="절차 시점 YYYY-MM-DD(2016-01-01 이후) — 그 날짜의 조세범 처벌절차법·시행령으로 안내. 생략하면 날짜별 변화")] = None,
     offense_article: Annotated[int | None, Field(description="조세범 처벌법 조 번호(3~16, 선택) — 범칙행위 범위·선정 심의 판정")] = None,
