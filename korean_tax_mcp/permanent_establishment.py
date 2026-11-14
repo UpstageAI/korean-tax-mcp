@@ -1,0 +1,235 @@
+"""국내사업장(고정사업장) 판정 안내 — 법인세법 제94조(외국법인)·소득세법 제120조(비거주자). Claude 작성(2026-11-14).
+
+사실을 넣으면 요소별로 문언에 대 보고 '국내사업장 있음·해당 없음·확인 필요'를 돌려준다. 조세조약의 고정사업장 조항은 판정하지 않고 tax_treaty로 넘긴다.
+조문 대조(법제처 DRF 연혁본, 연말 시행본):
+  · 법인세법 제94조 — 2016(20160125)·2017(20170101)·2018(20181101)·2019(20190101)·2020(20200101)~2026(20260701).
+    2019.1.1. 시행본(2018.12.24. 개정): 제3항 종속대리인에 계약 유형(가~다목)과 '계약 체결 과정의 중요한 역할'(제2호) 추가,
+    제4항 특정 활동 장소는 '예비적이며 보조적'일 때만 제외, 제5항(세분화 방지) 신설.
+    2020.1.1. 시행본(2019.12.31. 개정): 제4항·제5항 '예비적이며 보조적' → '예비적 또는 보조적'.
+    2018 시행본까지: 제4항 네 장소는 조건 없이 제외(제3호에 '그 밖에 예비적이며 보조적인 성격의 사업활동' 포함), 제5항 없음.
+  · 법인세법 시행령 제133조 — 2016(20161129) 시행본과 2026(20261001) 시행본 문언. 2019.2.12.·2026.2.27. 개정 사이 문언은 미대조.
+  · 소득세법 제120조 — 2016(20160901)·2018(20180921)·2019(20190101)·2020(20200828)~2026(20260701). 내용은 법인세법 제94조와 같은 구조로 같은 해에 바뀜
+    (2019.12.31. 개정의 시행일은 2020.8.28. 시행본에서 확인, 2020.1.1.~2020.8.27. 시행본은 미대조).
+  · 법인세법 제94조의2(외국법인연락사무소) — 2022(20220218) 시행본부터.
+제94조·제120조를 직접 언급한 부칙 적용례는 찾지 못함 — 일반 적용례는 article_addenda로 확인할 것.
+"""
+from __future__ import annotations
+
+YEAR_MIN, YEAR_MAX = 2016, 2026
+PLACE_TYPES = ("지점·사무소·영업소", "상점·판매장소", "작업장·공장·창고", "건설현장", "용역 제공 장소", "광산·천연자원 장소")
+ACTIVITIES = ("자산 구입", "판매 목적 아닌 저장·보관", "광고·선전·정보·시장조사", "타인에게 가공")
+AGENT_TYPES = ("자산 상시 보관·배달", "특수관계 외국법인을 위한 독립대리인", "보험료 징수·보험 인수")
+
+VERIFIED = ("법인세법 제94조 2016~2026 연말 시행본(20160125·20170101·20181101·20190101·20200101·20211230·20220218·20230701·20240101·20251001·20260701), "
+            "소득세법 제120조 2016~2026 연말 시행본, 법인세법 시행령 제133조 2016(20161129)·2026(20261001) 시행본, 법인세법 제94조의2 2022~2026 시행본")
+
+LIMITS = [
+    "조세조약의 고정사업장 조항(건설 기간, 종속대리인, 예비적·보조적 활동의 범위)은 국내법과 다를 수 있고 조약이 우선 적용될 수 있음 — 이 도구는 국내법만 대 봄",
+    "고정된 장소인지, 사업이 그 장소에서 수행되는지, 활동이 예비적·보조적인지, 대리인이 독립적인지는 사실 판단이라 입력값을 그대로 씀",
+    "법인세법 시행령 제133조의 2019.2.12. 개정 후 2026.2.27. 개정 전 문언(2019~2025년)은 대조하지 못함 — 2016 시행본과 2026 시행본 문언만 확인",
+    "비거주자의 '이에 준하는 자'(소득세법 제120조제3항의 대통령령)는 시행령 조문을 대조하지 못함 — 확인 필요",
+    "소득세법 제120조의 2019.12.31. 개정('예비적 또는 보조적')은 2020.8.28. 시행본에서 확인 — 2020.1.1.~2020.8.27. 사이 시행일은 확인 필요",
+    "제94조·제120조 개정의 부칙 적용례(사업연도·과세기간 기준)는 찾지 못함 — article_addenda로 확인",
+    "국세청 해석례는 대조하지 않음",
+]
+
+
+def _period(year):
+    if year <= 2018:
+        return "2018 이전"
+    if year == 2019:
+        return "2019"
+    return "2020 이후"
+
+
+def _law(taxpayer):
+    return ("법인세법", "제94조") if taxpayer == "외국법인" else ("소득세법", "제120조")
+
+
+def _elements(year, taxpayer):
+    law, art = _law(taxpayer)
+    p = _period(year)
+    prep = "예비적이며 보조적" if p != "2020 이후" else "예비적 또는 보조적"
+    who = "외국법인" if taxpayer == "외국법인" else "비거주자"
+    out = {
+        "고정된 장소": f"{who}이(가) 국내에 사업의 전부 또는 일부를 수행하는 고정된 장소를 가지고 있으면 국내사업장이 있음({law} {art}제1항)",
+        "포함 장소": f"지점·사무소·영업소, 상점 등 고정된 판매장소, 작업장·공장·창고, 광산·채석장·천연자원 탐사·채취 장소 등({law} {art}제2항제1호~제3호·제6호)",
+        "건설현장": f"6개월을 초과하여 존속하는 건축 장소, 건설·조립·설치공사 현장 또는 관련 감독 장소({law} {art}제2항제4호)",
+        "용역 PE": f"고용인을 통해 용역을 제공하는 장소로서 용역 제공이 계속되는 12개월 중 합계 6개월을 초과하는 기간 용역이 수행되는 장소, "
+                 f"또는 6개월을 초과하지 않더라도 유사한 종류의 용역이 2년 이상 계속적·반복적으로 수행되는 장소({law} {art}제2항제5호)",
+    }
+    if p == "2018 이전":
+        out["종속대리인"] = (f"고정된 장소가 없어도 국내에 {who}을(를) 위하여 계약을 체결할 권한을 가지고 그 권한을 반복적으로 행사하는 자 또는 이에 준하는 자로서 대통령령으로 정하는 자를 두고 "
+                         f"사업을 경영하면 그 자의 사업장 소재지 등에 국내사업장을 둔 것으로 봄({law} {art}제3항, 2018 시행본까지)")
+        out["준비적·보조적 활동 제외"] = (f"자산의 단순 구입, 판매 목적 아닌 저장·보관, 광고·선전·정보 수집·제공·시장조사·그 밖에 사업 수행상 예비적이며 보조적인 성격의 활동, "
+                                  f"자기 자산을 타인에게 가공하게 할 목적으로만 쓰는 장소는 국내사업장에 포함하지 않음({law} {art}제4항, 2018 시행본까지 — 조건 없는 제외)")
+        out["세분화 방지"] = "2018 시행본까지 없음(제5항은 2019.1.1. 시행본에서 신설)"
+    else:
+        name = "외국법인 명의 계약등" if taxpayer == "외국법인" else "비거주자 명의 계약등"
+        out["종속대리인"] = (f"고정된 장소가 없어도 다음 자 또는 이에 준하는 자로서 대통령령으로 정하는 자를 두고 사업을 경영하면 국내사업장을 둔 것으로 봄({law} {art}제3항, 2019.1.1. 시행본부터): "
+                         f"제1호 — {who} 명의 계약, {who} 소유 자산의 소유권 이전·사용권 허락 계약, {who}의 용역제공 계약({name})을 체결할 권한을 가지고 반복 행사하는 자, "
+                         f"제2호 — 체결 권한이 없어도 계약 체결 과정에서 중요한 역할({who}이(가) 계약의 중요사항을 변경하지 않고 체결하는 경우로 한정)을 반복적으로 수행하는 자")
+        out["준비적·보조적 활동 제외"] = (f"자산 구입, 판매 목적 아닌 저장·보관, 광고·선전·정보·시장조사와 이와 유사한 활동, 타인에게 가공하게 하는 장소(특정 활동 장소)는 "
+                                  f"{who}의 사업 수행상 {prep}인 성격의 활동에 쓰일 때만 제외({law} {art}제4항)")
+        out["세분화 방지"] = (f"특정 활동 장소라도 제1호 — {who} 또는 특수관계인이 같은 장소나 국내 다른 장소에 국내사업장이 있고 활동이 상호 보완적이거나, "
+                         f"제2호 — 상호 보완적 활동을 결합한 전체 활동이 {prep}인 성격이 아니면 국내사업장에 포함({law} {art}제5항)")
+    if taxpayer == "외국법인":
+        out["대통령령으로 정하는 자"] = (
+            "법인세법 시행령 제133조제1항: 외국법인의 자산을 상시 보관하고 관례적으로 배달·인도하는 자, "
+            + ("중개인·일반위탁매매인 등 독립적 지위의 대리인으로서 주로 특정 외국법인만을 위하여 계약체결 등 사업에 관한 중요한 부분의 행위를 하는 자(2016 시행본 문언)"
+               if year <= 2018 else
+               "중개인·일반위탁매매인 등 독립적 지위의 대리인으로서 전적으로 또는 거의 전적으로 특수관계가 있는 외국법인을 위하여 계약체결 등 중요한 부분의 행위를 하는 자(2026 시행본 문언 — 2019~2025년 문언은 확인 필요)")
+            + ", 보험사업 외국법인을 위하여 보험료를 징수하거나 국내소재 피보험물의 보험을 인수하는 자")
+        if year >= 2022:
+            out["연락사무소"] = ("국내사업장에 해당하지 않고 업무연락·시장조사 등 비영업적 기능만 하는 외국법인연락사무소는 현황 자료를 다음 연도 2월 10일까지 제출"
+                             "(법인세법 제94조의2 — 2022 시행본부터, 2023 시행본부터 계산서 매입처별합계표 제출 추가)")
+    return out
+
+
+def _j(item, verdict, reason, basis):
+    return {"항목": item, "판정": verdict, "사유": reason, "근거": basis}
+
+
+def guide(year=None, taxpayer="외국법인", fixed_place=None, place_types=None, construction_months=None, service_months_in_12=None,
+          similar_service_years=None, specific_activities=None, preparatory_or_auxiliary=None, related_pe_complementary=None,
+          combined_not_preparatory=None, agent_contract_authority=None, agent_principal_role=None, agent_types=None, treaty_country=None):
+    if year is None:
+        return {"요소": list(_elements(2026, taxpayer if taxpayer in ("외국법인", "비거주자") else "외국법인")),
+                "연도별로 달라지는 것": [
+                    "2018년까지: 종속대리인은 계약 체결 권한의 반복 행사자(와 시행령의 준하는 자)만, 준비적·보조적 활동 장소는 조건 없이 제외, 세분화 방지 규정 없음",
+                    "2019년(2019.1.1. 시행본): 종속대리인에 계약 유형과 '계약 체결 과정의 중요한 역할' 추가, 특정 활동 장소는 '예비적이며 보조적'일 때만 제외, 세분화 방지(제5항) 신설",
+                    "2020년부터: '예비적이며 보조적' → '예비적 또는 보조적'",
+                    "2022년부터: 법인세법 제94조의2 외국법인연락사무소 현황 자료 제출"],
+                "안내": "year(2016~2026)와 사실을 넣으면 요소별 판정을 돌려줍니다.", "한계": LIMITS, "확인 시행본": VERIFIED}
+    try:
+        year = int(year)
+    except (TypeError, ValueError):
+        return {"error": "year는 2016~2026 정수"}
+    if not YEAR_MIN <= year <= YEAR_MAX:
+        return {"error": "year는 2016~2026"}
+    if taxpayer not in ("외국법인", "비거주자"):
+        return {"error": "taxpayer는 외국법인 | 비거주자"}
+    place_types = list(place_types or [])
+    specific_activities = list(specific_activities or [])
+    agent_types = list(agent_types or [])
+    for v in place_types:
+        if v not in PLACE_TYPES:
+            return {"error": f"place_types 값은 {' | '.join(PLACE_TYPES)}"}
+    for v in specific_activities:
+        if v not in ACTIVITIES:
+            return {"error": f"specific_activities 값은 {' | '.join(ACTIVITIES)}"}
+    for v in agent_types:
+        if v not in AGENT_TYPES:
+            return {"error": f"agent_types 값은 {' | '.join(AGENT_TYPES)}"}
+    for k, v in (("construction_months", construction_months), ("service_months_in_12", service_months_in_12), ("similar_service_years", similar_service_years)):
+        if v is not None and v < 0:
+            return {"error": f"{k}는 0 이상"}
+    if service_months_in_12 is not None and service_months_in_12 > 12:
+        return {"error": "service_months_in_12는 0~12(개월)"}
+    law, art = _law(taxpayer)
+    p = _period(year)
+    prep = "예비적이며 보조적" if p != "2020 이후" else "예비적 또는 보조적"
+    J, check = [], []
+
+    # 1. 고정된 장소(제1항·제2항제1~3호·제6호)와 특정 활동 장소 제외(제4항)·세분화 방지(제5항)
+    general_places = [t for t in place_types if t in ("지점·사무소·영업소", "상점·판매장소", "작업장·공장·창고", "광산·천연자원 장소")]
+    has_place = bool(fixed_place) or bool(general_places)
+    if has_place:
+        excluded = None
+        if specific_activities:
+            if p == "2018 이전":
+                excluded = True
+                reason = f"그 장소를 {', '.join(specific_activities)}만을 위해 사용 — 2018 시행본까지 제4항은 조건 없이 제외"
+            elif preparatory_or_auxiliary is None:
+                excluded = None
+                reason = f"특정 활동 장소({', '.join(specific_activities)})는 활동이 {prep}일 때만 제외 — preparatory_or_auxiliary를 넣어야 판정"
+                check.append(f"그 장소 활동이 사업 수행상 {prep}인 성격인지({law} {art}제4항)")
+            elif not preparatory_or_auxiliary:
+                excluded = False
+                reason = f"특정 활동 장소이나 활동이 {prep}인 성격이 아니라고 입력 — 제4항 제외 안 됨"
+            else:
+                excluded = True
+                reason = f"특정 활동 장소이고 활동이 {prep}인 성격 — 제4항으로 제외"
+                if related_pe_complementary or combined_not_preparatory:
+                    excluded = False
+                    which = "제1호(특수관계인 등의 국내사업장과 상호 보완적 활동)" if related_pe_complementary else "제2호(결합한 전체 활동이 예비적·보조적이 아님)"
+                    reason += f" — 그러나 제5항{which}에 해당해 국내사업장에 포함"
+                elif related_pe_complementary is None and combined_not_preparatory is None:
+                    check.append(f"세분화 방지({law} {art}제5항): 본인·특수관계인의 국내 다른 사업장과 상호 보완적인지, 결합한 전체 활동이 {prep}인지")
+            if excluded is True:
+                J.append(_j("고정된 장소", "해당 없음", reason, f"{law} {art}제1항·제4항" + ("·제5항" if p != "2018 이전" else "")))
+            elif excluded is False:
+                J.append(_j("고정된 장소", "국내사업장 있음", reason, f"{law} {art}제1항·제4항" + ("·제5항" if related_pe_complementary or combined_not_preparatory else "")))
+            else:
+                J.append(_j("고정된 장소", "확인 필요", reason, f"{law} {art}제4항"))
+        else:
+            what = ", ".join(general_places) if general_places else "사업을 수행하는 고정된 장소"
+            J.append(_j("고정된 장소", "국내사업장 있음", f"{what}이(가) 있다고 입력 — 특정 활동(구입·보관·광고·가공)만을 위한 장소라면 specific_activities를 넣어 제외 여부를 다시 판정",
+                        f"{law} {art}제1항·제2항"))
+    elif fixed_place is False:
+        J.append(_j("고정된 장소", "해당 없음", "국내에 사업을 수행하는 고정된 장소가 없다고 입력", f"{law} {art}제1항"))
+    else:
+        check.append("국내에 사업의 전부 또는 일부를 수행하는 고정된 장소가 있는지(fixed_place)")
+
+    # 2. 건설현장(제2항제4호)
+    if "건설현장" in place_types or construction_months is not None:
+        if construction_months is None:
+            J.append(_j("건설현장", "확인 필요", "존속 기간(construction_months)을 넣어야 6개월 초과 여부 판정", f"{law} {art}제2항제4호"))
+        elif construction_months > 6:
+            J.append(_j("건설현장", "국내사업장 있음", f"존속 기간 {construction_months}개월 — 6개월 초과", f"{law} {art}제2항제4호"))
+        else:
+            J.append(_j("건설현장", "해당 없음", f"존속 기간 {construction_months}개월 — 6개월 초과가 아님(조약 기간은 별도 확인)", f"{law} {art}제2항제4호"))
+
+    # 3. 용역 PE(제2항제5호)
+    if "용역 제공 장소" in place_types or service_months_in_12 is not None:
+        if service_months_in_12 is None:
+            J.append(_j("용역 PE", "확인 필요", "용역 제공이 계속되는 12개월 중 용역 수행 기간 합계(service_months_in_12)를 넣어야 판정", f"{law} {art}제2항제5호"))
+        elif service_months_in_12 > 6:
+            J.append(_j("용역 PE", "국내사업장 있음", f"12개월 중 합계 {service_months_in_12}개월 — 6개월 초과(가목)", f"{law} {art}제2항제5호가목"))
+        elif similar_service_years is None:
+            J.append(_j("용역 PE", "확인 필요", f"12개월 중 합계 {service_months_in_12}개월 — 6개월 이하. 유사한 용역이 2년 이상 계속·반복되는지(similar_service_years) 확인", f"{law} {art}제2항제5호나목"))
+        elif similar_service_years >= 2:
+            J.append(_j("용역 PE", "국내사업장 있음", f"6개월 이하이나 유사한 종류의 용역이 {similar_service_years}년 계속·반복 — 2년 이상(나목)", f"{law} {art}제2항제5호나목"))
+        else:
+            J.append(_j("용역 PE", "해당 없음", f"6개월 이하이고 유사 용역 계속·반복 {similar_service_years}년 — 2년 미만", f"{law} {art}제2항제5호"))
+        check.append("용역이 고용인을 통해 제공되는지, 12개월 기간을 어떻게 잡는지(용역 제공이 계속되는 12개월)")
+
+    # 4. 종속대리인(제3항)
+    if agent_contract_authority:
+        J.append(_j("종속대리인", "국내사업장 있음", "국내에서 계약을 체결할 권한을 가지고 반복적으로 행사하는 자를 둠"
+                    + (" — 2019 시행본부터 계약 유형(명의 계약·자산 소유권 이전·사용권 허락·용역제공 계약) 확인" if p != "2018 이전" else ""),
+                    f"{law} {art}제3항" + ("제1호" if p != "2018 이전" else "")))
+    if agent_principal_role:
+        if p == "2018 이전":
+            J.append(_j("종속대리인(중요한 역할)", "확인 필요", "계약 체결 과정의 중요한 역할만 하는 자는 2019.1.1. 시행본부터 명시 — 2018년까지는 '이에 준하는 자'(대통령령) 해당 여부를 따로 확인",
+                        f"{law} {art}제3항(2018 시행본까지)"))
+        else:
+            J.append(_j("종속대리인(중요한 역할)", "국내사업장 있음", "체결 권한이 없어도 계약 체결 과정에서 중요한 역할을 반복 수행(본인이 중요사항을 바꾸지 않고 체결하는 경우로 한정)",
+                        f"{law} {art}제3항제2호"))
+            check.append("본인이 계약의 중요사항을 변경하지 않고 체결하는지(제3항제2호 괄호)")
+    if agent_types:
+        if taxpayer == "외국법인":
+            J.append(_j("대통령령으로 정하는 자", "국내사업장 있음", f"{', '.join(agent_types)} — 법인세법 시행령 제133조제1항의 자",
+                        "법인세법 제94조제3항, 시행령 제133조제1항" + (" (2019~2025년 제2호 문언 확인 필요)" if 2019 <= year <= 2025 and "특수관계 외국법인을 위한 독립대리인" in agent_types else "")))
+        else:
+            J.append(_j("대통령령으로 정하는 자", "확인 필요", f"{', '.join(agent_types)} — 비거주자의 '이에 준하는 자'는 소득세법 시행령 조문을 대조하지 못함", "소득세법 제120조제3항"))
+    if agent_contract_authority is False and agent_principal_role is False and not agent_types:
+        J.append(_j("종속대리인", "해당 없음", "계약 체결 권한 반복 행사자·중요한 역할 수행자·준하는 자가 없다고 입력", f"{law} {art}제3항"))
+    if agent_contract_authority is None and agent_principal_role is None and not agent_types:
+        check.append("국내에서 계약을 체결하거나 체결 과정에서 중요한 역할을 반복하는 대리인이 있는지(agent_contract_authority·agent_principal_role)")
+
+    verdicts = [x["판정"] for x in J]
+    if "국내사업장 있음" in verdicts:
+        concl = "국내법상 국내사업장 있음(입력 사실 기준)"
+    elif "확인 필요" in verdicts or check:
+        concl = "확인 필요 — 아래 확인 필요 사항을 채우면 다시 판정"
+    else:
+        concl = "국내법상 국내사업장 없음(입력 사실 기준)"
+    treaty = {"안내": "조세조약이 있으면 조약의 고정사업장 조항(건설 기간, 종속대리인·독립대리인, 예비적·보조적 활동)을 함께 봐야 함 — 국내법과 기간·요건이 다를 수 있고 조약이 우선할 수 있음",
+              "다음 단계": f"tax_treaty(country='{treaty_country or '상대국'}', keyword='고정사업장')"}
+    return {"기준 연도": year, "적용 시행본": f"{year}년 연말 시행본 기준({p})", "납세자": taxpayer, "결론": concl, "판정": J,
+            "확인 필요": check, "요소": _elements(year, taxpayer), "조세조약": treaty,
+            "다음 단계": [f"law_article(law_name='{law}', article='{art}', as_of='{year}1231')로 원문 확인",
+                       f"article_addenda(law_name='{law}', article='{art}')로 개정 적용례 확인",
+                       treaty["다음 단계"]],
+            "한계": LIMITS, "확인 시행본": VERIFIED}
