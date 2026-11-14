@@ -1129,6 +1129,27 @@ def nominee_trust_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def other_income_guide(
+    date: Annotated[str | None, Field(description="지급일(수입시기) YYYY-MM-DD(2016-01-01~2026-12-31) — 서화·골동품은 양도일, 투표권 환급금·슬롯머신은 원인 발생일. 생략하면 날짜별 변화와 입력값 목록")] = None,
+    income_item: Annotated[str | None, Field(description="기타소득 항목: 상금 | 공익상금 | 복권 | 경품 | 사행행위 | 투표권환급금 | 저작권양도 | 영화필름등 | 산업재산권등 | 일시대여 | 통신판매중개대여 | 지역권지상권 | 위약금배상금 | 주택입주지체상금 | 유실물 | 무주물 | 특수관계경제적이익 | 슬롯머신 | 원고료인세 | 알선수수료 | 사례금 | 공제부금해지 | 일시적인적용역 | 기타소득처분 | 연금외수령 | 주식매수선택권 | 직무발명보상금 | 뇌물 | 알선수재 | 서화골동품 | 종교인소득 | 가상자산 (강연료·원고료·위약금·서화 같은 별칭도 됨)")] = None,
+    amount: Annotated[float | None, Field(description="받은 금액(원, 건별, 선택) — 의제 필요경비·기타소득금액·과세최저한·원천징수세액 계산")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택) — recurring(계속·반복), deposit_forfeited(계약금이 위약금으로 대체), holding_10y(서화 보유 10년 이상), living_domestic_artist(생존 국내 원작자), business_premises(서화 사업장·사업자등록), national_heritage, to_museum, nontaxable_award(시행령 제18조제1항 상 등), retired(직무발명 퇴직 후), related_party, employment_exempt_used(원), religious_as_wage(종교인소득 근로소득 선택), unpaid_committee(무보수 위원 수당), actual_expense(원), annual_rent_8_2(원), ticket_total(원), refund_per_vote(원), refund_multiple, annual_separable_income(원), withheld")] = None,
+) -> dict:
+    """Korean other income (Income Tax Act Article 21) as in force on the payment date (2016-2026): which item applies, deemed necessary expense rate by date (80% to 70% from 2018-04-01 to 60% from 2019), minimum taxable threshold (Article 84), separate taxation (elective up to KRW 3 million or mandatory), withholding rate (Article 129), and non-taxable other income (Article 12(5)). It does not compute final tax.
+
+    기타소득 요건 안내 — 소득세법 제21조를 지급일(수입시기)의 시행본으로: 소득 구분(각 호), 필요경비(의제율 연도별), 과세최저한(제84조), 분리과세(제14조제3항제8호 — 300만원 이하 선택·복권 등 무조건), 원천징수세율(제129조제1항제6호 — 20%, 복권 등 3억원 초과분 30%, 연금외수령·공제부금 해지 15%), 비과세(제12조제5호), 종교인소득 근로소득 선택, 가상자산 시행 유예를 판정한다.
+    언제: 강연료·원고료·위약금·상금·서화 양도대금 등이 기타소득인지, 필요경비를 몇 % 인정하는지, 과세최저한에 드는지, 분리과세를 고를 수 있는지, 원천징수세율이 얼마인지, 비과세인지 확인할 때.
+    입력: date(지급일·수입시기), income_item, 선택으로 amount, facts(사실관계 플래그).
+    반환: {기준일, 과세기간, 소득, 판정: [{항목(소득 구분·필요경비·과세최저한·분리과세·원천징수세율·비과세 등), 판정, 사유, 근거}], 원천징수세액?, 계산 다음 단계?, 관련 해석, 한계, 다음 단계, 확인 시행본}. date·income_item을 생략하면 날짜별 변화와 입력값 목록.
+    날짜에 따라 다름: 의제율 80%(~2018.3.31.)·70%(2018.4.1.~)·60%(2019 과세기간~), 서화 필요경비(2020)·소득 구분(2021.1.1. 양도분), 투표권·슬롯머신 과세최저한(2016.7.1.), 복권 과세최저한 200만원(2023.1.1.), 분리과세 선택 대상 호(2018·2019·2020), 직무발명 비과세 한도(300만·500만·700만원), 가상자산(2027.1.1. 이후 양도분).
+    세액 계산은 계산 MCP의 other_income_aggregate(종교인소득은 religious_income). 일시적·계속적 등 사실 판단은 입력값으로만 쓴다. 종교인소득 필요경비 표는 원문 대조를 못해 계산하지 않는다. 읽기 전용, 외부 호출 없음.
+    """
+    from . import other_income as _other_income
+    return _other_income.guide(date, income_item, amount, facts)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def transfer_pricing_report(
     section: Annotated[str, Field(description="목차 번호(선택). 'Ⅱ'(장 전체, '2'도 됨) 또는 'Ⅱ-7'('2-7'도 됨). 생략하면 24개 항목 전부")] = "",
     keyword: Annotated[str, Field(description="제목·작성방법·준비 자료에 들어 있는 말로 좁히기(선택). 예: '다년도', '차이 조정', '계약서'")] = "",
