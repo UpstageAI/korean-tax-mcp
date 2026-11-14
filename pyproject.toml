@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "korean-tax-mcp"
-version = "0.15.1"
+version = "0.15.2"
 description = "Korea (South Korea) tax law MCP server — NTS rulings, court and tax tribunal decisions, basic rules, tax treaties, point-in-time statutes. 한국 세법 근거 MCP"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 dependencies = ["mcp>=2.2", "uvicorn>=0.30"]
-keywords = ["mcp", "mcp-server", "korea", "south-korea", "korean", "tax", "tax-law", "nts", "transfer-pricing", "tax-treaty", "세법", "국세청", "세무"]
+keywords = ["mcp", "mcp-server", "korea", "south-korea", "korean", "tax", "tax-law", "korean-tax-law", "nts", "nts-rulings", "court-cases", "tax-treaty", "tax-treaties", "residency", "tax-residency", "withholding-tax", "nonresident", "transfer-pricing", "international-tax", "expat", "foreign-company", "korean-subsidiary", "세법", "국세청", "세무"]
 
 [project.optional-dependencies]
 pdf = ["pypdf>=4"]

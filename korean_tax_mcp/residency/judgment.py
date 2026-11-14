@@ -733,7 +733,8 @@ def run_check(inp: "ResidencyInput", treaty_info: dict | None = None) -> Residen
             f"3단계: {inp.treaty_country}는 조세조약 미체결(또는 체결 미확인)국으로 tie-break 적용 불가 → "
             f"양국 과세. 국내법상 한국 거주자로서 한국 과세, 상대국법상 상대국 거주자로서 상대국 과세."
         )
-    elif s1.overall == "거주자" and s3.outcome == "한국 거주자":
+    elif s1.overall == "거주자" and s2.dual == "이중거주자" and s3.outcome == "한국 거주자":
+    # 이중거주자가 아니면 tie-break를 거치지 않았으므로 아래 '이중거주자 아님' 분기에서 설명한다.
         final_outcome = "거주자"
         if s1.dispatch_special:
             final_reason = (
