@@ -6,7 +6,7 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 37 tools.
+> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 41 tools.
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules and treaties. [한국어](README.md)
 
@@ -117,7 +117,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 5. If two values come out (before/after apportionment, total vs. taxable part, etc.), answer only the one the question asks for.
 ```
 
-## Tools (37)
+## Tools (41)
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -144,6 +144,10 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 | | `employment_credit_requirements_guide` | Employment tax credit requirements by tax year — regular and youth-or-equivalent employees, headcount rules, follow-up rules, overlap with the startup reduction, carryforward, with per-employee checks (STTCA Art. 29-7 and 29-8, 2018–2026) |
 | | `tax_crime_guide` | Tax crime provisions as in force on the date of the act — applicable article, elements, statutory penalty, amount thresholds, aggravated punishment, complaint requirement, limitation period, corporate liability (acts from 2016-01-01) |
 | | `tax_crime_procedure_guide` | Tax crime investigation procedure by date — selection triggers, deliberation committee, investigation, notice disposition/complaint/no-charge, who decides, complaint duties, deadlines, limitation suspension (from 2016-01-01) |
+| | `nominee_trust_guide` | Deemed gift on nominee-held property (IGTA Art. 45-2) by deemed gift date — covered assets, tax-avoidance presumption and rebuttal, failure to transfer title, timing and valuation date, taxpayer (actual owner from 2019-01-01, nominee's property liability), aggregation, assessment period, repeated-taxation case law, corporate links, Real Estate Real Name Act pointer (from 2016-01-01) |
+| | `one_house_exemption_guide` | One-house household CGT exemption by transfer date — holding/residence periods, adjustment-area residence rule, temporary two-house disposal deadlines, high-priced house threshold (KRW 0.9bn/1.2bn), inheritance/elderly-parent/marriage/rural-house special cases (2016–2026) |
+| | `family_business_succession_guide` | Family business inheritance deduction requirements by date of inheritance — revenue cap, deduction cap, decedent and heir requirements, post-inheritance management and recapture, payment deferral (2016–2026) |
+| | `vat_exempt_zero_rate_guide` | VAT exemption and zero-rating by supply date — exempt supplies (Art. 26), waiver, zero-rating (Arts. 21–25, Decree Art. 33 conditions) and attachments (2016–2026) |
 | | `transfer_pricing_cases` | transfer pricing decisions by issue (9 issues) — taxpayer wins and upheld assessments side by side |
 | | `oecd_tp_guidelines` | OECD Transfer Pricing Guidelines 2022 — paragraph lookup, keyword search, crosswalk to the Korean statute (1,391 paragraphs) |
 | | `verify_citations` | do cited document numbers and articles exist |
