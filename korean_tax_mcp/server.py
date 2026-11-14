@@ -29,6 +29,7 @@ from . import tp_report as _tp_report
 from . import sme_incentives as _sme_incentives
 from . import rnd_requirements as _rnd_requirements
 from . import employment_requirements as _employment_requirements
+from . import one_house_exemption as _one_house
 from . import tax_crime as _tax_crime
 from . import tax_crime_procedure as _tax_crime_proc
 from . import nominee_trust as _nominee_trust
@@ -926,6 +927,39 @@ def employment_credit_requirements_guide(
     세액을 계산하지 않는다(계산 MCP의 employment_increase_credit, integrated_employment_credit). 임원·친족 해당 여부와 경력단절 요건의 실질은 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article, 적용례는 article_addenda.
     """
     return _employment_requirements.guide(year, credit, size, consumer_service, workers, startup_reduction, founded, extra_reduction_for_employment, took_employment_increase, increase)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def one_house_exemption_guide(
+    transfer_date: Annotated[str | None, Field(description="양도일 YYYY-MM-DD(2016-01-01 이후). 생략하면 양도일·취득일별로 달라진 요건 목록")] = None,
+    acquisition_date: Annotated[str | None, Field(description="양도하는 주택의 취득일 YYYY-MM-DD(선택) — 보유기간, 2017.8.3. 거주요건 기준일")] = None,
+    adjusted_area_at_acquisition: Annotated[bool | None, Field(description="양도하는 주택이 취득 당시 조정대상지역에 있었는지(선택) — 거주 2년 요건")] = None,
+    residence_periods: Annotated[list | None, Field(description="거주 기간 [{from: 전입일, to: 전출일 또는 양도일}] (선택, 주민등록 기준)")] = None,
+    contract_date: Annotated[str | None, Field(description="양도하는 주택의 매매계약·계약금 지급일 YYYY-MM-DD(선택) — 2017.8.2. 이전 계약 경과조치")] = None,
+    homeless_at_contract: Annotated[bool | None, Field(description="계약금 지급일 현재 세대가 무주택이었는지(선택)")] = None,
+    contract_before_designation: Annotated[bool | None, Field(description="조정대상지역 공고일 이전에 매매계약·계약금 지급을 했는지(선택) — 시행령 제154조제1항제5호")] = None,
+    transfer_price: Annotated[float | None, Field(description="양도가액(주택과 부수토지 전체의 실지거래가액, 원, 선택) — 고가주택 9억원·12억원 판정")] = None,
+    other_houses_disposed_date: Annotated[str | None, Field(description="2주택 이상을 보유하다 다른 주택을 모두 처분해 1주택이 된 날 YYYY-MM-DD(선택) — 2021.1.1.~2022.5.9. 양도분 보유기간 기산")] = None,
+    new_house_acquisition_date: Annotated[str | None, Field(description="일시적 2주택의 신규 주택 취득일 YYYY-MM-DD(선택) — 양도하는 주택이 종전 주택")] = None,
+    new_house_contract_date: Annotated[str | None, Field(description="신규 주택(분양권 포함) 매매계약·계약금 지급일 YYYY-MM-DD(선택) — 2018.9.13.·2019.12.16.·2026.8.3. 경과조치")] = None,
+    both_adjusted_at_new_acquisition: Annotated[bool | None, Field(description="신규 주택 취득일 현재 종전 주택과 신규 주택이 모두 조정대상지역인지(선택) — 처분기한 단축")] = None,
+    moved_in_date: Annotated[str | None, Field(description="신규 주택에 세대전원이 전입한 날 YYYY-MM-DD(선택) — 2019.12.17. 이후 취득분의 1년 이내 전입요건")] = None,
+    special: Annotated[Literal["상속주택", "동거봉양", "혼인", "농어촌주택"] | None, Field(description="특례 사유(선택)")] = None,
+    special_date: Annotated[str | None, Field(description="특례 기준일 YYYY-MM-DD(선택) — 상속개시일, 동거봉양 합가일, 혼인일")] = None,
+) -> dict:
+    """Korean capital gains tax exemption for a one-house household as in force on the transfer date — household definition, holding and residence periods (two-year residence for houses acquired in adjustment areas), temporary two-house disposal deadlines, the high-priced house threshold and main special cases. It does not compute tax.
+
+    1세대 1주택 양도소득세 비과세 요건 안내 — 양도일의 시행본과 개정 부칙으로 1세대 범위(소득세법 제88조제6호, 시행령 제152조의3), 1주택·보유기간·거주기간(시행령 제154조), 일시적 2주택 처분기한과 상속·동거봉양·혼인·농어촌주택 특례(제155조), 고가주택 기준(법 제89조제1항제3호, 시행령 제156조)을 판정한다.
+    언제: 집을 팔 때 비과세인지 — 보유 2년·거주 2년을 채웠는지, 조정대상지역 거주요건이 붙는지, 이사하면서 두 채가 된 경우 종전 집을 언제까지 팔아야 하는지, 양도가액이 고가주택 기준을 넘는지 확인할 때.
+    입력: transfer_date(필수), 취득일·조정대상지역 여부·거주 기간, 신규 주택 취득일·조정대상지역 여부(일시적 2주택), 양도가액, 특례 사유와 기준일.
+    반환: {양도일, 요건: [{요건, 내용, 근거}], 판정?: [{항목, 판정, 사유, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. transfer_date를 생략하면 양도일별 변화.
+    양도일에 따라 다름: 거주요건(2017.8.3. 이후 취득·2017.9.19. 이후 양도), 다른 주택 처분일 기산(2021.1.1.~2022.5.9. 양도), 조정대상지역 간 일시적 2주택 처분기한(2018.10.23. 2년, 2020.2.11. 1년, 2022.5.10. 2년, 2023.1.12. 3년, 2026.10.1. 2년 — 그 밖은 3년), 고가주택 12억원(2021.12.8. 이후 양도), 혼인 합가 10년(2024.11.12. 이후 양도).
+    세액과 장기보유특별공제는 계산하지 않는다(계산 MCP의 capital_gains_income·capital_gains_tax). 1세대 구성·주택 해당 여부·조정대상지역 지정은 사실 판단이라 입력값으로 본다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=양도일).
+    """
+    return _one_house.guide(transfer_date, acquisition_date, adjusted_area_at_acquisition, residence_periods, contract_date, homeless_at_contract,
+                            contract_before_designation, transfer_price, other_houses_disposed_date, new_house_acquisition_date, new_house_contract_date,
+                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date)
 
 
 @mcp.tool(annotations=RO)
