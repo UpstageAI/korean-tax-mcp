@@ -8,7 +8,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](README-EN.md)
 
-> **작성 주체(정확한 고지):** 0.7.0부터 0.11.1까지(2026-10-13부터 10-19까지)은 **Solar Pro 4**(Solar Work CLI)가 코드를 쓰고 CodeSolar가 리뷰, Claude가 테스트로 교차 검증했습니다(0.10.0은 목차만 Solar, 나머지는 Claude 작성). **0.12.0(2026-10-28)부터는 기존 세법 MCP 뼈대는 Solar Pro 4 그대로이고, 점검·버그 수정·보완은 Claude(Anthropic)가 작성**하며 CodeSolar가 리뷰합니다. **0.12.15(2026-11-10)부터 보강은 Claude가 명세·정답 테스트를 먼저 쓰고 Solar Pro 4가 뼈대를 구현한 뒤 Claude가 검수·보완합니다**(커밋별 작성자 표기). 버전별 작성 주체는 [CHANGELOG](CHANGELOG.md) 각 절 머리에 적혀 있습니다. 도구 36개.
+> **작성 주체(정확한 고지):** 0.7.0부터 0.11.1까지(2026-10-13부터 10-19까지)은 **Solar Pro 4**(Solar Work CLI)가 코드를 쓰고 CodeSolar가 리뷰, Claude가 테스트로 교차 검증했습니다(0.10.0은 목차만 Solar, 나머지는 Claude 작성). **0.12.0(2026-10-28)부터는 기존 세법 MCP 뼈대는 Solar Pro 4 그대로이고, 점검·버그 수정·보완은 Claude(Anthropic)가 작성**하며 CodeSolar가 리뷰합니다. **0.12.15(2026-11-10)부터 보강은 Claude가 명세·정답 테스트를 먼저 쓰고 Solar Pro 4가 뼈대를 구현한 뒤 Claude가 검수·보완합니다**(커밋별 작성자 표기). 버전별 작성 주체는 [CHANGELOG](CHANGELOG.md) 각 절 머리에 적혀 있습니다. 도구 37개.
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules, treaties. [English](README-EN.md)
 
@@ -136,7 +136,7 @@ AI가 도구를 언제 부르고, 도구의 답을 언제 믿을지 정해 주�
 5. 답이 두 개 나오면(안분 전후, 전체와 과세분 등) 질문이 묻는 하나만 답한다.
 ```
 
-## 도구 (36개)
+## 도구 (37개)
 
 | 묶음 | 도구 | 하는 일 |
 |---|---|---|
@@ -162,6 +162,7 @@ AI가 도구를 언제 부르고, 도구의 답을 언제 믿을지 정해 주�
 | | `rnd_credit_requirements_guide` | 연구·인력개발비 세액공제 요건 안내 — 과세연도별 요건(전담부서등, 인건비 대상자, 주주인 임원 제외, 출연금 제외, 빼는 활동, 증거서류)과 직원·비용·위탁처별 판정(조특령 별표 6, 조특칙 제7조, 2016~2026) |
 | | `employment_credit_requirements_guide` | 고용 세액공제 요건 안내 — 고용증대·통합고용의 과세연도별 요건(업종, 상시근로자·청년등 범위, 인원 계산, 사후관리, 창업감면과의 관계, 이월공제)과 직원별 판정(조특법 제29조의7·제29조의8, 조특령 제26조의7·제26조의8·제23조, 2018~2026) |
 | | `tax_crime_guide` | 조세범 처벌법 요건 안내 — 행위일의 시행본으로 적용 조문, 구성요건, 법정형, 금액 기준(제3조제1항 단서, 특정범죄 가중처벌 제8조·제8조의2, 해외금융계좌 50억원), 고발·공소시효·양벌규정(2016.1.1. 이후 행위) |
+| | `tax_crime_procedure_guide` | 조세범칙조사 절차 안내 — 대상 선정(의무 기준), 조세범칙조사심의위원회, 조사, 통고처분·고발·무혐의의 결정 주체와 근거, 즉시 고발·불이행 고발, 통고 기한, 공소시효 중단·정지(2016.1.1. 이후, 날짜별 시행본) |
 | | `transfer_pricing_cases` | 이전가격 쟁점별 결정례 — 납세자 승·과세관청 승 사례를 쟁점 9개별로 나란히, 보고서에 반영할 점 |
 | | `oecd_tp_guidelines` | OECD 이전가격지침 2022 문단 조회·검색·국조법령 대응표(본문 1,391개 문단, 영문 원문) |
 | | `verify_citations` | 초안 속 문서번호·조문이 실제로 있는지 |

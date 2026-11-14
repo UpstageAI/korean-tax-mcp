@@ -30,6 +30,7 @@ from . import sme_incentives as _sme_incentives
 from . import rnd_requirements as _rnd_requirements
 from . import employment_requirements as _employment_requirements
 from . import tax_crime as _tax_crime
+from . import tax_crime_procedure as _tax_crime_proc
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -948,6 +949,42 @@ def tax_crime_guide(
     형량·벌금액·통고처분 금액을 정하지 않는다. 고의와 부정한 행위의 실질, 정당한 사유, 영리 목적은 판정하지 않는다. 2016.1.1. 전 행위와 지방세·관세 포탈은 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=행위일).
     """
     return _tax_crime.guide(act_date, offense, evaded_tax, tax_due, annual_evaded_tax, supply_amount_total, for_profit, unreported_amount, document)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def tax_crime_procedure_guide(
+    decision_date: Annotated[str | None, Field(description="절차 시점 YYYY-MM-DD(2016-01-01 이후) — 그 날짜의 조세범 처벌절차법·시행령으로 안내. 생략하면 날짜별 변화")] = None,
+    offense_article: Annotated[int | None, Field(description="조세범 처벌법 조 번호(3~16, 선택) — 범칙행위 범위·선정 심의 판정")] = None,
+    evasion_proviso: Annotated[bool | None, Field(description="조세포탈이 제3조제1항 단서(3억·5억원 기준)에 해당하는지(선택) — 영장 없는 압수 '장기 3년 이상' 판정")] = None,
+    annual_reported_revenue: Annotated[float | None, Field(description="연간 신고수입금액(원, 선택) — 의무 조세범칙조사 기준(시행령 제6조) 판정")] = None,
+    annual_suspected_evasion: Annotated[float | None, Field(description="연간 조세포탈 혐의금액(원, 선택)")] = None,
+    expected_evaded_tax: Annotated[float | None, Field(description="조세포탈 예상세액(원, 가산세 제외, 선택) — 연간 5억원 기준")] = None,
+    filed_return: Annotated[bool | None, Field(description="과세표준신고서를 냈는지(선택) — 안 냈으면 신고수입금액을 20억원 미만으로 봄")] = None,
+    registered: Annotated[bool | None, Field(description="사업자등록을 했는지(선택) — 안 했으면 신고수입금액을 20억원 미만으로 봄")] = None,
+    in_progress: Annotated[bool | None, Field(description="조세범칙행위가 진행 중인지(선택)")] = None,
+    flight_or_destroy_risk: Annotated[bool | None, Field(description="도주·증거인멸 우려가 있는지(선택, 사실 판단은 입력값)")] = None,
+    prison_likely: Annotated[bool | None, Field(description="정상에 따라 징역형에 처할 것으로 판단되는지(선택) — 즉시 고발 사유")] = None,
+    cannot_pay: Annotated[bool | None, Field(description="통고대로 이행할 자금·납부 능력이 없는지(선택) — 즉시 고발 사유")] = None,
+    unreachable: Annotated[bool | None, Field(description="거소 불명·서류 수령 거부로 통고할 수 없는지(선택) — 즉시 고발 사유")] = None,
+    investigation_end_date: Annotated[str | None, Field(description="조세범칙조사를 마친 날 YYYY-MM-DD(선택) — 통고 기한 10일")] = None,
+    committee_resolution_date: Annotated[str | None, Field(description="위원회 의결일 YYYY-MM-DD(선택) — 위원회 사건의 통고 기한 기산일")] = None,
+    notice_date: Annotated[str | None, Field(description="통고처분일 YYYY-MM-DD(선택) — 공소시효 정지·중단, 불복, 납부 방법")] = None,
+    notice_served_date: Annotated[str | None, Field(description="통고서 송달일 YYYY-MM-DD(선택) — 15일 불이행 고발")] = None,
+    paid_date: Annotated[str | None, Field(description="통고대로 이행한 날 YYYY-MM-DD(선택)")] = None,
+    accused_date: Annotated[str | None, Field(description="고발일 YYYY-MM-DD(선택)")] = None,
+) -> dict:
+    """Korean tax crime investigation procedure as in force on the given date — who decides each stage (selection, deliberation committee, investigation, notice disposition, complaint, no-charge), mandatory triggers and deadlines. It does not decide guilt.
+
+    조세범칙조사 절차 안내 — 조세범 처벌절차법·시행령으로 대상 선정(의무 기준), 조세범칙조사심의위원회(구성·심의 사항), 조사(영장·예외), 처분(통고처분·고발·무혐의)의 결정 주체와 근거, 즉시 고발·불이행 고발 의무, 통고 기한, 통고처분과 공소시효(중단·정지), 불복 제외를 날짜별 시행본으로 돌려준다.
+    언제: 조세범칙조사가 어떤 단계로 진행되고 누가 결정하는지, 금액이 의무 조사 기준에 드는지, 위원회 심의가 필요한지, 통고처분 뒤 언제 고발되는지, 공소시효가 어떻게 되는지 확인할 때.
+    반환: {기준일, 날짜별 규정, 절차: [{단계, 내용, 주체, 근거}], 판정: [{항목, 판정, 사유, 근거}], 한계, 다음 단계, 확인 시행본}. decision_date를 생략하면 날짜별 변화.
+    날짜에 따라 다름: 범칙행위 범위(2019.1.1. 제3조~제16조), 위원회 정원(2016.3.29.)·위촉위원(2016.12.5.)·회의 구성(2023.2.28.), 처분 없는 종결 심의·영장 없는 압수 한정·납부 방법·공소시효 정지(2023.1.17.).
+    벌금상당액을 계산하지 않는다(계산 MCP의 tax_crime_settlement_amount). 범칙행위·고의·정상 판단은 하지 않는다. 국세청 훈령의 세부 절차는 원문을 대조하지 못해 안내하지 않는다. 읽기 전용, 외부 호출 없음.
+    """
+    return _tax_crime_proc.guide(decision_date, offense_article, evasion_proviso, annual_reported_revenue, annual_suspected_evasion, expected_evaded_tax,
+                                 filed_return, registered, in_progress, flight_or_destroy_risk, prison_likely, cannot_pay, unreachable,
+                                 investigation_end_date, committee_resolution_date, notice_date, notice_served_date, paid_date, accused_date)
 
 
 @mcp.tool(annotations=RO)
