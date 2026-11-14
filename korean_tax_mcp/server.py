@@ -1238,6 +1238,7 @@ def tax_crime_procedure_guide(
     decision_date: Annotated[str | None, Field(description="절차 시점 YYYY-MM-DD(2016-01-01 이후) — 그 날짜의 조세범 처벌절차법·시행령으로 안내. 생략하면 날짜별 변화")] = None,
     offense_article: Annotated[int | None, Field(description="조세범 처벌법 조 번호(3~16, 선택) — 범칙행위 범위·선정 심의 판정")] = None,
     evasion_proviso: Annotated[bool | None, Field(description="조세포탈이 제3조제1항 단서(3억·5억원 기준)에 해당하는지(선택) — 영장 없는 압수 '장기 3년 이상' 판정")] = None,
+    offense_paragraph: Annotated[int | None, Field(description="조세범 처벌법 항 번호(선택) — 제7조·제9조·제10조·제11조·제13조는 항마다 법정형이 달라 영장 없는 압수 판정에 씀. 생략하면 항별로 안내")] = None,
     annual_reported_revenue: Annotated[float | None, Field(description="연간 신고수입금액(원, 선택) — 의무 조세범칙조사 기준(시행령 제6조) 판정")] = None,
     annual_suspected_evasion: Annotated[float | None, Field(description="연간 조세포탈 혐의금액(원, 선택)")] = None,
     expected_evaded_tax: Annotated[float | None, Field(description="조세포탈 예상세액(원, 가산세 제외, 선택) — 연간 5억원 기준")] = None,
@@ -1265,7 +1266,8 @@ def tax_crime_procedure_guide(
     """
     return _tax_crime_proc.guide(decision_date, offense_article, evasion_proviso, annual_reported_revenue, annual_suspected_evasion, expected_evaded_tax,
                                  filed_return, registered, in_progress, flight_or_destroy_risk, prison_likely, cannot_pay, unreachable,
-                                 investigation_end_date, committee_resolution_date, notice_date, notice_served_date, paid_date, accused_date)
+                                 investigation_end_date, committee_resolution_date, notice_date, notice_served_date, paid_date, accused_date,
+                                 offense_paragraph=offense_paragraph)
 
 
 @mcp.tool(annotations=RO)

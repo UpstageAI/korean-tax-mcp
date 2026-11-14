@@ -32,8 +32,26 @@ D2026_10 = datetime.date(2026, 10, 2)   # 법률 제21857호(형사소송법 개
 DATE_MIN = datetime.date(2016, 1, 1)
 STAGES = ("선정", "조사", "기간연장", "처분심의", "통고", "고발", "무혐의", "종결")
 # 법정형 장기(年) — 처벌법 현행 문언. 제9조①2호(2023.1.17.~) '장기 3년 이상' 판정용
-MAX_TERM = {3: 2, "3단서": 3, 4: 3, "4의2": 3, 5: 5, 6: 3, 7: 3, "7③": 2, 8: 2, 9: 2, "9②": 1, 10: 1, "10③": 3, 11: 2, "11②": 1,
-            12: 2, 13: 2, "13①": 0, 14: 2, 15: 5, 16: 2}
+# 조세범 처벌법 조·항별 징역형 장기(년) — 2016.3.2. 시행본·2021.1.1. 시행본(현행) 원문 대조(법제처, 2026-11-15). 두 시행본의 값이 같음.
+# 값이 하나인 조는 항에 관계없이 같음. 0 = 벌금형만. 제3조는 본문 2년·단서 3년(evasion_proviso).
+MAX_TERM = {3: 2, "3단서": 3, 4: 3, 5: 5, 6: 3, 8: 2, 12: 2, 14: 2, 15: 5, 16: 2}
+TERM_BY_PARA = {7: {1: 3, 2: 3, 3: 2},      # 제1항·제2항(제1항과 같다) 3년, 제3항(방조·거짓 계약 승낙) 2년
+                9: {1: 2, 2: 1},            # 제1항 2년, 제2항 1년
+                10: {1: 1, 2: 1, 3: 3, 4: 3},  # 제1항·제2항 1년, 제3항(거짓 세금계산서) 3년, 제4항(알선·중개)은 제3항과 같은 형
+                11: {1: 2, 2: 1},           # 제1항 2년, 제2항 1년
+                13: {1: 0, 2: 2}}           # 제1항 벌금형만, 제2항 2년
+
+
+def _term(art, proviso, para):
+    """(장기 년수 또는 None, 설명, 항별 표 또는 None). 항을 주지 않았고 항마다 다르면 년수 None."""
+    if art == 3:
+        return (3, "제3조제1항 단서 3년", None) if proviso else (2, "제3조제1항 본문 2년(단서에 해당하면 3년)", None)
+    by = TERM_BY_PARA.get(art)
+    if by is None:
+        return MAX_TERM[art], f"제{art}조 {MAX_TERM[art]}년", None
+    if para in by:
+        return by[para], f"제{art}조제{para}항 " + (f"{by[para]}년" if by[para] else "벌금형만"), None
+    return None, "항에 따라 다름: " + ", ".join(f"제{k}항 " + (f"{v}년" if v else "벌금형만") for k, v in by.items()), by
 
 
 def _d(s, name, 문제):
@@ -120,7 +138,7 @@ def _threshold(rev, evasion, expected, filed, registered):
 def guide(decision_date=None, offense_article=None, evasion_proviso=None, annual_reported_revenue=None, annual_suspected_evasion=None,
           expected_evaded_tax=None, filed_return=None, registered=None, in_progress=None, flight_or_destroy_risk=None,
           prison_likely=None, cannot_pay=None, unreachable=None, investigation_end_date=None, committee_resolution_date=None,
-          notice_date=None, notice_served_date=None, paid_date=None, accused_date=None):
+          notice_date=None, notice_served_date=None, paid_date=None, accused_date=None, offense_paragraph=None):
     문제 = []
     d = _d(decision_date, "decision_date", 문제)
     if decision_date is None:
@@ -144,6 +162,8 @@ def guide(decision_date=None, offense_article=None, evasion_proviso=None, annual
             문제.append("offense_article — 조세범 처벌법 조 번호(3~16)")
         if art is not None and not (3 <= art <= 16):
             문제.append("offense_article — 3~16")
+    if offense_paragraph is not None and (isinstance(offense_paragraph, bool) or not isinstance(offense_paragraph, int) or not (1 <= offense_paragraph <= 5)):
+        문제.append("offense_paragraph — 항 번호(1~5)")
     for n, v in (("annual_reported_revenue", annual_reported_revenue), ("annual_suspected_evasion", annual_suspected_evasion), ("expected_evaded_tax", expected_evaded_tax)):
         if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0):
             문제.append(f"{n} — 0 이상의 금액(원)")
@@ -160,11 +180,15 @@ def guide(decision_date=None, offense_article=None, evasion_proviso=None, annual
                        else "제3조 외 사건의 조사 실시는 법률상 위원회 심의 사항이 아님(기간 연장·범위 확대·양벌규정은 3명 회의 심의)",
                        "근거": f"{_P} 제7조②, 제5조①, 시행령 제4조④"})
             if d >= D2023 and flight_or_destroy_risk:
-                key = "3단서" if (art == 3 and evasion_proviso) else art
-                term = MAX_TERM.get(key)
-                판정.append({"항목": "영장 없는 압수·수색(2호)", "판정": "가능" if (term or 0) >= 3 else "불가(장기 3년 미만)",
-                           "사유": f"2023.1.17.부터 장기 3년 이상의 형에 해당하는 혐의자만 — 처벌법 제{art}조{'(단서)' if key == '3단서' else ''} 법정형 장기 {term}년(항별로 다르면 큰 쪽 기준, 확인 필요)",
-                           "근거": f"{_P} 제9조①2호(2023.1.17. 개정, 부칙: 시행 이후 압수·수색부터)"})
+                term, term_why, by = _term(art, evasion_proviso, offense_paragraph)
+                if term is None:
+                    ok = [k for k, v in by.items() if v >= 3]
+                    res = f"항에 따라 다름 — 제{'·'.join(str(k) for k in ok)}항은 가능, 나머지 항은 불가(장기 3년 미만). offense_paragraph로 항을 주면 그 항으로 판정"
+                else:
+                    res = "가능" if term >= 3 else "불가(장기 3년 미만)"
+                판정.append({"항목": "영장 없는 압수·수색(2호)", "판정": res,
+                           "사유": f"2023.1.17.부터 장기 3년 이상의 형에 해당하는 혐의자만 — 처벌법 법정형 장기: {term_why}",
+                           "근거": f"{_P} 제9조①2호(2023.1.17. 개정, 부칙: 시행 이후 압수·수색부터), 조세범 처벌법 제{art}조(2021.1.1. 시행본)"})
     판정 += _threshold(annual_reported_revenue, annual_suspected_evasion, expected_evaded_tax, filed_return, registered)
     즉시 = [k for k, v in (("정상에 따라 징역형에 처할 것으로 판단(제1호)", prison_likely), ("통고대로 이행할 자금·납부 능력 없음(제2호)", cannot_pay),
                          ("거소 불명·서류 수령 거부로 통고 불가(제3호)", unreachable), ("도주·증거인멸 우려(제4호)", flight_or_destroy_risk)) if v]

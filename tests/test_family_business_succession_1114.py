@@ -115,4 +115,4 @@ def test_deferral_and_capacity_only_when_in_force():
     assert not has("2022-12-31", "납부유예") and has("2023-01-01", "납부유예")
     assert not has("2018-12-31", "납부능력") and has("2019-01-01", "납부능력")
     assert not has("2019-12-31", "조세포탈") and has("2020-01-01", "조세포탈")
-    assert G.guide("2023-01-01")["관련 해석"] and "미확인" in " ".join(G.guide("2023-01-01")["한계"])
+    assert G.guide("2023-01-01")["관련 해석"] and "미확인" not in " ".join(G.guide("2023-01-01")["한계"])   # 2026-11-15 원문 대조로 닫음
