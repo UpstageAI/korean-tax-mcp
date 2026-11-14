@@ -125,7 +125,8 @@ def test_specials():
     # 혼인 — 제155조제5항(2024.11.12. 개정 부칙: 시행 이후 양도분 10년)
     assert J(G.guide("2024-11-12", special="혼인", special_date="2016-01-01"))["혼인 합가 특례"]["판정"] == "충족"
     assert J(G.guide("2026-01-02", special="혼인", special_date="2016-01-01"))["혼인 합가 특례"]["판정"] == "미충족"
-    assert J(G.guide("2024-11-11", special="혼인", special_date="2016-01-01"))["혼인 합가 특례"]["판정"] == "확인 필요"
+    # 2024.11.11. 이전 양도분은 개정 전 5년(2024.9.15. 시행본 제155조제5항 대조 — test_one_house_xchk_2100b.py)
+    assert J(G.guide("2024-11-11", special="혼인", special_date="2016-01-01"))["혼인 합가 특례"]["판정"] == "미충족"
     # 동거봉양 — 제155조제4항 10년
     assert J(G.guide("2025-01-01", special="동거봉양", special_date="2015-01-01"))["동거봉양 합가 특례"]["판정"] == "충족"
     assert J(G.guide("2025-01-02", special="동거봉양", special_date="2015-01-01"))["동거봉양 합가 특례"]["판정"] == "미충족"
