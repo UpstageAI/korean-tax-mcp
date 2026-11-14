@@ -1044,6 +1044,46 @@ def family_business_succession_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def business_income_guide(
+    year: Annotated[int | None, Field(description="과세기간(2016~2026, 선택). 생략하면 과세기간별로 달라진 기준과 업종 구분 목록")] = None,
+    industry: Annotated[str | None, Field(description="업종(선택) — 농업·임업·어업 | 작물재배업 | 곡물·식량작물 재배업 | 광업 | 도매·소매업 | 부동산매매업 | 비주거용 건물 건설업 | 그 밖의 사업 | 제조업 | 숙박·음식점업 | "
+                                                     "전기·가스·증기·공기조절 공급업 | 수도·하수·폐기물처리·원료재생업 | 건설업 | 주거용 건물 개발·공급업 | 운수·창고업 | 정보통신업 | 금융·보험업 | 상품중개업 | "
+                                                     "부동산임대업 | 부동산업(매매업 제외) | 전문·과학·기술서비스업 | 사업시설관리·사업지원·임대서비스업 | 교육서비스업 | 보건업·사회복지서비스업 | "
+                                                     "예술·스포츠·여가 관련 서비스업 | 협회·단체 | 수리·기타 개인서비스업 | 수리·기타 개인서비스업(인적용역) | 가구내 고용활동 | "
+                                                     "논·밭 임대(작물 생산) | 농어가부업 | 전통주 제조 | 조림(임목 벌채·양도) | 연근해·내수면어업 | 양식어업. 주택 수만 주면 부동산임대업")] = None,
+    revenue_prev: Annotated[float | None, Field(description="직전 과세기간 수입금액(원, 선택) — 복식부기·단순경비율 판정")] = None,
+    revenue_curr: Annotated[float | None, Field(description="해당 과세기간 수입금액(원, 선택) — 성실신고확인 판정, 2019년부터 단순경비율 판정, 작물재배업 10억원 판정")] = None,
+    new_business: Annotated[bool | None, Field(description="해당 과세기간에 신규로 사업을 개시했는지(선택) — 직전 과세기간 수입금액이 있으면 false")] = None,
+    professional: Annotated[bool | None, Field(description="의료업·수의업·약국 또는 부가가치세법 시행령 제109조제2항제7호 전문직 사업자인지(선택) — 항상 복식부기, 단순경비율 제외")] = None,
+    business_service: Annotated[bool | None, Field(description="가·나목 업종 중 시행령 별표 3의3 사업서비스업을 영위하는지(선택) — 성실신고확인은 5억원 기준")] = None,
+    asset_sale_prev: Annotated[float | None, Field(description="직전 과세기간 수입금액 중 복식부기의무자의 사업용 유형자산(차량·운반구 등) 양도 수입금액(원, 선택) — 2020년부터 복식부기 판정에서 뺌")] = None,
+    asset_sale_curr: Annotated[float | None, Field(description="해당 과세기간 수입금액 중 사업용 유형자산 양도 수입금액(원, 선택) — 2019년 과세기간 신고분부터 성실신고확인 판정에서 뺌")] = None,
+    exempt_income: Annotated[float | None, Field(description="비과세 업종의 해당 과세기간 소득금액(원, 선택) — 농어가부업 3천만원, 전통주 1천200만원, 조림 600만원(2026년 3천만원), 어로·양식어업 5천만원 판정")] = None,
+    house_count: Annotated[int | None, Field(description="소유 주택 수(선택) — 본인·배우자 합산, 국외주택 포함, 시행령 제8조의2제3항(다가구·공동소유·전대)대로 센 수")] = None,
+    house_prices: Annotated[list | None, Field(description="주택별 기준시가(원) 목록(선택) — 1주택이면 그 주택 기준시가(9억원·12억원 판정), 2026년 2주택 간주임대료는 주택 수만큼")] = None,
+    overseas_house: Annotated[bool | None, Field(description="1주택이 국외에 있는지(선택) — 국외주택 임대소득은 비과세 제외")] = None,
+    small_house_count: Annotated[int | None, Field(description="간주임대료 주택 수에서 빼는 소형주택 수(선택) — 2016년 85㎡·3억원, 2017~2018년 60㎡·3억원, 2019년부터 40㎡·2억원 이하")] = None,
+    deposit_total: Annotated[float | None, Field(description="주택 임대보증금·전세금 합계(원, 선택) — 간주임대료 3억원·12억원 판정")] = None,
+    rental_revenue: Annotated[float | None, Field(description="해당 과세기간 주거용 건물 임대업 수입금액 합계(원, 선택, 공동사업은 손익분배비율로 나눈 몫 합산) — 2천만원 판정")] = None,
+    registered_rental: Annotated[bool | None, Field(description="등록임대주택(민간임대주택법 등록 + 법 제168조 사업자등록 + 임대료 등 증가율 5% 이하)인지(선택) — 분리과세 필요경비율 60%·50%")] = None,
+    other_income: Annotated[float | None, Field(description="분리과세 주택임대소득을 뺀 종합소득금액(원, 선택) — 2천만원 이하면 400만원·200만원 추가 공제")] = None,
+) -> dict:
+    """Requirements for Korean business income by tax year — scope of business income, non-taxable items (farmland lease, one-house rental, farm side business, traditional liquor, afforestation, crop farming, fishing), house rental taxation (separate taxation of rent up to 20 million won, deemed rent on deposits), bookkeeping duty, sincere-filing confirmation, estimated assessment with standard or simple expense ratios, business account and cash receipt duties — checked against the statute and enforcement decree texts and transitional rules in force each year. It does not compute tax.
+
+    사업소득 요건 안내 — 과세기간별 사업소득 범위(소득세법 제19조), 비과세(제12조제2호 — 논밭 임대, 1주택 주택임대(기준시가 9억원 → 12억원, 국외주택 제외), 농어가부업, 전통주, 조림, 작물재배업, 어로·양식어업), 주택임대소득 과세 방식(2천만원 이하 분리과세, 간주임대료 주택 수·소형주택 기준, 등록임대주택 필요경비율 60%·50%와 공제 400만원·200만원), 기장 의무(복식부기의무자·간편장부대상자, 시행령 제208조제5항), 성실신고확인대상(제70조의2, 시행령 제133조), 추계와 기준경비율·단순경비율 적용 대상(시행령 제143조), 사업용계좌·현금영수증 의무 개요를 판정한다.
+    언제: 개인사업자가 그 해 복식부기의무자인지 간편장부대상자인지, 성실신고확인 대상인지, 추계신고하면 단순경비율을 쓸 수 있는지, 주택 임대소득이 비과세인지·분리과세를 고를 수 있는지·보증금에 간주임대료가 붙는지 확인할 때.
+    입력: year(과세기간)와 industry, 수입금액(revenue_prev 직전, revenue_curr 해당), 주택임대 사실(house_count, house_prices 기준시가, deposit_total 보증금 합계, rental_revenue, registered_rental). 생략한 사실은 판정하지 않고 '확인 필요'.
+    반환: {과세기간, 업종, 업종 구분, 판정: [{항목, 판정, 사유, 근거}], 그 해 기준, 한계, 관련 해석, 다음 단계, 확인 시행본}. year를 생략하면 과세기간별 변화와 업종 목록.
+    과세기간에 따라 다름: 1주택 비과세 고가주택(2022년까지 9억원, 2023년부터 12억원), 2천만원 이하(2018년까지 비과세, 2019년부터 분리과세), 소형주택(2016년 85㎡·3억원, 2017~2018년 60㎡·3억원, 2019년부터 40㎡·2억원), 간주임대료 2주택 기준(2026년부터), 성실신고확인(2017년까지 20억·10억·5억원, 2018년부터 15억·7억5천만·5억원), 단순경비율 해당연도 수입금액 요건(2019년부터), 인적용역 3천600만원(2023년부터), 조림 비과세 3천만원(2026년부터), 어로어업(2020년)·양식어업(2024년) 비과세.
+    세액·소득금액은 계산하지 않는다(계산 MCP의 estimated_business_income, housing_rental_income, housing_deemed_rent_income, income_tax). 업종 겸영 환산, 시행규칙·별표 업종표는 대조하지 않아 '한계'에 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=과세기간 말일).
+    """
+    from . import business_income as _bi
+    return _bi.guide(year, industry, revenue_prev, revenue_curr, new_business, professional, business_service, asset_sale_prev, asset_sale_curr,
+                     exempt_income, house_count, house_prices, overseas_house, small_house_count, deposit_total, rental_revenue, registered_rental, other_income)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def employment_credit_requirements_guide(
     year: Annotated[int | None, Field(description="과세연도(2018~2026, 선택). 생략하면 연도별로 달라진 요건 목록")] = None,
     credit: Annotated[str | None, Field(description="고용증대 | 통합고용(선택). 생략하면 2022년까지 고용증대, 2023년부터 통합고용 기준")] = None,
