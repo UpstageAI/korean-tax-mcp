@@ -80,3 +80,16 @@ def test_every_offense_returns():
     for o in G.OFFENSES:
         r = G.guide("2024-05-31", o)
         assert r["조문"].startswith("조세범 처벌법 제") and r["법정형"] and r["한계"] and "article='제" in r["다음 단계"][0], o
+
+
+def test_joint_penalty_exclusion_1114():
+    """제18조 괄호(2019.1.1. 시행본부터): 국조법 제36조(2019~2020)·제57조(2021~) 위반행위는 양벌규정 제외 — 2026-11-14 추가."""
+    def joint(r):
+        return {p["항목"]: p for p in r["공통 규정"]}["양벌규정"]["내용"]
+    a = joint(G.guide("2024-03-31", "해외금융계좌 비밀유지 위반"))
+    assert "제57조를 위반한 행위는 양벌규정에서 제외" in a and "제38조제2항부터 제4항까지 위반이면 양벌규정 적용" in a
+    b = joint(G.guide("2020-03-31", "해외금융계좌 비밀유지 위반"))
+    assert "제36조를 위반한 행위는 양벌규정에서 제외" in b and "제31조제6항부터 제8항까지" in b
+    assert "제외(제18조 괄호" not in joint(G.guide("2024-03-31", "조세포탈")) and "양벌규정에서 제외" not in joint(G.guide("2024-03-31", "조세포탈"))
+    assert "제57조" not in joint(G.guide("2017-03-31", "조세포탈"))
+    assert "제36조" in joint(G.guide("2020-03-31")) and "제57조" in joint(G.guide("2024-03-31"))
