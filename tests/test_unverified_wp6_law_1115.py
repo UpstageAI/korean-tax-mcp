@@ -7,7 +7,8 @@
   · 소득세법 제120조 2020.1.1. 시행본(법률 제16834호) — 제4항·제5항 '예비적 또는 보조적'.
   · 부칙: 법인세법 제16008호·제16833호 제2조(시행 이후 개시하는 사업연도분부터), 소득세법 제16104호·제16834호 제2조제1항(시행 이후 발생하는 소득분부터),
     법인세법 시행령 제36130호·소득세법 시행령 제36129호(공포한 날부터 시행, 제133조·제180조 적용례 없음).
-  · 판례: 대법원 2017두59352·2014두6869·2010두28946·2010두22719 판결문과 하급심 판결문(국세법령정보시스템)."""
+  · 판례: 대법원 2017두59352·2014두6869·2010두28946·2010두22719 판결문과 하급심 판결문(국세법령정보시스템).
+  · 대법원 2015. 2. 26. 선고 2014두13959 판결문과 원심 서울고등법원 2014. 10. 10. 선고 2013누27786 판결문(국세법령정보시스템, 2026-11-15)."""
 import json
 import os
 
@@ -101,6 +102,21 @@ def test_residency_case_names_filled():
     # 사실 요약으로 찾을 때 2017두59352가 잡힘(인도네시아 법인 대표이사)
     hit = RJ.find_similar_cases("인도네시아 해외 법인 대표이사, 중대한 이해관계 중심지 다툼", top=3)
     assert "2017두59352" in [p.case_no for p in hit]
+
+
+def test_2014du13959_facts_from_judgment_text():
+    """대법원 2014두13959 — 판결문에 적힌 원심 인정 사실(체류일수 270·287·232일, 평균 255일, 호텔 약 20일, 6,125만 원)과 증명책임 판시."""
+    c = {p.case_no: p for p in RJ.CASES}["2014두13959"]
+    assert c.date == "2015.02.26." and c.case_name == "양도소득세등부과처분취소"
+    assert "확인 안 됨" not in c.facts and "미확인" not in c.facts + c.holding + c.misc
+    for w in ("2006년 270일", "2007년 287일", "2008년 232일", "평균 255일", "연간 약 20일", "6,125만 원", "미국 또는 중국", "2006년 귀속 종합소득세", "2008년 귀속 양도소득세"):
+        assert w in c.facts, w
+    assert "이를 주장하는 납세의무자에게 증명책임" in c.holding and "2006두3964" in c.holding and "과세요건" in c.holding
+    assert "항구적 주거" in c.holding and "일상적 거소" in c.holding
+    assert c.conclusion.startswith("거주자") and "2013구합11628" in c.misc and "2013누27786" in c.misc
+    rules = open(os.path.join(os.path.dirname(RJ.__file__), "..", "data", "residency", "rules.md"), encoding="utf-8").read()
+    sec = rules[rules.index("#### 6-1-3."):rules.index("### 6-2.")]
+    assert "공개 자료로는 확인하지 못함" not in sec and "평균 255일" in sec and "2013구합11628" in sec
 
 
 def test_tp_cases_all_read_against_body():
