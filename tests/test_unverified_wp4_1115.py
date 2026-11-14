@@ -75,6 +75,24 @@ def test_warrantless_seizure_by_paragraph():
     assert "error" in P.guide("2024-03-01", offense_article=10, offense_paragraph=9)
 
 
+def test_warrantless_seizure_without_paragraph_all_below_three_years(monkeypatch):
+    # 항을 주지 않은 경우 — 조세범 처벌법 항별 장기(TERM_BY_PARA, 2016.3.2.·2021.1.1. 시행본 대조분)
+    for art in (9, 11, 13):          # 제9조 2년·1년, 제11조 2년·1년, 제13조 벌금형만·2년 → 어느 항도 3년 미만
+        w = _warrant(offense_article=art)
+        assert w["판정"] == "불가(모든 항이 장기 3년 미만)", (art, w)
+        assert "제항" not in _txt(w) and "가능" not in w["판정"]
+        assert "항에 따라 다름" in w["사유"]                      # 항별 법정형은 사유에 그대로
+    for art in (7, 10):              # 섞인 조 — 제7조 3년·3년·2년, 제10조 1년·1년·3년·3년
+        w = _warrant(offense_article=art)
+        assert w["판정"].startswith("항에 따라 다름 — 제") and "제항" not in w["판정"]
+    assert "제1·2항은 가능" in _warrant(offense_article=7)["판정"]
+    assert "제3·4항은 가능" in _warrant(offense_article=10)["판정"]
+    # 모든 항이 3년 이상인 조는 현행 표에 없음 — 그런 표가 생겨도 '나머지 항은 불가'라고 하지 않는지 분기만 확인(표를 지어낸 값으로 바꿔서)
+    monkeypatch.setitem(P.TERM_BY_PARA, 10, {1: 3, 2: 5})
+    w = _warrant(offense_article=10)
+    assert w["판정"] == "가능(모든 항이 장기 3년 이상)" and "나머지" not in w["판정"]
+
+
 def test_tax_crime_limits_point_to_calc_tool():
     assert "tax_crime_settlement_amount" in tax_crime._LIMITS[0] and "대조하지 않음" not in tax_crime._LIMITS[0]
 

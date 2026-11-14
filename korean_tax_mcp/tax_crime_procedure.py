@@ -183,7 +183,12 @@ def guide(decision_date=None, offense_article=None, evasion_proviso=None, annual
                 term, term_why, by = _term(art, evasion_proviso, offense_paragraph)
                 if term is None:
                     ok = [k for k, v in by.items() if v >= 3]
-                    res = f"항에 따라 다름 — 제{'·'.join(str(k) for k in ok)}항은 가능, 나머지 항은 불가(장기 3년 미만). offense_paragraph로 항을 주면 그 항으로 판정"
+                    if not ok:      # 제9조·제11조·제13조 — 어느 항도 장기 3년에 못 미침
+                        res = "불가(모든 항이 장기 3년 미만)"
+                    elif len(ok) == len(by):
+                        res = "가능(모든 항이 장기 3년 이상)"
+                    else:
+                        res = f"항에 따라 다름 — 제{'·'.join(str(k) for k in ok)}항은 가능, 나머지 항은 불가(장기 3년 미만). offense_paragraph로 항을 주면 그 항으로 판정"
                 else:
                     res = "가능" if term >= 3 else "불가(장기 3년 미만)"
                 판정.append({"항목": "영장 없는 압수·수색(2호)", "판정": res,
