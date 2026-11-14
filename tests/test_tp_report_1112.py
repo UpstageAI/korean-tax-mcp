@@ -112,7 +112,8 @@ def test_cases_by_issue():
     for v in r["쟁점"].values():
         assert v["보고서에 반영할 점"]
         for c in v["사례"]:
-            assert c["결과"] in ("납세자 승", "과세관청 승", "해석", "(제목만 확인)") and c["요지"] and c["읽은 범위"] in ("요지", "요지와 판단 부분", "제목")
+            # 2026-11-15 본문 대조 후 '요지'·'제목' 꼬리표 없음(tests/test_unverified_wp6_law_1115.py)
+            assert c["결과"] in ("납세자 승", "과세관청 승", "해석") and c["요지"] and c["읽은 범위"] in ("요지와 판단 부분", "요지와 본문")
     d = R.cases("다년도")["쟁점"]
     assert list(d) == ["다년도 자료"] and d["다년도 자료"]["과세관청 승"] == 3 and any("제9조" in s for s in d["다년도 자료"]["보고서에 반영할 점"])
     w = R.cases("차이 조정", "납세자 승")["쟁점"]["차이 조정"]["사례"]

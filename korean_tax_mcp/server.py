@@ -1413,8 +1413,8 @@ def transfer_pricing_cases(
     이전가격 쟁점별 결정례 — 쟁점 9개에 대해 납세자 주장이 받아들여진 사례와 과세관청 처분이 유지된 사례를 나란히, 보고서에 반영할 점과 함께.
     언제: 정상가격 검토 보고서에서 회사 논리를 세울 때 같은 쟁점에서 무엇이 통했고 무엇이 통하지 않았는지 확인할 때.
     반환: {쟁점: {이름: {설명, 사례: [{문서번호, id, 구분, 일자, 결과, 요지, 읽은 범위}], 보고서에 반영할 점, 납세자 승, 과세관청 승}}, 쟁점 목록, 주의, 다음 단계}.
-    요지는 국세법령정보시스템 요지를 옮긴 것이고 '읽은 범위'가 요지·제목인 건은 본문을 대조하지 않았다 — 인용 전에 get_tax_ruling(id)로 본문 확인. 대부분 2020년 이전 구법 사안이라 현행 조문과 대조해야 한다.
-    읽기 전용. data/tp_cases.json 기반(2026-11-12 검색분), 외부 호출 없음.
+    요지는 국세법령정보시스템·조세심판원의 요지와 본문 판단 부분을 옮긴 것으로 20건 모두 본문과 대조했다(2026-11-15) — '읽은 범위'가 '요지와 본문'인 질의회신·사전답변 3건은 본문에 회신문이 따로 없어 결론은 요지 기준. 인용 전에 get_tax_ruling(id)로 본문 확인. 대부분 2020년 이전 구법 사안이라 현행 조문과 대조해야 한다.
+    읽기 전용. data/tp_cases.json 기반(2026-11-12 검색, 2026-11-15 본문 대조), 외부 호출 없음.
     """
     return _tp_report.cases(issue, outcome or "")
 
@@ -2024,7 +2024,7 @@ def residency_report(
 @mcp.tool(annotations=RO)
 @bilingual
 def permanent_establishment_guide(
-    year: Annotated[int | None, Field(description="판정 연도(2016~2026) — 그해 연말 시행본으로 판정. 생략하면 요소 목록과 연도별 변화")] = None,
+    year: Annotated[int | None, Field(description="판정 연도(2016~2026) — 그해 연말 시행본으로 판정. 외국법인은 사업연도 개시일이 속하는 연도, 비거주자는 소득이 발생한 연도(부칙 일반적 적용례). 생략하면 요소 목록과 연도별 변화")] = None,
     taxpayer: Annotated[Literal["외국법인", "비거주자"], Field(description="외국법인(법인세법 제94조) 또는 비거주자(소득세법 제120조)")] = "외국법인",
     fixed_place: Annotated[bool | None, Field(description="국내에 사업의 전부 또는 일부를 수행하는 고정된 장소가 있는지(선택)")] = None,
     place_types: Annotated[list[Literal["지점·사무소·영업소", "상점·판매장소", "작업장·공장·창고", "건설현장", "용역 제공 장소", "광산·천연자원 장소"]] | None, Field(description="국내 장소 유형(선택, 여러 개)")] = None,
@@ -2037,7 +2037,7 @@ def permanent_establishment_guide(
     combined_not_preparatory: Annotated[bool | None, Field(description="상호 보완적 활동을 결합한 전체 활동이 예비적·보조적 성격이 아닌지(선택) — 2019년부터 제5항제2호")] = None,
     agent_contract_authority: Annotated[bool | None, Field(description="국내에서 본인을 위해 계약을 체결할 권한을 가지고 반복 행사하는 자가 있는지(선택)")] = None,
     agent_principal_role: Annotated[bool | None, Field(description="체결 권한은 없지만 계약 체결 과정에서 중요한 역할을 반복 수행하는 자가 있는지(선택) — 2019년부터 제3항제2호")] = None,
-    agent_types: Annotated[list[Literal["자산 상시 보관·배달", "특수관계 외국법인을 위한 독립대리인", "보험료 징수·보험 인수"]] | None, Field(description="대리인이 시행령의 '이에 준하는 자' 유형에 해당하면(선택)")] = None,
+    agent_types: Annotated[list[Literal["자산 상시 보관·배달", "주로 특정 외국법인만을 위한 독립대리인", "특수관계 외국법인을 위한 독립대리인", "보험료 징수·보험 인수"]] | None, Field(description="대리인이 시행령(법인세법 시행령 제133조·소득세법 시행령 제180조)의 '이에 준하는 자' 유형에 해당하면(선택) — 독립대리인은 2025년까지 '주로 특정 외국법인(비거주자)만을 위한', 2026.2.27.부터 '전적으로 또는 거의 전적으로 특수관계 외국법인(비거주자)을 위한'이 요건")] = None,
     treaty_country: Annotated[str | None, Field(description="거주지국(한글, 선택) — 조세조약 고정사업장 조항 조회 안내에 씀")] = None,
 ) -> dict:
     """Korean permanent establishment (domestic place of business) test under domestic law for a given year — fixed place, listed places, construction sites over six months, service PE (more than six months in twelve, or similar services for two years or more), dependent agents (contract authority; from 2019 also the principal role in concluding contracts), the preparatory or auxiliary exclusion (unconditional through 2018; from 2019 only if preparatory and auxiliary, from 2020 preparatory or auxiliary) and the anti-fragmentation rule from 2019. Treaty PE articles can differ and are not decided here; use tax_treaty.
@@ -2045,8 +2045,8 @@ def permanent_establishment_guide(
     국내사업장(고정사업장) 판정 안내 — 법인세법 제94조(외국법인)·소득세법 제120조(비거주자)의 요소(고정된 장소, 포함 장소, 6개월 초과 건설현장, 용역 PE, 종속대리인, 준비적·보조적 활동 제외, 세분화 방지)에 사실을 대어 요소별로 '국내사업장 있음·해당 없음·확인 필요'를 돌려준다.
     언제: 외국법인이나 비거주자가 국내에 지점·사무소·현장·직원·대리인을 두었을 때 국내사업장이 생기는지, 연도에 따라 종속대리인·예비적 활동 요건이 어떻게 달랐는지 확인할 때.
     입력: year(2016~2026), taxpayer, 장소 사실(fixed_place, place_types, construction_months, service_months_in_12, similar_service_years), 활동 사실(specific_activities, preparatory_or_auxiliary, related_pe_complementary, combined_not_preparatory), 대리인 사실(agent_contract_authority, agent_principal_role, agent_types), treaty_country.
-    반환: {기준 연도, 적용 시행본, 납세자, 결론, 판정: [{항목, 판정, 사유, 근거}], 확인 필요, 요소(연도별 조문 요지), 조세조약, 다음 단계, 한계, 확인 시행본}.
-    연도에 따라 다름: 2018년까지 종속대리인은 계약 체결 권한 반복 행사자만·특정 활동 장소는 조건 없이 제외, 2019년 계약 체결 과정의 중요한 역할 추가·'예비적이며 보조적'일 때만 제외·세분화 방지 신설, 2020년부터 '예비적 또는 보조적', 2022년부터 외국법인연락사무소 자료 제출.
+    반환: {기준 연도, 적용 시행본, 적용 기준(부칙 적용례), 납세자, 결론, 판정: [{항목, 판정, 사유, 근거}], 확인 필요, 요소(연도별 조문 요지), 조세조약, 다음 단계, 해석·판례: [{문서번호, 구분, 일자, id, 쟁점, 요지, 읽은 범위}], 한계, 확인 시행본}.
+    연도에 따라 다름: 2018년까지 종속대리인은 계약 체결 권한 반복 행사자만·특정 활동 장소는 조건 없이 제외, 2019년 계약 체결 과정의 중요한 역할 추가·'예비적이며 보조적'일 때만 제외·세분화 방지 신설, 2020년부터 '예비적 또는 보조적', 2022년부터 외국법인연락사무소 자료 제출, 2026.2.27.부터 시행령의 독립대리인 요건 변경.
     조세조약의 고정사업장 조항이 국내법과 다르거나 우선할 수 있음 — tax_treaty(country, keyword='고정사업장')로 확인. 사실 판단(고정성, 예비적·보조적 성격, 대리인 독립성)은 하지 않음. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of).
     """
     return _pe.guide(year, taxpayer, fixed_place, place_types, construction_months, service_months_in_12, similar_service_years, specific_activities,
