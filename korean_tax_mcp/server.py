@@ -837,6 +837,34 @@ def timing_rules(
     return _timing_rules_data.lookup(_TIMING_TAX_EN.get(tax, tax), kind or None, keyword, as_of)
 
 
+InterestType = Literal["채권·증권 이자", "예금 이자", "신용계·신용부금", "환매조건부 매매차익", "저축성보험 보험차익", "직장공제회 초과반환금",
+                       "비영업대금의 이익", "유사 이자", "파생결합 이익", "법원 보증금·경락대금 이자"]
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def interest_income_guide(
+    payment_date: Annotated[str | None, Field(description="지급일 YYYY-MM-DD(2016-01-01~2026-12-31). 원천징수세율·저축성보험 범위는 지급일 기준. 생략하면 year로 판정")] = None,
+    year: Annotated[int | None, Field(description="귀속연도(2016~2026, 선택). payment_date가 없으면 그 해 12월 31일로 봄")] = None,
+    income_type: Annotated[InterestType | None, Field(description="이자 유형 — 채권·증권 이자 | 예금 이자 | 신용계·신용부금 | 환매조건부 매매차익 | 저축성보험 보험차익 | 직장공제회 초과반환금 | 비영업대금의 이익 | 유사 이자 | 파생결합 이익 | 법원 보증금·경락대금 이자")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택, 아는 것만 — 생략하고 부르면 '입력 안내'에 키 목록). 저축성보험 {contract_date: 'YYYY-MM-DD', holding_years: 10, premium_type: '일시납·일반'|'월적립식'|'종신형 연금', "
+                                                     "total_premium: 원, monthly_premium: 원, payment_years: 5, equal_monthly: true, annuity_within_10y: false, lifetime_annuity_ok: true, injury_benefit: false, similar_contract: false}, "
+                                                     "비영업대금 {lending_business: false(대금업 표방·불특정다수 대여면 true), p2p: true(온라인투자연계금융업자 경유)}, "
+                                                     "공통 {withheld: true, financial_income_total: 그 해 이자·배당 합계(원), unverified_name: 비실명, realname_act, long_term_bond, bond_issued_before_2018, nonprofit_group, public_interest_trust}")] = None,
+) -> dict:
+    """Korean interest income guide by payment date or tax year — what counts as interest income (Income Tax Act Article 16), private lending versus a money-lending business, savings insurance gains and their exclusion (Decree Article 25), exemption, separate taxation (Article 14(3)), the KRW 20 million comprehensive taxation threshold and withholding rates (Article 129), checked against the text and transitional rules in force. It does not compute tax.
+
+    이자소득 요건 안내 — 지급일(귀속연도)의 시행본으로 이자소득의 범위(소득세법 제16조 — 채권·증권 이자와 할인액, 예금 이자, 비영업대금의 이익, 저축성보험 보험차익, 직장공제회 초과반환금, 유사 이자 등), 비영업대금과 대금업 사업소득의 구분, 저축성보험 과세 제외 요건(시행령 제25조 — 10년 이상, 일시납 한도, 월적립식 요건, 종신형 연금보험), 비과세(제12조제1호), 분리과세(제14조제3항 — 비실명, 법원 보증금·경락대금, 직장공제회, 2천만원 이하), 원천징수세율(제129조)을 판정한다.
+    언제: 개인 간 대여 이자가 비영업대금인지 사업소득인지, 온라인투자연계 이자의 원천징수세율, 저축성보험 만기·해지 환급금 차익이 과세되는지, 이자·배당이 2천만원을 넘어 종합과세되는지, 비실명 이자 세율을 확인할 때.
+    입력: payment_date(지급일) 또는 year(귀속연도), income_type(이자 유형), facts(저축성보험 계약일·유지기간·납입 방식·금액, 대금업 표방 여부, 온라인투자연계 경유, 원천징수 여부, 이자·배당 합계 등 아는 것만).
+    반환: {기준일, 귀속연도, 소득 유형, 판정: [{항목, 판정, 사유, 근거}], 요건: [{요건, 내용, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 유형 목록·facts 키·날짜별 변화.
+    지급일·계약일에 따라 다름: 비실명 세율(2017년까지 38%, 2018년 40%, 2019~2022년 42%, 2023년부터 45%), 비영업대금 14% 단서(2020년 온라인 중개업자 경유, 2021년부터 온라인투자연계금융업자 경유 — 2019년까지 없음), 장기채권 분리과세 30%(2018.1.1. 삭제, 그 전 발행분 종전), 저축성보험 한도(2017.3.31.까지 계약 2억원, 2017.4.1.부터 1억원·월적립식 월 150만원, 2013.2.15. 전 계약 종전 규정, 2025.2.28. 이후 지급분 유사 계약 제외).
+    세액을 계산하지 않는다(계산 MCP의 financial_income_aggregate, withholding_tax). 수입시기 표는 timing_rules(tax='소득', kind='이자소득 수입시기'). 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=지급일), 부칙은 article_addenda.
+    """
+    from . import interest_income as _ii
+    return _ii.guide(payment_date, year, income_type, facts)
+
+
 @mcp.tool(annotations=RO)
 @bilingual
 def transfer_pricing_guide(
