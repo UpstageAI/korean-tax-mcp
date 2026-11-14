@@ -31,6 +31,7 @@ from . import rnd_requirements as _rnd_requirements
 from . import employment_requirements as _employment_requirements
 from . import tax_crime as _tax_crime
 from . import tax_crime_procedure as _tax_crime_proc
+from . import vat_exempt_zero_rate as _vat_ezr
 
 mcp = MCPServer(
     "korean-tax-mcp", title="Korea Tax Law (한국 세법 근거)",
@@ -877,6 +878,30 @@ def sme_tax_incentives_guide(
     세액을 계산하지 않는다. 중소기업·소기업·지역 해당 여부는 판정하지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article, 적용례는 article_addenda.
     """
     return _sme_incentives.guide(founded_on, region, youth, industry, oem, venture_confirmed_on, size, hq_in_capital_area)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
+def vat_exempt_zero_rate_guide(
+    supply_date: Annotated[str | None, Field(description="공급일 YYYY-MM-DD(2016-01-01~2026-12-31). 그 날의 시행본으로 판정. 생략하면 유형 목록과 날짜별 변화")] = None,
+    category: Annotated[str | None, Field(description="공급 유형 — 면세: 미가공식료품 | 의료보건 | 교육 | 금융·보험 | 주택 임대 | 토지 공급 | 도서·신문 | 여객운송 | 국민주택 공급. "
+                                                      "영세율: 직수출 | 중계무역 등 수출 | 내국신용장·구매확인서 | 비거주자 지정 인도 재화 | 국외 제공 용역 | 외국항행 용역 | 외화 획득 용역 | 수출재화임가공 | 외항선박 등 공급 | 외교공관등 공급 | 외교관 면세판매 | 주한 국제연합군·미군 공급 | 외국인 관광객 관광알선")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택, 유형별 키 — 생략하고 부르면 '입력 안내'에 키 목록). 예: 의료보건 {provider: '의사등', cosmetic_listed: true}, "
+                                                     "외화 획득 용역 {counterparty_nonresident: true, has_domestic_place: false, service_kind: '전문서비스업', payment: '외국환은행 원화', reciprocal: true}, "
+                                                     "주택 임대 {residential: true, house_floor_area: 120, building_footprint: 60, land_area: 400, outside_urban: false}, "
+                                                     "내국신용장·구매확인서 {issued_in_time: true}, 공통 {also_zero_rated: true(면세 재화를 수출), supplier_nonresident: true, reciprocal: true}")] = None,
+    waive_exemption: Annotated[bool | None, Field(description="면세포기(부가가치세법 제28조)를 검토하는지(선택)")] = None,
+) -> dict:
+    """VAT exemption and zero-rating by supply date — whether a supply is exempt (Article 26), taxable, or zero-rated (Articles 21 to 25), the scope set by the Enforcement Decree, exemption waiver (Article 28) and zero-rate attachments (Decree Article 101), checked against the text in force on the supply date. It does not compute tax.
+
+    부가가치세 면세·영세율 판정 안내 — 공급일의 시행본으로 면세(부가가치세법 제26조 — 미가공식료품, 의료보건, 교육, 금융·보험, 주택 임대와 부수토지 한도, 토지, 도서·신문, 여객운송), 면세포기(제28조), 영세율(제21조 수출 형태, 제22조 국외 제공 용역, 제23조 외국항행, 제24조 외화 획득 — 시행령 제33조의 거래 상대방·업종·대금 결제 요건, 제25조 상호주의)과 영세율 첨부서류(시행령 제101조)를 판정한다.
+    언제: 미용 목적 시술이 과세인지, 학원 교육이 면세인지, 겸용주택 임대의 부수토지가 어디까지 면세인지, 국내사업장 없는 외국법인에 제공한 용역이나 구매확인서 거래가 영세율인지, 면세 재화를 수출할 때 면세포기가 되는지 확인할 때.
+    입력: supply_date(공급일), category(공급 유형), facts(유형별 사실 — 내국신용장·구매확인서 기한 내 발급, 대금 결제 방법, 상대방의 비거주자 여부와 국내사업장 유무, 상호면세 등), waive_exemption.
+    반환: {공급일, 구분, 유형, 판정: [{항목, 판정(면세·과세·영세율·확인 필요 등), 사유, 근거}], 요건, 면세포기?, 영세율 첨부서류?, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 유형 목록·facts 키·날짜별 변화.
+    공급일에 따라 다름: 외화 획득 용역의 비거주자 범위(2017.2.7.)·투자자문업(2020.7.1.), 보세구역 물품 반출 수출(2019.2.12.), 삭도·관광유람선 여객운송 과세(2019.1.1.), 사회적협동조합 교육·간병(2020.7.1.), 실내 도서열람 면세(2023.1.1.), 동물 혈액 면세(2025.1.1.).
+    세액을 계산하지 않는다(계산 MCP의 vat_return_general, 공급시기는 vat_supply_timing). 시행령 2022년 이후 시행본·시행규칙·조세특례제한법 제106조는 대조하지 못해 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=공급일).
+    """
+    return _vat_ezr.guide(supply_date, category, facts, waive_exemption)
 
 
 @mcp.tool(annotations=RO)
