@@ -771,13 +771,13 @@ WRITE_FILE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idemp
 def tax_memo_guide(
     lang: Annotated[Literal["en", "ko"], Field(description="Language of the memo and of this guide — use the user's language. 'en' (default) | 'ko'. 메모와 안내문의 언어(사용자의 언어)")] = "en",
 ) -> dict:
-    """Logic line for a Korean tax memo or opinion: the fixed order of reasoning, the structure JSON schema and a filled example. Call this first when the user asks for a tax memo, opinion or review note; then build_tax_memo.
+    """Logic line for a Korean tax memo or opinion: the fixed order of reasoning, the structure JSON schema and an illustrative example of the shape (not of any real case). Call this first when the user asks for a tax memo, opinion or review note; then build_tax_memo.
 
-    세무 메모·검토의견서의 따지는 순서(논리선), 구조 JSON 스키마, 채운 예시를 돌려준다.
+    세무 메모·검토의견서의 따지는 순서(논리선), 구조 JSON 스키마, 모양을 보이는 예시를 돌려준다. 특정 거래의 쟁점 목록은 주지 않는다 — 쟁점은 요건 안내 도구, 계산기의 쟁점 목록, 사용자가 준 문서에서 가져온다.
     언제: 사용자가 세무 메모·의견서·검토 보고를 Word 문서로 원할 때 맨 먼저. AI가 즉흥으로 목차를 짜지 않고 이 순서를 따른다.
     순서: 머리(작성·일자·제목·범위) → 핵심 요약 3개(굵은 결론 한 문장 + 근거 + 각주) → 쟁점 → 결론 → 사실관계와 전제 → 검토(쟁점마다 근거 규정 → 적용 → 결론 + 인용; 소득·거래 구분 → 과세 여부·원천 → 세율 → 조약 → 절차 → 관련 세목 순서) → 사실관계별 결과 표(선택) → 계산 표 → 위험과 확인할 점(우선순위) → 다음 단계 → 각주(1차 자료, 원어 병기) → 작성 방법.
     작업: 사실 수집 → 이 서버의 요건·조약·조문 도구와 korean-tax-calc-mcp 계산기 호출 → 구조 채움 → build_tax_memo → 경고 고침 → 다시 만듦. 도구 결과나 사용자가 준 사실에 없는 것은 단정하지 않고 전제나 확인할 점에 적는다.
-    반환: {lang, guide(규칙 글), stages(쟁점 순서), priorities, schema, example(채운 구조 — 그대로 build_tax_memo에 넣으면 경고 0건), checks(점검 규칙 목록), next}. 읽기 전용, 외부 호출 없음.
+    반환: {lang, guide(규칙 글), stages(쟁점 순서), priorities, schema, example_note, example(지어낸 사례로 모양만 보이는 구조 — 내용을 가져다 쓰지 않는다. 그대로 넣으면 경고 0건), checks(점검 규칙 목록), next}. 읽기 전용, 외부 호출 없음.
     """
     try: return _tax_memo.guide(lang)
     except ValueError as e: return {"error": str(e)}

@@ -80,7 +80,7 @@ Judgment and conclusions stay with your AI and a professional. This server fetch
 | *"Our US engineers will install equipment at a Korean plant for 7 months. Does that create a permanent establishment?"* | `permanent_establishment_guide` → `tax_treaty` |
 | *"Which transfer pricing method applies to sales to our US distributor? Show decisions too."* | `transfer_pricing_guide` → `transfer_pricing_cases` |
 | *"Summarise this NTS ruling in English."* | `get_tax_ruling` with `lang="en"` |
-| *"Write a tax memo (Word) on withholding for a KRW 100 million patent royalty to our US parent."* | `tax_memo_guide` → statute, treaty and calculator tools → `build_tax_memo` |
+| *"Turn the sources and numbers we found into a tax memo (Word)."* | `tax_memo_guide` → statute, treaty and calculator tools → `build_tax_memo` |
 | *"Gather the statute, basic rules and rulings on Corporate Tax Act Art. 52 for the 2019 business year."* | `research_issue` |
 
 **Links** — [Korean README](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README.md) · [Site](https://upstageai.github.io/korean-tax-mcp/) · [Use cases for foreign companies and expats](https://upstageai.github.io/korean-tax-mcp/use-cases/) · [llms.txt](https://github.com/UpstageAI/korean-tax-mcp/blob/main/llms.txt) · [CHANGELOG](https://github.com/UpstageAI/korean-tax-mcp/blob/main/CHANGELOG.md) · companions [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp) (calculation) · [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx) (HWPX documents)
@@ -214,7 +214,7 @@ Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for
 | | `judge_options` | several options vs articles at once |
 | | `compare_outcomes` | taxpayer wins vs losses on one issue |
 | | `compare_with_case` | your facts vs rulings: supports / contradicts / distinguish |
-| Tax memo (2) | `tax_memo_guide` | logic line for a tax memo or opinion — 3-point executive summary, question, short answer, facts and assumptions, issues in examiner order (characterization, taxability, rate, treaty, procedure, related taxes), calculation, risks, next steps, footnotes — with the JSON schema and a filled example (English / Korean) |
+| Tax memo (2) | `tax_memo_guide` | logic line for a tax memo or opinion — 3-point executive summary, question, short answer, facts and assumptions, issues in examiner order (characterization, taxability, rate, treaty, procedure, related taxes), calculation, risks, next steps, footnotes — with the JSON schema and an illustrative example of the shape (English / Korean, made-up case) |
 | | `build_tax_memo` | validates the structure against that line (33 rules: rule/application/conclusion and a citation per issue, summary amounts vs the calculation table, totals, footnote ids …) and writes a Word .docx with real footnotes — no file on errors, warnings to fix and rebuild |
 | Treaties, residency, PE (5) | `tax_treaty` | treaties with 96 countries (Korean / English) |
 | | `treaty_withholding_rates` | withholding caps on dividends, interest, royalties |

@@ -1,13 +1,15 @@
 """세무 메모(tax_memo_guide·build_tax_memo): 따지는 순서 점검 규칙과 Word 파일. 작성 Mia(윤승미)
 
-규칙마다 통과하는 구조(패키지 예시 그대로)와 그 규칙만 어긴 구조를 넣는다. 외부 호출 없음.
-예시의 조문·판례·금액은 2026-11-15에 korean-tax-mcp 0.15.3·korean-tax-calc-mcp 0.53.1 호출 결과로 대조한 것.
+규칙마다 통과하는 구조와 그 규칙만 어긴 구조를 넣는다. 외부 호출 없음.
+통과하는 구조는 tests/fixtures/tax_memo_royalty_{en,ko}.json(테스트 전용, 패키지에 넣지 않음) — 조문·판례·금액은 2026-11-15에
+korean-tax-mcp 0.15.3·korean-tax-calc-mcp 0.53.1 호출 결과로 대조한 것. 도구가 돌려주는 예시는 이와 무관한 지어낸 사례(모양만)다.
 """
 import asyncio
 import copy
 import json
 import re
 import zipfile
+from pathlib import Path
 from xml.dom import minidom
 
 import pytest
@@ -15,7 +17,7 @@ import pytest
 from korean_tax_mcp import tax_memo as M
 from korean_tax_mcp.server import mcp
 
-EX = {lang: M.example(lang) for lang in ("en", "ko")}
+EX = {lang: json.loads((Path(__file__).parent / "fixtures" / f"tax_memo_royalty_{lang}.json").read_text("utf-8")) for lang in ("en", "ko")}
 
 
 def _codes(structure, lang=""):
@@ -39,16 +41,38 @@ def test_examples_pass_every_rule(lang):
 def test_guide_returns_logic_line_schema_and_example():
     for lang in ("en", "ko"):
         g = M.guide(lang)
-        assert g["lang"] == lang and g["example"] == EX[lang] and len(g["checks"]) == len(M.RULES) == 33
+        assert g["lang"] == lang and g["example"] == M.example(lang) and len(g["checks"]) == len(M.RULES) == 33
+        assert g["example_note"] == M.EXAMPLE_NOTE[lang]
         assert [x["stage"] for x in g["stages"]] == list(M.STAGES) and g["priorities"] == list(M.PRIORITIES[lang])
         for key in ("head", "summary", "question", "short_answer", "facts", "analysis", "calculation", "risks", "next_steps", "footnotes", "prepared_how"):
             assert key in g["schema"]
     en, ko = M.guide("en")["guide"], M.guide("ko")["guide"]
-    for word in ("exactly 3", "characterization", "korean-tax-calc-mcp", "verify_citations", "Nothing may be asserted", "See note N"):
+    for word in ("exactly 3", "characterization", "korean-tax-calc-mcp", "verify_citations", "Nothing may be asserted", "See note N", "issue lists", "no checklist"):
         assert word in en, word
-    for word in ("정확히 3개", "characterization", "korean-tax-calc-mcp", "verify_citations", "단정하지 않는다", "주 N 참조"):
+    for word in ("정확히 3개", "characterization", "korean-tax-calc-mcp", "verify_citations", "단정하지 않는다", "주 N 참조", "쟁점 목록", "점검 목록이 없다"):
         assert word in ko, word
     with pytest.raises(ValueError): M.guide("jp")
+
+
+def test_tools_teach_the_logic_line_only(tmp_path):
+    """도구가 돌려주는 글(안내·스키마·예시·경고·도구 설명)에 특정 사례의 답이 들어 있지 않다 — 예시는 지어낸 사례로 모양만 보인다."""
+    banned = ("royalt", "사용료", "2021두59908", "Halden")
+    tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
+    texts = [tools["tax_memo_guide"].description, tools["build_tax_memo"].description,
+             json.dumps(tools["tax_memo_guide"].input_schema, ensure_ascii=False), json.dumps(tools["build_tax_memo"].input_schema, ensure_ascii=False)]
+    for lang in ("en", "ko"):
+        g = _call("tax_memo_guide", {"lang": lang})
+        texts.append(json.dumps(g, ensure_ascii=False))
+        assert "do not reuse" in g["example_note"] or "가져다 쓰지 말 것" in g["example_note"]
+        assert "do not reuse" in g["example"]["head"]["scope"] or "가져다 쓰지 말 것" in g["example"]["head"]["scope"]
+        r = M.build(g["example"], str(tmp_path), f"shape_{lang}")          # 예시는 그대로 넣으면 경고 0건
+        assert r["ok"] and r["footnotes"] == 9, r
+        texts.append(json.dumps(M.build({"lang": lang, "head": {}, "summary": [{}], "analysis": [{}]}, check_only=True), ensure_ascii=False))
+    texts.append(Path(M.__file__).read_text("utf-8")); texts.append(Path(M.__file__).with_name("memo_docx.py").read_text("utf-8"))
+    for text in texts:
+        for word in banned: assert word.lower() not in text.lower(), word
+    for name in ("tax_memo_example_en.json", "tax_memo_example_ko.json"):
+        assert "Example Tax Act" in (M.DATA / name).read_text("utf-8") or "예시세법" in (M.DATA / name).read_text("utf-8")
 
 
 # ── 규칙마다 어긴 구조 → 그 규칙 번호 ──
@@ -258,8 +282,8 @@ def test_tools_registered_after_verify_citations(tmp_path):
     assert tools["tax_memo_guide"].annotations.read_only_hint and not tools["build_tax_memo"].annotations.read_only_hint
     assert not tools["build_tax_memo"].annotations.destructive_hint
     g = _call("tax_memo_guide", {"lang": "ko"})
-    assert g["lang"] == "ko" and g["example"]["head"]["re"] == EX["ko"]["head"]["re"]
-    r = _call("build_tax_memo", {"structure": g["example"], "output_dir": str(tmp_path)})
+    assert g["lang"] == "ko" and g["example"] == M.example("ko")
+    r = _call("build_tax_memo", {"structure": EX["ko"], "output_dir": str(tmp_path)})
     assert r["ok"] and r["warnings"] == [] and r["errors"] == [] and zipfile.is_zipfile(r["path"])
     r = _call("build_tax_memo", {"structure": json.dumps(_call("tax_memo_guide", {})["example"]), "output_dir": str(tmp_path), "check_only": True})
     assert r["ok"] and r["lang"] == "en" and r["path"] == ""

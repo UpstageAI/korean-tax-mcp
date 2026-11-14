@@ -77,7 +77,7 @@ GUIDE = {}
 GUIDE["en"] = """[Tax memo — the logic line] The server fixes the order of reasoning; you fill it only with the user's facts and tool results. Output: Word (.docx) via build_tax_memo.
 [Workflow]
 1. Gather the facts from the user (who pays whom, what for, how much, when, residence, documents held).
-2. Call the tools before writing. Requirements and sources here: the *_guide tools, find_article, law_article (as_of), tax_treaty, treaty_withholding_rates, search_tax_rulings, compare_outcomes. Numbers in korean-tax-calc-mcp (find_tool picks the calculator, e.g. nonresident_withholding); use its issue list (쟁점) for risks. Do not compute or cite from memory.
+2. Call the tools before writing. Requirements and sources here: the requirement-guide tools (*_guide), find_article, law_article (as_of), tax_treaty, search_tax_rulings, compare_outcomes. Numbers in korean-tax-calc-mcp (find_tool picks the calculator). Take the issues from the requirement-guide results, from the calculators' issue lists (쟁점) and from the user's documents — this guide gives no checklist for any particular transaction. Do not compute or cite from memory.
 3. Fill the structure JSON (schema and example below). Run verify_citations on the footnotes.
 4. build_tax_memo(structure) → fix every warning → build again. check_only=true validates without writing.
 Nothing may be asserted that is not in a tool result or in the user's facts; anything else goes under assumptions (facts) or open points (risks).
@@ -88,22 +88,22 @@ Nothing may be asserted that is not in a tool result or in the user's facts; any
 - 2 Short answer: starts with the answer (bold), then the conditions it depends on.
 - 3 Facts and assumptions: bullets. An assumption that would change the answer if false gets changes_answer=true and risk=<id of a risk item>.
 - 4 Analysis: issues in the order an examiner tests requirements. Give each issue a stage and keep this order: characterization (what the payment or transaction is) → taxability (whether and where it is taxed) → rate (rate and base under domestic law) → treaty → procedure (filing, documents) → related_taxes (local income tax, VAT, penalties). Skip a stage that does not arise; never reorder. At least 3 issues. Each issue: a heading that states the conclusion (not just the topic), then rule (statute, treaty or ruling, with article or case number as a footnote) → application to the facts → conclusion, and optionally what to confirm.
-- Optional decision table: fact pattern → result (e.g. which facts lead to 0% / 10% / 15% / 20%).
+- Optional decision table: fact pattern → result (which facts lead to which outcome).
 - 5 Calculation: rows of item, basis, amount. Mark the rows that add up with role="component" and the sum with role="total". Every amount in the executive summary and short answer must appear here; put alternatives under scenarios.
 - 6 Risks and open points: priority HIGH / MEDIUM / LOW, the point, why it matters, what to check.
 - 7 Recommended next steps: numbered actions, with an owner or deadline if known.
-- Footnotes: primary sources first — statute article, treaty article, case number and date. For Korean law give the original term once in parentheses, e.g. Corporate Tax Act (법인세법), Art. 98(1)(6). Put [^id] where the source is used; the server numbers notes in reading order and prints "See note N." for a repeated source.
+- Footnotes: primary sources first — statute article, treaty article, case number and date. For Korean law give the original term once in parentheses, e.g. Example Tax Act (예시세법), Art. 00(0). Put [^id] where the source is used; the server numbers notes in reading order and prints "See note N." for a repeated source.
 - Footer notice line, and a closing "How this memo was prepared" paragraph (prepared_how): tools used, date, and that the original-language text governs.
 [Writing rules]
 - Conclusions before reasons. One idea per paragraph (under about 120 words).
-- Numbers carry units and currency (KRW 16,500,000; 15 percent).
+- Numbers carry units and currency (KRW 1,000,000; 3 percent).
 - No invented facts, numbers or citations. No hedging filler ("it should be noted that", "generally speaking").
 - Write in the user's language (lang="en" or "ko"); the memo headings follow lang."""
 
 GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버가 정하고, 내용은 사용자가 준 사실과 도구 결과로만 채운다. 결과물은 build_tax_memo가 만드는 Word(.docx).
 [작업 순서]
 1. 사용자에게서 사실을 모은다(누가 누구에게, 무엇의 대가로, 얼마를, 언제, 거주지, 갖춘 서류).
-2. 쓰기 전에 도구를 호출한다. 요건·근거는 이 서버: *_guide 도구, find_article, law_article(as_of), tax_treaty, treaty_withholding_rates, search_tax_rulings, compare_outcomes. 숫자는 korean-tax-calc-mcp(find_tool로 계산기를 고름, 예: nonresident_withholding)이고, 그 결과의 쟁점 목록을 위험 항목에 쓴다. 기억으로 계산하거나 인용하지 않는다.
+2. 쓰기 전에 도구를 호출한다. 요건·근거는 이 서버: 요건 안내 도구(*_guide), find_article, law_article(as_of), tax_treaty, search_tax_rulings, compare_outcomes. 숫자는 korean-tax-calc-mcp(find_tool로 계산기를 고름). 쟁점은 요건 안내 결과, 계산기가 돌려준 쟁점 목록, 사용자가 준 문서에서 가져온다 — 이 안내에는 특정 거래의 점검 목록이 없다. 기억으로 계산하거나 인용하지 않는다.
 3. 구조 JSON을 채운다(아래 schema·example). 각주는 verify_citations로 확인한다.
 4. build_tax_memo(structure) → 경고를 모두 고침 → 다시 만든다. check_only=true면 파일 없이 점검만 한다.
 도구 결과나 사용자가 준 사실에 없는 것은 단정하지 않는다. 그런 내용은 전제(facts)나 확인할 점(risks)에 적는다.
@@ -114,7 +114,7 @@ GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버
 - 2 결론: 답(굵게)으로 시작하고, 그 답이 성립하는 조건을 이어 쓴다.
 - 3 사실관계와 전제: 글머리표. 틀리면 답이 바뀌는 전제는 changes_answer=true와 risk=<위험 항목 id>를 단다.
 - 4 검토: 심사하는 사람이 요건을 따지는 차례대로 쟁점을 둔다. 쟁점마다 stage를 달고 이 순서를 지킨다: characterization(소득·거래의 구분) → taxability(과세 여부·원천) → rate(국내 세법의 세율·과세표준) → treaty(조세조약) → procedure(절차·신고·서류) → related_taxes(지방소득세·부가가치세·가산세). 해당 없는 단계는 건너뛰되 순서를 바꾸지 않는다. 쟁점은 3개 이상. 쟁점마다 결론을 말하는 소제목(주제만 쓰지 않음), 근거 규정(법령·조약·판례를 조문·사건 번호와 함께 각주로) → 사실관계에 적용 → 결론, 필요하면 확인할 점.
-- 선택: 사실관계별 결과 표(어떤 사실이면 0% / 10% / 15% / 20%가 되는지).
+- 선택: 사실관계별 결과 표(어떤 사실이면 어떤 결과가 되는지).
 - 5 계산: 항목·근거·금액 행. 더해서 합계가 되는 행은 role="component", 합계 행은 role="total". 핵심 요약과 결론에 쓴 금액은 모두 여기에 있어야 하고, 다른 경우는 scenarios에 둔다.
 - 6 위험과 확인할 점: 우선순위 긴급 / 높음 / 보통, 사항, 왜 중요한지, 확인할 것.
 - 7 다음 단계: 번호 붙은 할 일. 담당·기한을 알면 적는다.
@@ -122,9 +122,13 @@ GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버
 - 바닥글 안내 한 줄과 "작성 방법" 맺음 문단(prepared_how): 쓴 도구, 날짜, 법령 원문이 기준임을 적는다.
 [작성 규칙]
 - 결론을 이유보다 먼저. 한 문단에 한 가지(문단은 400자 안쪽).
-- 숫자에는 단위와 통화를 붙인다(16,500,000원, 15%).
+- 숫자에는 단위와 통화를 붙인다(1,000,000원, 3%).
 - 사실·숫자·인용을 지어내지 않는다. 군말을 쓰지 않는다("~것으로 보입니다", "일반적으로 말하면").
 - 사용자의 언어로 쓴다(lang="ko" 또는 "en"). 메모 제목·소제목은 lang을 따른다."""
+
+
+EXAMPLE_NOTE = {"en": "Illustrative shape only — do not reuse its content. The example uses a made-up act, made-up rates and made-up amounts to show the form (3-item summary, rule → application → conclusion, calculation rows, risk priorities, footnote style).",
+                "ko": "모양만 보여 주는 예시 — 내용을 가져다 쓰지 말 것. 지어낸 법 이름·세율·금액으로 형식(요약 3개, 근거 규정 → 적용 → 결론, 계산 행, 우선순위, 각주 쓰는 법)만 보인다."}
 
 
 def example(lang="en"):
@@ -134,7 +138,7 @@ def example(lang="en"):
 def guide(lang="en"):
     if lang not in LANGS: raise ValueError(f"lang must be 'en' or 'ko' / lang은 'en' 또는 'ko': {lang}")
     return {"lang": lang, "guide": GUIDE[lang], "stages": [{"stage": k, "tests": STAGE_LABEL[lang][k]} for k in STAGES],
-            "priorities": list(PRIORITIES[lang]), "schema": SCHEMA, "example": example(lang), "checks": RULES,
+            "priorities": list(PRIORITIES[lang]), "schema": SCHEMA, "example_note": EXAMPLE_NOTE[lang], "example": example(lang), "checks": RULES,
             "next": "build_tax_memo(structure=<filled JSON>, lang='%s') — fix every warning, then build again" % lang}
 
 

@@ -80,7 +80,7 @@ flowchart LR
 | "미국 시민권자 대표이사, 작년 국내 체류 200일, 가족은 미국 — 거주자야?" | `residency_check` → `residency_report` |
 | "미국 법인 직원이 한국 공장에서 7개월간 설비 설치 — 국내사업장이 생기나?" | `permanent_establishment_guide` → `tax_treaty` |
 | "한국 자회사가 미국 모회사에 주는 사용료, 조약 제한세율과 조문" | `treaty_withholding_rates` |
-| "미국 모회사에 주는 특허 사용료 1억 원의 원천징수를 검토 메모(Word)로 써 줘" | `tax_memo_guide` → 조문·조약·계산 도구 → `build_tax_memo` |
+| "지금까지 찾은 근거와 계산 결과로 세무 검토 메모(Word)를 써 줘" | `tax_memo_guide` → 조문·조약·계산 도구 → `build_tax_memo` |
 | "미국 판매법인에 제품을 공급하는데 정상가격 산출방법은 뭘 먼저 봐야 해? 결정례도" | `transfer_pricing_guide` → `transfer_pricing_cases` |
 
 **링크** — [English README](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README-EN.md) · [사이트](https://upstageai.github.io/korean-tax-mcp/) · [영문 사례(외국 기업·주재원)](https://upstageai.github.io/korean-tax-mcp/use-cases/) · [llms.txt](https://github.com/UpstageAI/korean-tax-mcp/blob/main/llms.txt) · [CHANGELOG](https://github.com/UpstageAI/korean-tax-mcp/blob/main/CHANGELOG.md) · 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(계산) · [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx)(공문서 HWPX)
@@ -209,7 +209,7 @@ flowchart LR
 | | `judge_options` | 보기 여러 개를 조문과 한 번에 대조 |
 | | `compare_outcomes` | 같은 쟁점의 납세자 승·패 결정 나란히 |
 | | `compare_with_case` | 우리 사실관계와 해석·판례 비교(지지·반대·구별) |
-| 세무 메모 (2) | `tax_memo_guide` | 세무 메모·의견서의 따지는 순서(요약 3개 → 쟁점 → 결론 → 사실관계와 전제 → 검토: 구분·과세 여부·세율·조약·절차·관련 세목 → 계산 → 위험 → 다음 단계 → 각주), 구조 스키마, 채운 예시(국·영문) |
+| 세무 메모 (2) | `tax_memo_guide` | 세무 메모·의견서의 따지는 순서(요약 3개 → 쟁점 → 결론 → 사실관계와 전제 → 검토: 구분·과세 여부·세율·조약·절차·관련 세목 → 계산 → 위험 → 다음 단계 → 각주), 구조 스키마, 모양을 보이는 예시(국·영문, 지어낸 사례) |
 | | `build_tax_memo` | 구조를 그 순서에 대어 점검(규칙 33개: 요약 3개·쟁점별 근거 규정/적용/결론·인용, 금액과 계산 표 대조, 합계 검산, 각주 일치 등)하고 실제 각주가 달린 Word(.docx)로 저장 — 오류면 파일 없음, 경고는 고쳐 다시 만듦 |
 | 조약·거주자·국내사업장 (5) | `tax_treaty` | 조세조약 96개국 조문(국·영문) |
 | | `treaty_withholding_rates` | 배당·이자·사용료 제한세율 |
