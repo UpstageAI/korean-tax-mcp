@@ -116,3 +116,15 @@ def test_waiver():                     # 법 제28조제1항 — 영세율 대�
     assert V.guide("2018-06-01", "미가공식료품", {"primary_processing_only": True, "also_zero_rated": True})["면세포기"]["대상"] == "가능"
     w = V.guide("2018-06-01", "주택 임대", {"residential": True}, waive_exemption=True)["면세포기"]
     assert w["대상"] == "가능" and "3년" in w["절차"] and "효과" in w
+
+
+def test_contract_date_boundary_codesolar_1114():
+    from korean_tax_mcp import vat_exempt_zero_rate as V
+    base = {"counterparty_nonresident": True, "has_domestic_place": False, "service_kind": "전문서비스업", "payment": "외국환은행 원화", "reciprocal": True}
+    def j(d, **f):
+        r = V.guide(d, "외화 획득 용역", facts={**base, **f})
+        return [x for x in r["판정"] if x["항목"] == "계약일"]
+    assert j("2016-09-01", contract_date="2016-08-01") == []
+    assert j("2016-09-01", contract_date="2016-03-01")[0]["판정"] == "확인 필요"
+    assert j("2016-09-01")[0]["판정"] == "확인 필요"
+    assert j("2018-09-01", contract_date="2015-03-01")[0]["판정"] == "확인 필요"

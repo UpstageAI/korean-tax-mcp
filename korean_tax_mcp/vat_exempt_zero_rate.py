@@ -70,7 +70,7 @@ FACTS = {
     "외화 획득 용역": {"counterparty_nonresident": "공급받는 자가 비거주자·외국법인인지", "has_domestic_place": "공급받는 자에게 국내사업장이 있는지",
                   "excluded_person": "국내 거소 개인·외교공관등 소속 직원·주한 국제연합군·미군 군인·군무원인지(2017.2.7.부터 제외)",
                   "direct_contract_foreign": "국내사업장이 있을 때 국외의 비거주자·외국법인과 직접 계약하고 그로부터 대금을 받는지",
-                  "service_kind": " | ".join(SERVICE_KINDS), "payment": " | ".join(PAYMENTS), "reciprocal": "상대방 국가가 우리나라 거주자·내국법인에 동일하게 면세하는지(전문서비스업·사업지원서비스업·투자자문업)"},
+                  "service_kind": " | ".join(SERVICE_KINDS), "payment": " | ".join(PAYMENTS), "reciprocal": "상대방 국가가 우리나라 거주자·내국법인에 동일하게 면세하는지(전문서비스업·사업지원서비스업·투자자문업)", "contract_date": "용역 계약일(YYYY-MM-DD) — 2016.2.17. 개정 제33조제2항 적용 여부(2016.7.1. 이후 체결·갱신분)"},
     "수출재화임가공": {"direct_contract_exporter": "수출업자와 직접 도급계약", "via_lc": "내국신용장·구매확인서에 의한 임가공", "separate_vat_invoice": "부가가치세를 별도로 적은 세금계산서를 발급했는지"},
     "외항선박 등 공급": {"separate_vat_invoice": "부가가치세를 별도로 적은 세금계산서를 발급했는지"},
     "외교공관등 공급": {"honorary_consulate": "명예영사관원을 장으로 하는 영사기관인지"},
@@ -412,8 +412,15 @@ def _fx_service(d, f):
             return out + [_j("상호면세", "과세", f"{kind}은 상대방 국가가 우리나라 거주자·내국법인에 동일하게 면세하는 경우에만 영세율", base + "제1호 단서")]
         if rc is None:
             out.append(_j("상호면세", "확인 필요", f"{kind}은 상대방 국가의 상호면세 여부(reciprocal)가 요건", base + "제1호 단서"))
-        if d < datetime.date(2017, 1, 1):
-            out.append(_j("계약일", "확인 필요", "2016.2.17. 개정 제33조제2항제1호·제2호는 2016.7.1. 이후 체결·수정·변경·갱신한 계약분부터 적용 — 그 전 계약분은 개정 전 문언(미확인)", "2016.2.17. 개정령 부칙 제3조"))
+        cd = f.get("contract_date")
+        try:
+            cd = datetime.date.fromisoformat(cd) if cd else None
+        except (TypeError, ValueError):
+            cd = None
+        if cd is not None and cd < datetime.date(2016, 7, 1):
+            out.append(_j("계약일", "확인 필요", f"계약일 {cd} — 2016.2.17. 개정 제33조제2항제1호·제2호는 2016.7.1. 이후 체결·수정·변경·갱신한 계약분부터 적용, 그 전 계약을 그 뒤 수정·갱신하지 않았으면 개정 전 문언(미확인)", "2016.2.17. 개정령 부칙 제3조"))
+        elif cd is None and d < datetime.date(2017, 1, 1):
+            out.append(_j("계약일", "확인 필요", "2016.2.17. 개정 제33조제2항제1호·제2호는 공급일이 아니라 2016.7.1. 이후 체결·수정·변경·갱신한 계약분부터 적용 — facts.contract_date를 주면 판정(그 전 계약분은 개정 전 문언, 미확인)", "2016.2.17. 개정령 부칙 제3조"))
     if pay in ("외국환은행 원화", "기획재정부령 방법"):
         pass
     elif pay in ("외화 현금", "그 밖의 방법"):

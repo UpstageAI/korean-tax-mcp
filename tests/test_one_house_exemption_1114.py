@@ -139,3 +139,12 @@ def test_output_shape():
     r = G.guide("2026-11-14", acquisition_date="2020-01-01")
     assert {"양도일", "요건", "판정", "한계", "관련 해석", "다음 단계", "확인 시행본"} <= set(r)
     assert any("capital_gains_tax" in x for x in r["한계"]) and all("문서번호" in x for x in r["관련 해석"])
+
+
+def test_final_period_without_acquisition_date_codesolar_1114():
+    from korean_tax_mcp import one_house_exemption as H
+    r = H.guide("2021-06-01", other_houses_disposed_date="2020-01-10")
+    p = {x["항목"]: x for x in r["판정"]}
+    assert p["보유기간 2년"]["판정"] == "미충족" and "1주택이 된 날" in p["보유기간 2년"]["사유"]
+    r = H.guide("2022-03-01", other_houses_disposed_date="2020-01-10")
+    assert {x["항목"]: x for x in r["판정"]}["보유기간 2년"]["판정"] == "충족"

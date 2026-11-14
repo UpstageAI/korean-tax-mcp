@@ -181,7 +181,9 @@ def guide(transfer_date=None, acquisition_date=None, adjusted_area_at_acquisitio
 
     # 보유기간
     start, start_why = acq, "취득일"
-    if acq and od and od > acq:
+    if acq is None and od and FINAL_FROM <= t <= FINAL_TO:
+        start, start_why = od, "다른 주택을 모두 처분해 1주택이 된 날(2021.1.1.~2022.5.9. 양도분, 구 제154조제5항 단서 — 취득일 미입력)"
+    elif acq and od and od > acq:
         if FINAL_FROM <= t <= FINAL_TO:
             start, start_why = od, "다른 주택을 모두 처분해 1주택이 된 날(2021.1.1.~2022.5.9. 양도분, 구 제154조제5항 단서)"
         else:
