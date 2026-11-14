@@ -936,6 +936,47 @@ def vat_exempt_zero_rate_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def pension_income_guide(
+    receipt_date: Annotated[str | None, Field(description="수령일(지급일) YYYY-MM-DD(2016-01-01~2026-12-31). 그 날의 시행본·과세기간으로 판정. 생략하면 구분·날짜별 변화·입력 안내")] = None,
+    pension_type: Annotated[Literal["공적연금", "연금저축계좌", "퇴직연금계좌"] | None, Field(description="공적연금(국민연금·공무원연금 등) | 연금저축계좌 | 퇴직연금계좌(DC·IRP 등)")] = None,
+    age: Annotated[int | None, Field(description="수령일 현재 나이(선택) — 55세 요건과 원천징수세율(70세·80세 구간)")] = None,
+    join_date: Annotated[str | None, Field(description="연금계좌 가입일 YYYY-MM-DD(선택) — 가입 5년 경과, 2013.3.1. 전 가입이면 기산연차 6년차")] = None,
+    source: Annotated[Literal["이연퇴직소득", "세액공제 받은 납입액", "운용수익", "세액공제 받지 않은 납입액", "그 밖의 이연소득"] | None,
+                      Field(description="인출 재원(선택) — 이연퇴직소득(연금계좌로 옮겨 원천징수되지 않은 퇴직소득) | 세액공제 받은 납입액 | 운용수익 | 세액공제 받지 않은 납입액(과세제외) | 그 밖의 이연소득")] = None,
+    amount: Annotated[float | None, Field(description="그 과세기간 인출액(원, 부득이한 인출분 제외, 선택) — 연금수령한도와 비교")] = None,
+    annual_private_total: Annotated[float | None, Field(description="그 과세기간 사적연금 연금수령 합계(원, 이연퇴직소득 연금수령분·부득이한 인출분 제외, 선택) — 분리과세 기준(1천200만원·1천500만원) 판정")] = None,
+    start_requested: Annotated[bool | None, Field(description="연금계좌취급자에게 연금수령 개시를 신청한 후 인출했는지(선택)")] = None,
+    account_value: Annotated[float | None, Field(description="과세기간 개시일(개시 신청 연도는 신청일) 현재 연금계좌 평가액(원, 선택) — 연금수령한도 계산")] = None,
+    pension_year: Annotated[int | None, Field(description="연금수령연차(선택) — 11년차 이상이면 한도 없음")] = None,
+    reason: Annotated[Literal["천재지변", "사망", "해외이주", "3개월 이상 요양", "재난 15일 이상 입원", "파산·개인회생", "연금계좌취급자 영업정지 등", "본인 의료비"] | None,
+                      Field(description="부득이한 인출·의료비 인출 사유(선택, 시행령 제20조의2제1항)")] = None,
+    docs_within_6m: Annotated[bool | None, Field(description="사유 확인일(의료비는 지급일)부터 6개월 이내에 서류를 연금계좌취급자에게 냈는지(선택)")] = None,
+    lifetime_contract: Annotated[bool | None, Field(description="사망할 때까지 연금수령하고 중도 해지할 수 없는 종신계약인지(선택)")] = None,
+    actual_receipt_year: Annotated[int | None, Field(description="이연퇴직소득의 연금 실제 수령연차(선택) — 2020년부터 원천징수 비율 구분")] = None,
+    deposit_date: Annotated[str | None, Field(description="이연퇴직소득을 연금계좌에 입금한 날 YYYY-MM-DD(선택) — 해외이주 인출의 3년 요건")] = None,
+    emigration_date: Annotated[str | None, Field(description="해외이주일 YYYY-MM-DD(선택, 생략하면 수령일로 봄)")] = None,
+    public_benefit: Annotated[Literal["노령·퇴직연금", "유족연금", "장애·장해·상이연금", "산업재해보상보험 연금", "국군포로 연금", "일시금"] | None,
+                              Field(description="공적연금 급여 종류(선택) — 비과세 연금·퇴직소득(일시금) 판정")] = None,
+    public_fund: Annotated[Literal["국민연금", "그 밖의 공적연금"] | None, Field(description="공적연금 지급자(선택) — 과세기준금액 계산식 구분")] = None,
+) -> dict:
+    """Korean pension income requirements by receipt date (2016 to 2026) — public pensions versus pension accounts (pension savings and retirement pension accounts), conditions for pension-type withdrawal (age 55, five years, annual withdrawal limit), taxation of other withdrawals, medical and unavoidable withdrawals, the separate-taxation threshold for private pensions, withholding rates, tax-exempt pensions and the pension income deduction, checked against the text and transitional rules in force on the receipt date. It does not compute tax.
+
+    연금소득 요건 안내 — 수령일의 시행본으로 공적연금(소득세법 제20조의3제1항제1호 — 2002.1.1. 이후 기여·근로분만 과세, 시행령 제40조 과세기준금액)과 사적연금(연금계좌)을 나누고,
+    연금수령 요건(시행령 제40조의2제3항 — 55세 이후 개시 신청, 가입 5년 경과, 연금수령한도 = 평가액 ÷ (11 − 연금수령연차) × 120/100), 연금외수령 과세(기타소득 15% 분리과세·이연퇴직소득은 퇴직소득),
+    부득이한 인출과 의료비 인출(시행령 제20조의2), 사적연금 분리과세 기준(법 제14조제3항제9호)과 15% 분리 계산 선택(법 제64조의4), 원천징수세율(법 제129조제1항제5호의2·제5호의3), 비과세 연금(법 제12조제4호), 연금소득공제(법 제47조의2)를 판정한다.
+    언제: 연금저축·IRP에서 꺼낸 돈이 연금소득인지 기타소득인지, 55세 전·5년 전·한도 초과 인출이 어떻게 과세되는지, 요양·파산 등으로 중도 인출할 때 분리과세되는지, 사적연금이 연 1천200만원·1천500만원을 넘으면 어떻게 되는지, 나이·종신계약·퇴직소득 수령연차별 원천징수세율, 유족연금·장애연금이 비과세인지 확인할 때.
+    입력: receipt_date(수령일), pension_type, 그리고 아는 사실만(age, join_date, source(재원), amount, annual_private_total, start_requested, account_value, pension_year, reason, docs_within_6m, lifetime_contract, actual_receipt_year, deposit_date, public_benefit, public_fund). 생략한 사실은 '확인 필요'로 남김.
+    반환: {수령일, 과세기간, 연금 구분, 구분, 판정: [{항목, 판정(충족·미충족·연금수령·연금외수령·분리과세·종합과세·비과세·확인 필요 등), 사유, 근거}], 원천징수세율(연금수령)?, 분리과세 기준?, 연금소득공제, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 구분·날짜별 변화·입력 안내.
+    수령일에 따라 다름: 이연퇴직소득 해외이주 인출 3년 요건(2017.2.3. 이후 입금분), 퇴직소득 연금 원천징수 70%→실제 수령연차 10년 초과 60%(2020.1.1.), 재난 15일 이상 입원 인출 사유(2022.2.15.), 15% 분리 계산 선택(2023.1.1.), 분리과세 기준 1천200만원→1천500만원(2024.1.1. 이후 지급분), 종신계약 4%→3%·20년 초과 50%(2026.1.1. 이후 지급분).
+    세액을 계산하지 않는다(계산 MCP의 pension_income, pension_account_withdrawal). 시행규칙(요양·재난 인출 한도 금액)과 지방소득세는 대조하지 않아 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=수령일), 부칙은 article_addenda.
+    """
+    from . import pension_income as _pension
+    return _pension.guide(receipt_date, pension_type, age, join_date, source, amount, annual_private_total, start_requested, account_value, pension_year,
+                          reason, docs_within_6m, lifetime_contract, actual_receipt_year, deposit_date, emigration_date, public_benefit, public_fund)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def rnd_credit_requirements_guide(
     year: Annotated[int | None, Field(description="과세연도(2016~2026, 선택). 생략하면 연도별로 달라진 요건 목록")] = None,
     lab: Annotated[bool | None, Field(description="인정받은 기업부설연구소·연구개발전담부서(또는 창작연구소, 산업디자인전문회사)가 있는지(선택)")] = None,
