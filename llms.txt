@@ -22,6 +22,7 @@ Tool names and descriptions start with English; the rest of each description and
 | Taxpayer wins vs losses on one issue | `compare_outcomes`; your own facts against rulings: `compare_with_case` |
 | Tax Tribunal decisions, incl. local taxes | `search_tribunal_decisions`, `get_tribunal_decision` |
 | Is this person a Korean tax resident? Treaty tie-breaker? | `residency_check` (rules, no key), `residency_report` (written review) |
+| Does a foreign company / nonresident have a permanent establishment (PE) in Korea under domestic law? | `permanent_establishment_guide` (then `tax_treaty` for the treaty PE article) |
 | What does the Korea–X tax treaty say? | `tax_treaty` |
 | Treaty cap on dividends, interest, royalties to country X | `treaty_withholding_rates` |
 | Transfer pricing rule and method, FAR analysis, Local File outline, decisions, OECD Guidelines | `transfer_pricing_guide`, `transfer_pricing_far`, `transfer_pricing_report`, `transfer_pricing_cases`, `oecd_tp_guidelines` |

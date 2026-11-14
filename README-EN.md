@@ -6,7 +6,7 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 48 tools.
+> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 49 tools.
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules and treaties. [한국어](README.md)
 
@@ -117,7 +117,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 5. If two values come out (before/after apportionment, total vs. taxable part, etc.), answer only the one the question asks for.
 ```
 
-## Tools (48)
+## Tools (49)
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -166,6 +166,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 | | `treaty_withholding_rates` | withholding caps on dividends, interest, royalties |
 | | `residency_check` | 3-stage residence determination (rules) |
 | | `residency_report` | review report (Solar) |
+| | `permanent_establishment_guide` | Korean PE test under domestic law (CITA Art. 94, ITA Art. 120) by element and year, 2016-2026 |
 | Documents | `search_forms` | annexes and official forms |
 | | `search_nts_publications` | NTS guidebooks |
 | | `search_local_documents` | PDFs on your PC (`KOREAN_TAX_MCP_DOCS`) |
