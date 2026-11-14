@@ -27,6 +27,7 @@ Agent builders: Anthropic's BM25 tool search (`tool_search_tool_bm25`) does not 
 | Does a foreign company / nonresident have a permanent establishment (PE) in Korea under domestic law? | `permanent_establishment_guide` (then `tax_treaty` for the treaty PE article) |
 | What does the Korea–X tax treaty say? | `tax_treaty` |
 | Treaty cap on dividends, interest, royalties to country X | `treaty_withholding_rates` |
+| Withholding on royalties (patent, know-how, trademark, copyright, software) paid from Korea to a foreign company: source, rate, procedure, gross-up | `royalty_withholding_guide` (then `treaty_withholding_rates`, `tax_treaty`) |
 | Transfer pricing rule and method, FAR analysis, Local File outline, decisions, OECD Guidelines | `transfer_pricing_guide`, `transfer_pricing_far`, `transfer_pricing_report`, `transfer_pricing_cases`, `oecd_tp_guidelines` |
 | What do NTS guidebooks say (overseas expansion, foreign corporations, filing guides, APA reports)? | `search_nts_publications` |
 | Rate tables, useful-life tables, official forms | `search_forms` |
@@ -41,6 +42,7 @@ Agent builders: Anthropic's BM25 tool search (`tool_search_tool_bm25`) does not 
 
 - Residency of expats and seconded staff: `residency_check` → `residency_report`
 - Treaty text and withholding caps: `tax_treaty`, `treaty_withholding_rates`
+- Cross-border royalty withholding (requirements, decision path, 2025 en banc decision on unregistered patents): `royalty_withholding_guide`
 - Permanent establishment under domestic law: `permanent_establishment_guide`, then `tax_treaty` for the treaty PE article
 - Intercompany pricing: `transfer_pricing_guide`, `transfer_pricing_far`, `transfer_pricing_report`
 - NTS guides for foreign corporations and companies expanding overseas: `search_nts_publications`

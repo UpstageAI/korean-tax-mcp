@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/UpstageAI/korean-tax-mcp/blob/main/LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README-EN.md)
 
-세법 쟁점을 AI에 물으면 **그 시점에 시행 중이던 조문과 국세청 해석·판례·조세심판원 재결례를 문서번호·링크와 함께** 가져오는 MCP 서버입니다(도구 49개, 읽기 전용). 기준일 시행본·부칙·별표, 국세 기본통칙·집행기준, 조세조약 96개국과 제한세율, 거주자 3단계 판정과 국내사업장(PE) 판정, 이전가격, 과세연도별 요건 안내 16개(세액공제·감면·소득 종류별·1세대 1주택·가업상속·부가 면세·명의신탁·조세범)를 다룹니다. 모든 도구는 `lang="en"`으로 영어 결과를 돌려줍니다. 금액 계산과 법정서식은 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(도구 139개)가 맡습니다.
+세법 쟁점을 AI에 물으면 **그 시점에 시행 중이던 조문과 국세청 해석·판례·조세심판원 재결례를 문서번호·링크와 함께** 가져오는 MCP 서버입니다(도구 50개, 읽기 전용). 기준일 시행본·부칙·별표, 국세 기본통칙·집행기준, 조세조약 96개국과 제한세율, 거주자 3단계 판정과 국내사업장(PE) 판정, 이전가격, 과세연도별 요건 안내 16개(세액공제·감면·소득 종류별·1세대 1주택·가업상속·부가 면세·명의신탁·조세범)를 다룹니다. 모든 도구는 `lang="en"`으로 영어 결과를 돌려줍니다. 금액 계산과 법정서식은 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(도구 139개)가 맡습니다.
 
 ![데모: 사실관계 입력 → 쟁점별 법리(특수관계인·사택 제공 예외·부당행위계산) → 유사 심판례 → 한글(HWPX) 검토서 초안](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
@@ -80,6 +80,7 @@ flowchart LR
 | "미국 시민권자 대표이사, 작년 국내 체류 200일, 가족은 미국 — 거주자야?" | `residency_check` → `residency_report` |
 | "미국 법인 직원이 한국 공장에서 7개월간 설비 설치 — 국내사업장이 생기나?" | `permanent_establishment_guide` → `tax_treaty` |
 | "한국 자회사가 미국 모회사에 주는 사용료, 조약 제한세율과 조문" | `treaty_withholding_rates` |
+| "미국 모회사에 주는 특허 사용료, 국내 미등록 특허인데 몇 %를 원천징수하나? 신청서는 언제까지 받아야 하나?" | `royalty_withholding_guide` → `treaty_withholding_rates` |
 | "미국 판매법인에 제품을 공급하는데 정상가격 산출방법은 뭘 먼저 봐야 해? 결정례도" | `transfer_pricing_guide` → `transfer_pricing_cases` |
 
 **링크** — [English README](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README-EN.md) · [사이트](https://upstageai.github.io/korean-tax-mcp/) · [영문 사례(외국 기업·주재원)](https://upstageai.github.io/korean-tax-mcp/use-cases/) · [llms.txt](https://github.com/UpstageAI/korean-tax-mcp/blob/main/llms.txt) · [CHANGELOG](https://github.com/UpstageAI/korean-tax-mcp/blob/main/CHANGELOG.md) · 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(계산) · [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx)(공문서 HWPX)
@@ -137,7 +138,8 @@ flowchart LR
 | 나(또는 파견 직원)는 한국 거주자인가? 조약상 tie-break로는 어느 나라 거주자인가? | `residency_check`(규칙, 키 불필요) → 서술형 검토는 `residency_report` |
 | 외국법인·비거주자에게 국내사업장(고정사업장)이 있는가? | `permanent_establishment_guide`(법인세법 제94조·제94조의2, 소득세법 제120조, 2016~2026 연도별) → 조약의 고정사업장 조항은 `tax_treaty` |
 | 한국–X국 조세조약의 거주자·사업소득·고정사업장 조항은? | `tax_treaty` — 96개국, 영문 정본이 있으면 영문 |
-| X국에 지급하는 배당·이자·사용료의 조약 제한세율, 지방소득세 포함 여부는? | `treaty_withholding_rates` — 세율, 지분 요건, 조문 원문 |
+| X국에 지급하는 배당·이자·사용료의 조약 제한세율, 지방소득세 포함 여부는? | `treaty_withholding_rates` — 세율별 근거 문장, 지분 요건, 고정사업장·특수관계·원천 규칙·혜택 배제 조항 |
+| 외국법인에 지급하는 사용료(특허·노하우·상표·저작권·소프트웨어)를 몇 %로 원천징수하고 어떤 절차를 밟는가? | `royalty_withholding_guide` — 소득 구분 → 국내원천 → 세율 → 절차 → 세금부담 약정 → 이전가격 순서의 요소별 판정과 0·10·15·20% 결정 경로 → 세액은 계산 MCP `nonresident_withholding` |
 | 특수관계 거래에 적용되는 이전가격 규정과 산출방법, 개별기업보고서 작성은? | `transfer_pricing_guide`·`transfer_pricing_far`·`transfer_pricing_report`·`transfer_pricing_cases`·`oecd_tp_guidelines` |
 | 외국인 근로자 단일세율, 국외근로 비과세, 배당·이자 원천징수, 외국 사업자 대상 용역의 영세율 | `wage_income_guide`·`dividend_income_guide`·`interest_income_guide`·`vat_exempt_zero_rate_guide` |
 | 국세청 책자(해외진출기업 세무 가이드북, 외국법인 및 외국인투자기업 납세안내, 외국인 연말정산)는 뭐라고 하나? | `search_nts_publications` |
@@ -163,7 +165,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>도구 전체 (49개)</b></summary>
+<summary><b>도구 전체 (50개)</b></summary>
 
 | 묶음 | 도구 | 하는 일 |
 |---|---|---|
@@ -213,6 +215,7 @@ flowchart LR
 | | `residency_check` | 거주자·비거주자 3단계 판정(규칙) |
 | | `residency_report` | 판정 검토 보고서(기본 사용자 AI, 선택 Solar) |
 | | `permanent_establishment_guide` | 국내사업장(고정사업장) 판정 — 법인세법 제94조·소득세법 제120조 요소별, 2016~2026 연도별 |
+| | `royalty_withholding_guide` | 국외 지급 사용료 원천징수 요건 — 소득 구분·국내원천(법인세법 제93조제8호)·조약 제한세율·지방소득세·절차(제98조의6)·세금부담 약정·이전가격, 지급일별(2016~2026), 미등록 특허 전원합의체 판결 |
 | 문서·서식 (3) | `search_forms` | 별표·서식 |
 | | `search_nts_publications` | 국세청 발간책자 본문 |
 | | `search_local_documents` | 내 PC PDF 검색(`KOREAN_TAX_MCP_DOCS`) |
