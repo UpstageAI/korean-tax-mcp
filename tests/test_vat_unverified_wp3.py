@@ -123,3 +123,63 @@ def test_nominee_guide_cites_share_statement_penalty():
     rows = N._corporate("상장주식" if "상장주식" in N.ASSETS_SHARE else next(iter(N.ASSETS_SHARE)), None)
     t = rows[0]["내용"]
     assert "1%" in t and "2%" in t and "제75조의2제2항" in t and "제14386호" in t and "대조하지" not in t
+
+
+# ── 계약일(2016.7.1.) × 업종 × 상호면세 — 2016.2.17. 개정령 부칙 제3조가 닿는 범위 ──
+import pytest
+
+_B = {"counterparty_nonresident": True, "has_domestic_place": False, "payment": "외국환은행 원화"}
+OLD, NEW = "2016-06-30", "2016-07-01"
+
+
+@pytest.mark.parametrize("kind", ["전문서비스업", "사업시설관리 및 사업지원 서비스업"])
+@pytest.mark.parametrize("rc", [True, False, None])
+def test_old_contract_2016_kinds_ignore_reciprocity(kind, rc):
+    r = P(V.guide("2018-03-01", "외화 획득 용역", {**_B, "service_kind": kind, "contract_date": OLD, "reciprocal": rc}))
+    assert r["외화 획득 용역"] == "영세율" and r["계약일"] == "개정 전 문언" and "상호면세" not in r
+
+
+@pytest.mark.parametrize("kind", ["전문서비스업", "사업시설관리 및 사업지원 서비스업"])
+def test_new_contract_2016_kinds_need_reciprocity(kind):
+    g = lambda rc: P(V.guide("2018-03-01", "외화 획득 용역", {**_B, "service_kind": kind, "contract_date": NEW, "reciprocal": rc}))
+    assert g(True)["외화 획득 용역"] == "영세율" and "계약일" not in g(True)
+    assert g(False)["상호면세"] == "과세" and "외화 획득 용역" not in g(False)
+    assert g(None)["상호면세"] == "확인 필요" and g(None)["외화 획득 용역"] == "확인 필요"
+
+
+@pytest.mark.parametrize("cd", [OLD, NEW, None])
+def test_investment_advisory_reciprocity_regardless_of_contract_date(cd):
+    # 투자자문업(자목)은 2020.7.1. 신설 때부터 상호면세 조건 — 2016년 부칙과 무관
+    g = lambda rc: P(V.guide("2021-03-01", "외화 획득 용역", {**_B, "service_kind": "투자자문업", "contract_date": cd, "reciprocal": rc}))
+    assert g(True)["외화 획득 용역"] == "영세율" and "계약일" not in g(True)
+    assert g(False)["상호면세"] == "과세" and "외화 획득 용역" not in g(False)
+    assert g(None)["상호면세"] == "확인 필요"
+
+
+@pytest.mark.parametrize("kind", ["통신업", "과학 및 기술 서비스업", "무형재산권 임대업", "교육지원 서비스업", "보세운송용역"])
+@pytest.mark.parametrize("cd", [OLD, NEW])
+@pytest.mark.parametrize("rc", [True, False, None])
+def test_other_kinds_unaffected_by_contract_date_or_reciprocity(kind, cd, rc):
+    r = P(V.guide("2018-03-01", "외화 획득 용역", {**_B, "service_kind": kind, "contract_date": cd, "reciprocal": rc}))
+    assert r["외화 획득 용역"] == "영세율" and "계약일" not in r and "상호면세" not in r
+
+
+def test_ship_management_bundle_by_contract_date():
+    k = "컨테이너수리·보세창고·해운대리점·해운중개·선박관리"
+    assert P(V.guide("2018-03-01", "외화 획득 용역", {**_B, "service_kind": k, "contract_date": OLD}))["계약일"] == "확인 필요"   # 개정 전 마목에 선박관리업 없음
+    assert P(V.guide("2018-03-01", "외화 획득 용역", {**_B, "service_kind": k, "contract_date": NEW}))["외화 획득 용역"] == "영세율"
+
+
+def test_unknown_contract_date_in_2016_is_not_taxed_on_reciprocity_alone():
+    f = {**_B, "service_kind": "전문서비스업", "reciprocal": False}
+    r = P(V.guide("2016-09-01", "외화 획득 용역", f))
+    assert r["계약일"] == "확인 필요" and r["외화 획득 용역"] == "확인 필요" and "상호면세" not in r
+    # 2017년 이후 공급분은 계약일을 주지 않으면 개정 뒤 문언
+    assert P(V.guide("2017-01-01", "외화 획득 용역", f))["상호면세"] == "과세"
+
+
+@pytest.mark.parametrize("bad", ["2016/03/01", "2016-13-01", "작년", 20160301, ""])
+@pytest.mark.parametrize("extra", [{"service_kind": "전문서비스업"}, {"service_kind": "통신업", "payment": "기획재정부령 방법"}])
+def test_invalid_contract_date_is_rejected(bad, extra):
+    r = V.guide("2018-03-01", "외화 획득 용역", {**_B, **extra, "contract_date": bad})
+    assert r.get("error") == "입력 확인 필요" and any("contract_date" in m for m in r["문제"])
