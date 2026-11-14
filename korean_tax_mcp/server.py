@@ -1770,6 +1770,34 @@ def residency_report(
     }
 
 
+@mcp.tool(annotations=RO)
+@bilingual
+def dividend_income_guide(
+    date: Annotated[str | None, Field(description="배당 지급일 YYYY-MM-DD(2016-01-01~2026-12-31). 생략하면 지급일별로 달라진 요건 목록과 배당 유형")] = None,
+    dividend_type: Annotated[Literal["이익배당", "법인으로보는단체", "법인과세신탁재산", "의제배당_감자", "의제배당_자본전입", "의제배당_해산", "의제배당_합병",
+                                     "의제배당_자기주식지분증가", "의제배당_분할", "인정배당", "집합투자기구", "파생결합증권", "수익증권·투자계약증권",
+                                     "외국법인배당", "국조법간주배당", "출자공동사업자", "유사배당"] | None,
+                             Field(description="배당 유형(선택) — 소득세법 제17조제1항 각 호·제2항 각 호. 인정배당은 법인세법 제67조에 따라 배당으로 처분된 금액")] = None,
+    facts: Annotated[dict | None, Field(description="사실관계(선택) — corp_tax_paid: 지급 법인의 해당 소득(감자 재원 등)에 법인세가 과세되었는지(true/false) / "
+                                                    "reduced_corp: '전액감면'(법인세법 제51조의2, 조세특례제한법 제100조의16·제104조의31 적용 법인) 또는 '일부감면'(조세특례제한법 제63조의2·제121조의2·제121조의4·제121조의8·제121조의9 적용 법인) / "
+                                                    "capitalization_source: 자본전입 재원 '이익잉여금'·'자본준비금'·'자기주식소각이익'·'재평가적립금_토지'·'재평가적립금_토지외' / "
+                                                    "reserve_reduction: 감액 배당 재원 '자본준비금'·'재평가적립금' / institutional_pef: 기관전용 사모집합투자기구 배당인지(true/false) / "
+                                                    "total_financial_income: 그 해 이자·배당 합계(원, 배당가산액 제외) / withheld: 원천징수되었는지(true/false) / real_name_unverified: 실지명의 미확인인지(true/false)")] = None,
+    accrual_date: Annotated[str | None, Field(description="수입시기 YYYY-MM-DD(선택) — 잉여금 처분결의일·감자 결정일·결산확정일 등. 주면 귀속연도를 표시")] = None,
+) -> dict:
+    """Korean dividend income guide as in force on the payment date — scope of dividend income and deemed dividends (Income Tax Act Article 17), whether the gross-up applies and its rate (11 percent for payments up to 2023, 10 percent from 2024), separate versus global taxation around the 20 million won threshold, withholding rates, receipt timing and an outline of the dividend tax credit. It does not compute tax.
+
+    배당소득 요건 안내 — 지급일의 시행본과 개정 부칙으로 배당소득 범위(소득세법 제17조제1항 각 호)와 의제배당(제17조제2항: 감자·자본전입·해산·합병·자기주식 보유 중 자본전입·분할), 인정배당(법인세법 제67조), 배당가산(Gross-up) 대상과 제외(제17조제3항, 시행령 제27조의3), 가산율, 분리과세·비과세(제12조제1호, 제14조제3항), 금융소득 종합과세기준 2천만원(제14조제3항제6호, 제62조), 원천징수세율(제129조)·원천징수시기(제131조), 수입시기(시행령 제46조), 배당세액공제 개요(제56조, 시행령 제116조의2)를 판정한다.
+    언제: 받은 배당이 배당소득인지·의제배당인지, 배당가산(Gross-up)과 배당세액공제 대상인지, 가산율이 11%인지 10%인지, 2천만원 기준으로 종합과세되는지, 원천징수세율과 수입시기(귀속연도)가 무엇인지 확인할 때.
+    입력: date(지급일), dividend_type, facts(법인세 과세 여부·감면 법인·자본전입 재원·감액 배당·기관전용 사모집합투자기구·연간 이자배당 합계·원천징수·실지명의), accrual_date(수입시기).
+    반환: {지급일, 귀속연도?, 배당 유형?, 요건: [{요건, 내용, 근거}], 판정?: [{항목, 판정, 사유, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. date를 생략하면 지급일별 변화와 배당 유형.
+    지급일에 따라 다름: 가산율(2023.12.31. 이전 지급 11%, 2024.1.1.~2026.12.31. 지급 10%, 2027.1.1. 이후 11%), 2025.1.1. 이후 가산 제외 추가(법인세 미과세 감자 의제배당·재평가적립금·자본준비금 감액 배당), 실지명의 미확인 세율(38%·40%·42%·45%), 배당소득 범위(파생결합증권 2018, 법인과세 신탁재산 2021, 수익증권·투자계약증권 2025.7.1.), 조세특례제한법 고배당기업 특례(2015~2017 사업연도, 2026.1.1. 이후).
+    세액·배당가산액·배당세액공제액은 계산하지 않는다(계산 MCP의 dividend_tax_credit·financial_income_aggregate·deemed_dividend_*). 사실관계는 입력값으로 본다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=지급일), 적용례는 article_addenda.
+    """
+    from . import dividend_income as _dividend_income
+    return _dividend_income.guide(date, dividend_type, facts, accrual_date)
+
+
 def main():
     import argparse
     p = argparse.ArgumentParser(prog="korean-tax-mcp", description="한국 세법 근거 MCP 서버")
