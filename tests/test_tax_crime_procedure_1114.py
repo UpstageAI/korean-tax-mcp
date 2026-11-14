@@ -7,7 +7,7 @@ def J(r):
 
 
 def test_overview_and_errors():
-    assert len(P.guide()["날짜에 따라 달라지는 것"]) == 5
+    assert len(P.guide()["날짜에 따라 달라지는 것"]) == 6   # 2026.10.2. 법률 제21857호 추가
     assert "error" in P.guide("2015-12-31") and "error" in P.guide("2024-13-01") and "error" in P.guide("2024-01-01", offense_article=17)
 
 

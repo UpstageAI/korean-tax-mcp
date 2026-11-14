@@ -96,7 +96,8 @@ def test_shareholding_and_heir():
     assert r["피상속인 지분"]["판정"] == "미충족"
     r = J(G.guide("2019-05-01", decedent_share_pct=35, share_holding_years=12, listed=True))
     assert r["피상속인 지분"]["판정"] == "충족"
-    assert J(G.guide("2023-05-01", decedent_share_pct=45, share_holding_years=12))["피상속인 지분"]["판정"] == "확인 필요"
+    # 2023.1.1. 이후 상속개시분 40%(대통령령 제33278호 부칙 제2조제1항 — test_family_business_xchk_2100b.py)
+    assert J(G.guide("2023-05-01", decedent_share_pct=45, share_holding_years=12))["피상속인 지분"]["판정"] == "충족"
     r = J(G.guide("2019-05-01", heir_age=17, heir_years_in_business=3, heir_officer_by_deadline=True, heir_ceo_within_2y=True))
     assert r["상속인 요건"]["판정"] == "미충족"
     r = J(G.guide("2019-05-01", heir_age=17, heir_years_in_business=3, heir_officer_by_deadline=True, heir_ceo_within_2y=True, spouse_qualifies=True))

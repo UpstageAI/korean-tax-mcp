@@ -10,7 +10,7 @@ def P(r):
 
 def test_overview_and_errors():
     o = V.guide()
-    assert len(o["날짜에 따라 달라지는 것"]) == 7 and "주택 임대" in o["면세 유형"] and "외화 획득 용역" in o["영세율 유형"]
+    assert len(o["날짜에 따라 달라지는 것"]) == 12 and "주택 임대" in o["면세 유형"] and "외화 획득 용역" in o["영세율 유형"]
     assert "error" in V.guide("2015-12-31", "교육") and "error" in V.guide("2024-02-30", "교육") and "error" in V.guide("2024-01-01", "없는 유형")
     assert "error" in V.guide(category="교육")
     assert V.guide("2024-01-01")["안내"].startswith("category")
@@ -33,7 +33,8 @@ def test_cosmetic_medical():           # 시행령 제35조제1호 단서 가목
     assert P(V.guide("2021-06-01", "의료보건", {"provider": "의사등", "cosmetic_listed": False}))["의료보건 용역"] == "면세"
     assert P(V.guide("2021-06-01", "의료보건", {"provider": "수의사", "animal_listed": False}))["수의사 용역"] == "과세"
     r = V.guide("2024-06-01", "의료보건", {"provider": "의사등", "cosmetic_listed": True})
-    assert "미확인" in r["판정"][0]["사유"] and any(x["문서번호"] == "서면-2024-부가-5065" for x in r["관련 해석"])
+    # 2026.4.1. 시행본 대조 후 2022년 이후 '시행령 문언 미확인' 꼬리표 삭제(test_vat_xchk_2100b.py)
+    assert "미확인" not in r["판정"][0]["사유"] and any(x["문서번호"] == "서면-2024-부가-5065" for x in r["관련 해석"])
 
 
 def test_education_and_social_coop_2020():   # 시행령 제36조제1항제7호 — 2020.7.1.(2020.2.11. 개정령 부칙 제1조 단서)

@@ -919,7 +919,8 @@ def vat_exempt_zero_rate_guide(
     facts: Annotated[dict | None, Field(description="사실관계(선택, 유형별 키 — 생략하고 부르면 '입력 안내'에 키 목록). 예: 의료보건 {provider: '의사등', cosmetic_listed: true}, "
                                                      "외화 획득 용역 {counterparty_nonresident: true, has_domestic_place: false, service_kind: '전문서비스업', payment: '외국환은행 원화', reciprocal: true}, "
                                                      "주택 임대 {residential: true, house_floor_area: 120, building_footprint: 60, land_area: 400, outside_urban: false}, "
-                                                     "내국신용장·구매확인서 {issued_in_time: true}, 공통 {also_zero_rated: true(면세 재화를 수출), supplier_nonresident: true, reciprocal: true}")] = None,
+                                                     "내국신용장·구매확인서 {issued_in_time: true}, 토지 공급 {lease: true, land_lease_housing: true, national_housing_size: true}, 여객운송 {transport: '시외고급고속버스'}, "
+                                                     "외화 획득 용역 중 전자상거래 소매 중개업은 filed_or_assessed_on(신고·결정·경정일 — 2022.2.15. 이후면 열거), 공통 {also_zero_rated: true(면세 재화를 수출), supplier_nonresident: true, reciprocal: true}")] = None,
     waive_exemption: Annotated[bool | None, Field(description="면세포기(부가가치세법 제28조)를 검토하는지(선택)")] = None,
 ) -> dict:
     """VAT exemption and zero-rating by supply date — whether a supply is exempt (Article 26), taxable, or zero-rated (Articles 21 to 25), the scope set by the Enforcement Decree, exemption waiver (Article 28) and zero-rate attachments (Decree Article 101), checked against the text in force on the supply date. It does not compute tax.
@@ -928,8 +929,8 @@ def vat_exempt_zero_rate_guide(
     언제: 미용 목적 시술이 과세인지, 학원 교육이 면세인지, 겸용주택 임대의 부수토지가 어디까지 면세인지, 국내사업장 없는 외국법인에 제공한 용역이나 구매확인서 거래가 영세율인지, 면세 재화를 수출할 때 면세포기가 되는지 확인할 때.
     입력: supply_date(공급일), category(공급 유형), facts(유형별 사실 — 내국신용장·구매확인서 기한 내 발급, 대금 결제 방법, 상대방의 비거주자 여부와 국내사업장 유무, 상호면세 등), waive_exemption.
     반환: {공급일, 구분, 유형, 판정: [{항목, 판정(면세·과세·영세율·확인 필요 등), 사유, 근거}], 요건, 면세포기?, 영세율 첨부서류?, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 유형 목록·facts 키·날짜별 변화.
-    공급일에 따라 다름: 외화 획득 용역의 비거주자 범위(2017.2.7.)·투자자문업(2020.7.1.), 보세구역 물품 반출 수출(2019.2.12.), 삭도·관광유람선 여객운송 과세(2019.1.1.), 사회적협동조합 교육·간병(2020.7.1.), 실내 도서열람 면세(2023.1.1.), 동물 혈액 면세(2025.1.1.).
-    세액을 계산하지 않는다(계산 MCP의 vat_return_general, 공급시기는 vat_supply_timing). 시행령 2022년 이후 시행본·시행규칙·조세특례제한법 제106조는 대조하지 못해 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=공급일).
+    공급일에 따라 다름: 외화 획득 용역의 비거주자 범위(2017.2.7.)·투자자문업(2020.7.1.), 보세구역 물품 반출 수출(2019.2.12.), 삭도·관광유람선 여객운송 과세(2019.1.1.), 사회적협동조합 교육·간병(2020.7.1.), 실내 도서열람 면세(2023.1.1.), 영세율 첨부서류 표(2023.2.28.), 수의사 진료 '예방 및 치료'(2023.10.1.), 시외고급고속버스 과세(2024.2.29.), 토지임대부 분양주택 부수토지 임대 면세(2024.7.1.), 동물 혈액 면세(2025.1.1.). 전자상거래 소매 중개업 영세율은 공급일이 아니라 신고·결정·경정일(2022.2.15.) 기준.
+    세액을 계산하지 않는다(계산 MCP의 vat_return_general, 공급시기는 vat_supply_timing). 시행규칙 별표 1(미가공식료품 분류표)과 조세특례제한법 시행령(국민주택 규모)은 대조하지 못해 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=공급일).
     """
     return _vat_ezr.guide(supply_date, category, facts, waive_exemption)
 
@@ -1121,10 +1122,12 @@ def one_house_exemption_guide(
     other_houses_disposed_date: Annotated[str | None, Field(description="2주택 이상을 보유하다 다른 주택을 모두 처분해 1주택이 된 날 YYYY-MM-DD(선택) — 2021.1.1.~2022.5.9. 양도분 보유기간 기산")] = None,
     new_house_acquisition_date: Annotated[str | None, Field(description="일시적 2주택의 신규 주택 취득일 YYYY-MM-DD(선택) — 양도하는 주택이 종전 주택")] = None,
     new_house_contract_date: Annotated[str | None, Field(description="신규 주택(분양권 포함) 매매계약·계약금 지급일 YYYY-MM-DD(선택) — 2018.9.13.·2019.12.16.·2026.8.3. 경과조치")] = None,
-    both_adjusted_at_new_acquisition: Annotated[bool | None, Field(description="신규 주택 취득일 현재 종전 주택과 신규 주택이 모두 조정대상지역인지(선택) — 처분기한 단축")] = None,
+    both_adjusted_at_new_acquisition: Annotated[bool | None, Field(description="신규 주택 취득일 현재 종전 주택과 신규 주택이 모두 조정대상지역인지(선택) — 처분기한 단축. 조정대상지역 공고일 이전에 신규 주택을 취득·계약했으면 false(2022.5.10. 이후 양도분은 제155조제1항제2호가 아니라 제1호 3년)")] = None,
     moved_in_date: Annotated[str | None, Field(description="신규 주택에 세대전원이 전입한 날 YYYY-MM-DD(선택) — 2019.12.17. 이후 취득분의 1년 이내 전입요건")] = None,
     special: Annotated[Literal["상속주택", "동거봉양", "혼인", "농어촌주택"] | None, Field(description="특례 사유(선택)")] = None,
     special_date: Annotated[str | None, Field(description="특례 기준일 YYYY-MM-DD(선택) — 상속개시일, 동거봉양 합가일, 혼인일")] = None,
+    rental_registered_date: Annotated[str | None, Field(description="양도 주택을 임대하려고 소득세법 제168조 사업자등록과 민간임대주택법 임대사업자등록을 신청한 날 YYYY-MM-DD(선택) — 구 시행령 제154조제1항제4호 거주요건 면제(2017.9.19.~2020.2.10. 양도분, 그 뒤는 2019.12.16. 이전 신청분만)")] = None,
+    rental_rule_kept: Annotated[bool | None, Field(description="임대의무기간 중 양도가 아니고, 2019.2.12. 이후 임대차계약 체결·갱신분의 임대보증금·임대료 연 증가율이 5% 이하인지(선택) — 구 제154조제1항제4호 단서")] = None,
 ) -> dict:
     """Korean capital gains tax exemption for a one-house household as in force on the transfer date — household definition, holding and residence periods (two-year residence for houses acquired in adjustment areas), temporary two-house disposal deadlines, the high-priced house threshold and main special cases. It does not compute tax.
 
@@ -1132,12 +1135,12 @@ def one_house_exemption_guide(
     언제: 집을 팔 때 비과세인지 — 보유 2년·거주 2년을 채웠는지, 조정대상지역 거주요건이 붙는지, 이사하면서 두 채가 된 경우 종전 집을 언제까지 팔아야 하는지, 양도가액이 고가주택 기준을 넘는지 확인할 때.
     입력: transfer_date(필수), 취득일·조정대상지역 여부·거주 기간, 신규 주택 취득일·조정대상지역 여부(일시적 2주택), 양도가액, 특례 사유와 기준일.
     반환: {양도일, 요건: [{요건, 내용, 근거}], 판정?: [{항목, 판정, 사유, 근거}], 한계, 관련 해석, 다음 단계, 확인 시행본}. transfer_date를 생략하면 양도일별 변화.
-    양도일에 따라 다름: 거주요건(2017.8.3. 이후 취득·2017.9.19. 이후 양도), 다른 주택 처분일 기산(2021.1.1.~2022.5.9. 양도), 조정대상지역 간 일시적 2주택 처분기한(2018.10.23. 2년, 2020.2.11. 1년, 2022.5.10. 2년, 2023.1.12. 3년, 2026.10.1. 2년 — 그 밖은 3년), 고가주택 12억원(2021.12.8. 이후 양도), 혼인 합가 10년(2024.11.12. 이후 양도).
+    양도일에 따라 다름: 거주요건(2017.8.3. 이후 취득·2017.9.19. 이후 양도), 임대사업자 거주요건 면제(2017.9.19.~2020.2.10. 양도, 2019.12.16. 이전 등록 신청분은 그 뒤도), 동거봉양 합가 5년 → 10년(2018.2.13. 이후 양도), 다른 주택 처분일 기산(2021.1.1.~2022.5.9. 양도), 조정대상지역 간 일시적 2주택 처분기한(2018.10.23. 2년, 2020.2.11. 1년, 2022.5.10. 2년, 2023.1.12. 3년, 2026.10.1. 2년 — 그 밖은 3년), 고가주택 12억원(2021.12.8. 이후 양도), 혼인 합가 5년 → 10년(2024.11.12. 이후 양도).
     세액과 장기보유특별공제는 계산하지 않는다(계산 MCP의 capital_gains_income·capital_gains_tax). 1세대 구성·주택 해당 여부·조정대상지역 지정은 사실 판단이라 입력값으로 본다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=양도일).
     """
     return _one_house.guide(transfer_date, acquisition_date, adjusted_area_at_acquisition, residence_periods, contract_date, homeless_at_contract,
                             contract_before_designation, transfer_price, other_houses_disposed_date, new_house_acquisition_date, new_house_contract_date,
-                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date)
+                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date, rental_registered_date, rental_rule_kept)
 
 
 @mcp.tool(annotations=RO)
@@ -1252,8 +1255,8 @@ def tax_crime_procedure_guide(
     조세범칙조사 절차 안내 — 조세범 처벌절차법·시행령으로 대상 선정(의무 기준), 조세범칙조사심의위원회(구성·심의 사항), 조사(영장·예외), 처분(통고처분·고발·무혐의)의 결정 주체와 근거, 즉시 고발·불이행 고발 의무, 통고 기한, 통고처분과 공소시효(중단·정지), 불복 제외를 날짜별 시행본으로 돌려준다.
     언제: 조세범칙조사가 어떤 단계로 진행되고 누가 결정하는지, 금액이 의무 조사 기준에 드는지, 위원회 심의가 필요한지, 통고처분 뒤 언제 고발되는지, 공소시효가 어떻게 되는지 확인할 때.
     반환: {기준일, 날짜별 규정, 절차: [{단계, 내용, 주체, 근거}], 판정: [{항목, 판정, 사유, 근거}], 한계, 다음 단계, 확인 시행본}. decision_date를 생략하면 날짜별 변화.
-    날짜에 따라 다름: 범칙행위 범위(2019.1.1. 제3조~제16조), 위원회 정원(2016.3.29.)·위촉위원(2016.12.5.)·회의 구성(2023.2.28.), 처분 없는 종결 심의·영장 없는 압수 한정·납부 방법·공소시효 정지(2023.1.17.).
-    벌금상당액을 계산하지 않는다(계산 MCP의 tax_crime_settlement_amount). 범칙행위·고의·정상 판단은 하지 않는다. 국세청 훈령의 세부 절차는 원문을 대조하지 못해 안내하지 않는다. 읽기 전용, 외부 호출 없음.
+    날짜에 따라 다름: 범칙행위 범위(2019.1.1. 제3조~제16조), 위원회 정원(2016.3.29.)·위촉위원(2016.12.5.)·회의 구성(2023.2.28.), 처분 없는 종결 심의·영장 없는 압수 한정·납부 방법·공소시효 정지(2023.1.17.), 세무공무원 지명권자 지방공소청장·압수물 인계처 사법경찰관(2026.10.2.).
+    벌금상당액을 계산하지 않는다(계산 MCP의 tax_crime_settlement_amount). 범칙행위·고의·정상 판단은 하지 않는다. 국세청 훈령(조사사무처리규정 제87조~제101조)의 실무 기한은 한계에 참고로 적는다. 읽기 전용, 외부 호출 없음.
     """
     return _tax_crime_proc.guide(decision_date, offense_article, evasion_proviso, annual_reported_revenue, annual_suspected_evasion, expected_evaded_tax,
                                  filed_return, registered, in_progress, flight_or_destroy_risk, prison_likely, cannot_pay, unreachable,
