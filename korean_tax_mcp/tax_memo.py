@@ -115,7 +115,7 @@ Nothing may be asserted that is not in a tool result or in the user's facts; any
 - 7 Recommended next steps: numbered actions, with an owner or deadline if known. Or action_list: the same as a table (#, action, owner, by) — every item then needs a deadline.
 - Limitations and unverified points (limitations): collect in one place everything you could not confirm. Required as soon as any field or footnote says "not verified"; cite such a footnote here as [^id] so the two agree. Do not call something verified in a footnote and unconfirmed here.
 - Principal authorities (authorities): optional closing list; off by default because the footnotes carry the sources.
-- Footnotes: primary sources first — statute article, treaty article, case number and date. For Korean law give the original term once in parentheses, e.g. Example Tax Act (예시세법), Art. 00(0). Put [^id] where the source is used; the server numbers notes in reading order and reuses the same note number for a repeated source.
+- Footnotes: primary sources first — statute article, treaty article, case number and date. For Korean law give the original term once in parentheses, e.g. Example Tax Act (예시세법), Art. 00(0). Put [^id] where the source is used; the server numbers notes in reading order and reuses the same note number for a repeated source (the repeated number is plain superscript text, not a live Word footnote reference — if footnotes are added or removed in Word afterwards, rebuild the memo instead of editing the numbers).
 - Footer notice line, and a closing "How this memo was prepared" paragraph (prepared_how): tools used, date, and that the original-language text governs.
 [Length — say each thing once]
 - Target: target_pages (default 5 A4 pages; pass another number to build_tax_memo or set structure.target_pages when the reader asked for one). build_tax_memo returns length {estimated_pages, target_pages, blocks} and warns when the estimate is over, naming the longest blocks and the issues over budget.
@@ -151,7 +151,7 @@ GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버
 - 7 다음 단계: 번호 붙은 할 일. 담당·기한을 알면 적는다. 또는 action_list: 같은 내용을 표(번호·할 일·담당·기한)로 — 이때는 항목마다 기한이 필요하다.
 - 한계와 미확인 사항(limitations): 확인하지 못한 것을 한곳에 모은다. 어느 칸이나 각주에 "미확인"이라고 적었다면 필수이고, 그런 각주는 여기서 [^id]로 가리켜 둘이 어긋나지 않게 한다. 각주에서는 확인했다고 하고 여기서는 미확인이라고 쓰지 않는다.
 - 주요 근거(authorities): 끝에 붙이는 선택 목록. 각주에 출처가 있으므로 기본은 넣지 않는다.
-- 각주: 1차 자료 먼저 — 법령 조문, 조약 조문, 사건 번호와 선고일. 출처를 쓴 자리에 [^id]를 넣으면 번호는 서버가 읽는 순서로 매기고, 같은 출처가 다시 나오면 처음 번호를 다시 쓴다.
+- 각주: 1차 자료 먼저 — 법령 조문, 조약 조문, 사건 번호와 선고일. 출처를 쓴 자리에 [^id]를 넣으면 번호는 서버가 읽는 순서로 매기고, 같은 출처가 다시 나오면 처음 번호를 다시 쓴다(다시 쓴 번호는 위첨자 글자이고 Word 각주 참조가 아니다 — Word에서 각주를 더하거나 빼야 하면 번호를 손으로 고치지 말고 메모를 다시 만든다).
 - 바닥글 안내 한 줄과 "작성 방법" 맺음 문단(prepared_how): 쓴 도구, 날짜, 법령 원문이 기준임을 적는다.
 [분량 — 같은 말은 한 번만]
 - 목표: target_pages(기본 A4 5쪽. 읽는 사람이 분량을 정했으면 build_tax_memo에 그 숫자를 넘기거나 structure.target_pages에 적는다). build_tax_memo는 length {estimated_pages, target_pages, blocks}를 돌려주고, 어림 쪽수가 목표를 넘으면 가장 긴 블록과 기준을 넘은 쟁점을 짚어 경고한다.

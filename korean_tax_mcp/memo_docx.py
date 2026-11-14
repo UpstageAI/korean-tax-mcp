@@ -73,7 +73,9 @@ class Doc:
         return f"<w:r><w:rPr>{pr}</w:rPr>{inner}</w:r>"
 
     def fn(self, key):
-        """각주 참조 조각. 번호는 읽는 순서. 같은 출처가 다시 나오면 각주를 새로 만들지 않고 처음 번호를 다시 쓴다."""
+        """각주 참조 조각. 번호는 읽는 순서. 같은 출처가 다시 나오면 각주를 새로 만들지 않고 처음 번호를 다시 쓴다.
+        다시 쓴 번호는 위첨자 글자일 뿐 Word 각주 참조가 아니다(누르면 각주로 가지 않고, Word에서 각주를 더하거나 빼도 따라 바뀌지 않는다) —
+        안내(tax_memo_guide)와 도구 설명에 그렇게 적어 둔다."""
         if key not in self.fn_text: return ""
         if key in self.first:
             return f'<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:t>{self.first[key]}</w:t></w:r>'
