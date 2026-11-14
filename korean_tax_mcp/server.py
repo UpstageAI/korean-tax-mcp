@@ -46,7 +46,9 @@ mcp = MCPServer(
                  "해석·판례는 회신·선고 당시 법 기준이므로 적용 연도의 조문(law_article as_of)과 대조하라고 안내한다. "
                  "귀속·공급시기·성립시기는 직접 정하기 전에 timing_rules를 먼저 본다. "
                  "계산 도구(korean-tax-calc-mcp) 결과가 직접 계산이나 기억과 다르면 바로 어느 쪽을 고르지 말고, 두 값을 가르는 조문을 law_article로 열어 요건을 사실관계에 하나씩 대조한다. "
-                 "도구가 틀렸다는 조문 근거를 찾지 못하면 도구 값을 따르고, 다른 값을 쓸 때는 그 조문 번호를 밝힌다.")
+                 "도구가 틀렸다는 조문 근거를 찾지 못하면 도구 값을 따르고, 다른 값을 쓸 때는 그 조문 번호를 밝힌다. "
+                 "도구 결과는 한국어로 나오지만, 답변은 사용자가 질문한 언어로 작성한다(국문 용어는 괄호로 병기). "
+                 "Tool results are mostly in Korean; always answer in the language the user asked in, keeping key Korean terms in parentheses.")
 
 # 모르는 인자는 무시하지 않고 오류로 돌려준다. 기준일을 date로 넣으면 그동안 조용히 오늘 시행본이 나왔다(2026-11-08).
 _ARG_HINT = {"date": "as_of", "기준일": "as_of", "base_date": "as_of", "effective_date": "as_of", "law": "law_name",
@@ -214,7 +216,7 @@ def search_tribunal_decisions(
     local_only: Annotated[bool, Field(description="True면 지방세(청구번호에 '지'가 들어간 조심) 결정례만")] = False,
     sort: Annotated[Literal["최신", "정확도"], Field(description="최신=의결일자 내림차순(기본), 정확도=검색 점수순")] = "최신",
 ) -> dict:
-    """조세심판원 재결례(법제처 특별행정심판재결례) — 국세·지방세. 언제: 취득세·재산세 등 지방세 쟁점의 결정례, 또는 조세심판원 결정만 모아 볼 때. 지방세는 local_only=True. 반환: {결과: [{구분, 문서번호, 제목, 일자, id, 링크, 지방세}], 전체건수, 출처, 주의}. 본문은 get_tribunal_decision(id). 읽기 전용. 법제처 DRF(target=ttSpecialDecc) — LAW_OC 필요.
+    """Search Tax Tribunal decisions, national and local taxes. 조세심판원 재결례(법제처 특별행정심판재결례) — 국세·지방세. 언제: 취득세·재산세 등 지방세 쟁점의 결정례, 또는 조세심판원 결정만 모아 볼 때. 지방세는 local_only=True. 반환: {결과: [{구분, 문서번호, 제목, 일자, id, 링크, 지방세}], 전체건수, 출처, 주의}. 본문은 get_tribunal_decision(id). 읽기 전용. 법제처 DRF(target=ttSpecialDecc) — LAW_OC 필요.
     """
     if n < 1 or n > 30:
         return {"error": "n은 1~30"}
@@ -234,7 +236,7 @@ def search_tribunal_decisions(
 def get_tribunal_decision(
     id: Annotated[str, Field(description="search_tribunal_decisions 결과의 id ('tt:2098157' 또는 '2098157')")],
 ) -> dict:
-    """조세심판원 재결례 1건의 본문 전문. 문서번호·주문·재결요지·이유·관련법령·참조결정.
+    """Get the full text of one Tax Tribunal decision. 조세심판원 재결례 1건의 본문 전문. 문서번호·주문·재결요지·이유·관련법령·참조결정.
     언제: 검색 결과 중 인용·요약할 재결례를 정한 뒤. 요지만으로 판단하지 말고 본문을 읽을 때 사용.
     반환: {구분, 문서번호, 제목, 일자, 세목, 주문, 요지, 본문, 관련법령, 참조결정, id, 링크, 출처}.
     읽기 전용. 법제처 DRF target=ttSpecialDecc — LAW_OC 필요.
@@ -1493,7 +1495,7 @@ def verify_statement(
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
     paragraph: Annotated[str, Field(description="특정 항만 대조. '제2항'·'2' 등. 주면 그 항·하위 단위만 대조")] = "",
 ) -> dict:
-    """진술·주장을 조문 원문과 글자 수준에서 대조해 모순 신호(숫자·양태·반대말·시점)와 단서 누락을 돌려준다.
+    """Check one statement against the statute text word by word. 진술·주장을 조문 원문과 글자 수준에서 대조해 모순 신호(숫자·양태·반대말·시점)와 단서 누락을 돌려준다.
 
     언제: 보기 문장·주장·고객 진술이 특정 조문과 맞는지 확인할 때. 조문을 읽고도 놓치는 차이를 표로 보여 준다 — 법적 판단을 대신하지 않는다.
     반환: {법령, 조, 시행본, 판정('모순'|'구절 다름'|'차이 없음'|'판단 필요'), 근거:{위치, 원문}, 대조:[{종류,진술,조문}], 단서:[...], 겹침, 주의}.
@@ -1573,7 +1575,7 @@ def judge_options(
     as_of: Annotated[str, Field(description="기준일 YYYYMMDD. 생략하면 오늘")] = "",
     also_decree: Annotated[bool, Field(description="True면 각 조의 law.links 하위 위임 조문 중 원문인용이 확인된 것(최대 3개)도 후보 조에 추가")] = False,
 ) -> dict:
-    """보기·주장 여러 개를 조문 1~5개와 한 번에 글자 대조해 보기마다 가장 맞는 조와 판정을 표로 돌려준다.
+    """Check several answer options or claims against 1 to 5 articles at once. 보기·주장 여러 개를 조문 1~5개와 한 번에 글자 대조해 보기마다 가장 맞는 조와 판정을 표로 돌려준다.
 
     언제: 여러 보기(객관식 보기·고객 진술·주장 문장)를 특정 조문(1~5개)과 한 번에 대조할 때. 보기마다 verify_statement를 따로 부르지 않고 한 번 호출로 처리.
     입력: statements(문자열 리스트 → id 보기 번호 순서(원문자 1~5번), 5개 초과 시 1,2,3… / {'id','text'} 리스트 → id 그대로),
@@ -1704,7 +1706,7 @@ def residency_check(
     nationality: Annotated[Literal["대한민국", "외국", "복수국적", "미입력"], Field(description="국적 (조약 tie-break 4단계). 미입력 시 4단계 보류 → 판정 보류.")] = "미입력",
     notes: Annotated[str, Field(description="추가 참고사항.")] = "",
 ) -> dict:
-    """비거주자·거주자 3단계 판정 (규칙 기반, 외부 호출 없이 동작).
+    """Korean tax residency test in 3 steps: domestic law, dual residence, treaty tie-breaker; rule-based, no network. 비거주자·거주자 3단계 판정 (규칙 기반, 외부 호출 없이 동작).
 
     언제: 판정 입력 데이터로 거주자·비거주자·이중거주자·조세조약 tie-break 결과를 즉시 확인할 때.
     판단은 코드 규칙 기반 — Solar 키 없어도 동작. AI 판단 기본은 사용자 AI(호스트)가 수행 — 판정 코드는 고정.
@@ -1881,7 +1883,7 @@ def residency_report(
     nationality: Annotated[Literal["대한민국", "외국", "복수국적", "미입력"], Field(description="국적. 미입력 시 4단계 보류 → 판정 보류.")] = "미입력",
     notes: Annotated[str, Field(description="추가 참고사항.")] = "",
 ) -> dict:
-    """residency_check 결과 + rules.md를 Solar Pro 4에 넣어 판정 검토 보고서(마크다운) 작성.
+    """Write a residency review report from the residency_check result (Solar if a key is set, otherwise returns the result for your AI). residency_check 결과 + rules.md를 Solar Pro 4에 넣어 판정 검토 보고서(마크다운) 작성.
 
     언제: residency_check 결과를 더 상세한 서술형 판정 검토 보고서(report_template.md 형식)로 만들 때.
     Solar 선택 구조(기존 korean-tax-mcp와 동일): UPSTAGE_API_KEY(클라우드) 또는 KOREAN_TAX_MCP_SOLAR_BASE_URL(온프렘) 설정 시 Solar가 보고서 작성,
