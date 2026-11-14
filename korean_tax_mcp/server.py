@@ -1033,6 +1033,33 @@ def one_house_exemption_guide(
 
 @mcp.tool(annotations=RO)
 @bilingual
+def wage_income_guide(
+    year: Annotated[int | None, Field(description="귀속연도(2016~2026). 생략하고 payment_date도 없으면 연도별 변화 목록")] = None,
+    payment_date: Annotated[str | None, Field(description="지급일 YYYY-MM-DD(선택) — 식사대(2023.1.1.)·출산·보육 급여(2024.1.1.·2026.1.1.)·출산지원금·직무발명보상금처럼 지급일로 갈리는 개정에 씀. year를 생략하면 지급일의 연도를 귀속연도로 봄")] = None,
+    items: Annotated[list | None, Field(description="판정할 항목 [{항목, 월금액|연금액|금액, 지급일?, 조건}] — 항목: 식대(식사제공) | 자가운전보조금(차량: 본인소유|본인명의임차|기타, 업무사용, 실제여비수령) | "
+                                                    "연구보조비(연구기관: 교원|연구기관|기업부설연구소|기타) | 보육수당(자녀출생일 목록 또는 자녀수 — 과세기간 개시일 현재 6세 이하) | 출산지원금(금액, 자녀출생일, 지급차수, 특수관계) | "
+                                                    "야간근로수당(연금액, 생산직직종, 월정액급여, 직전연도총급여, 광산일용) | 국외근로(국외유형: 일반|원양어업|선박|건설현장|공무원등, 설계) | "
+                                                    "직무발명보상금(연금액, 퇴직후, 특수관계, 같은해근로비과세) | 임직원 할인(할인금액, 시가합계, 재판매제한, 공통기준) | 주식매수선택권(재직중행사, 금액) | 임원 퇴직소득 한도 초과액(퇴직일)")] = None,
+    employee: Annotated[dict | None, Field(description="근로자 사실(선택) {일급_시급(날·시간 단위로 급여 계산), 업종(건설|하역|기타), 계속고용개월(동일 고용주), 관리기술업무, 정기지급(하역), "
+                                                       "외국인, 최초근로일(국내 최초 근로 제공일 YYYY-MM-DD), 특수관계기업} — 일용근로자 판정과 외국인 단일세율(조세특례제한법 제18조의2)")] = None,
+) -> dict:
+    """Korean wage (employment) income requirements by tax year and payment date — scope of wage income, tax-exempt allowances and their caps (meals, own-car allowance, childcare, childbirth support, overtime for production workers, overseas work, employee invention compensation, employee discounts), daily-worker status and the flat-rate option for foreign employees — checked against the text and transitional rules in force. It does not compute tax.
+
+    근로소득 요건 안내 — 귀속연도·지급일의 시행본과 개정 부칙으로 근로소득 범위(소득세법 제20조, 임원 퇴직소득 한도 초과액 제22조제3항, 주식매수선택권 행사이익 시행령 제38조제1항제17호, 직무발명보상금의 근로·기타 구분),
+    비과세 근로소득(법 제12조제3호, 시행령 제12조·제16조·제17조~제17조의5)의 항목별 한도와 과세분, 일용근로자 판정(시행령 제20조), 외국인근로자 단일세율 특례(조세특례제한법 제18조의2)를 판정한다.
+    언제: 식대·자가운전보조금·보육수당·출산지원금·야간근로수당·국외근로수당·직무발명보상금이 그 해 얼마까지 비과세인지, 일용근로자로 분리과세되는지, 외국인 직원이 19% 단일세율을 고를 수 있는지, 퇴직 후 받은 보상금이나 스톡옵션 이익이 근로소득인지 확인할 때.
+    입력: year(귀속연도) 또는 payment_date(지급일), items(항목·금액·조건), employee(일용·외국인 판정용 사실). 생략한 조건은 판정하지 않고 요건만 보여 줌.
+    반환: {귀속연도, 지급일, 조문, 요건: [{구분, 내용, 근거}], 판정?: [{항목, 판정(비과세·일부 과세·과세·확인 필요·근로소득·기타소득), 사유, 근거, 한도, 비과세(월|연), 과세(월|연), 소득구분?}], 합계?, 일용근로자?, 외국인 단일세율?, 한계, 관련 해석, 다음 단계, 확인 시행본}.
+    연도·지급일에 따라 다름: 식사대 월 10만원 → 20만원(2023.1.1. 이후 받는 분), 출산·보육 월 10만원 → 20만원(2024.1.1. 이후 지급분) → 자녀 1명당 20만원(2026.1.1. 이후 지급분), 출산지원금 전액(2025.1.1. 이후 신고·연말정산, 2024년 지급분 포함),
+    직무발명보상금 2016년 지급분까지 비과세 기타소득 → 연 300만원(2017)·500만원(2019)·700만원(2024), 국외 건설현장 등 월 300만원 → 500만원(2024), 생산직 월정액급여 150만원 → 190만원(2018)·210만원(2019)·260만원(2026)과 직전 총급여 2,500만원 → 3천만원(2020)·3,700만원(2026), 외국인 단일세율 17% → 19%(2017)·적용 기간 5년 → 20년(2023).
+    세액·총급여는 계산하지 않는다(계산 MCP의 earned_income_gross_pay·wage_income_tax·daily_worker_withholding). 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=지급일), 부칙은 article_addenda.
+    """
+    from . import wage_income as _wage_income
+    return _wage_income.guide(year, payment_date, items, employee)
+
+
+@mcp.tool(annotations=RO)
+@bilingual
 def tax_crime_guide(
     act_date: Annotated[str | None, Field(description="행위일 YYYY-MM-DD(2016-01-01 이후). 조세포탈은 기수 시기(신고·납부기한이 지난 때 등). 생략하면 범칙행위 목록과 행위일별 변화")] = None,
     offense: Annotated[str | None, Field(description="조세포탈 | 면세유 부정유통 | 면세유류 구입카드 부정발급 | 가짜석유제품 | 무면허 주류 | 체납처분 면탈 | 장부 소각·파기 | 성실신고 방해 | 세금계산서 미발급·거짓기재 | 세금계산서 미수취·거짓수취 | 실물거래 없는 세금계산서 | 명의대여 | 납세증명표지 불법사용 | 원천징수 불이행 | 거짓 근로소득 원천징수영수증 | 해외금융계좌 비밀유지 위반 | 해외금융계좌 신고의무 불이행")] = None,
