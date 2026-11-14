@@ -6,7 +6,7 @@
 
 [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/)
 
-> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 41 tools.
+> **Authorship notice:** Versions 0.7.0–0.11.1 (2026-10-13 to 10-19) were written by **Solar Pro 4** (Solar Work CLI), reviewed by CodeSolar and cross-checked with tests by Claude (in 0.10.0 only the table of contents was Solar's; the rest was written by Claude). **From 0.12.0 (2026-10-28) on, the existing skeleton remains Solar Pro 4's, while audits, bug fixes and additions are written by Claude (Anthropic)** and reviewed by CodeSolar. Each [CHANGELOG](CHANGELOG.md) section states who wrote it. 48 tools.
 
 **Korea tax law for AI agents** — statutes as in force on any date, NTS rulings and court decisions, basic rules and treaties. [한국어](README.md)
 
@@ -117,7 +117,7 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 5. If two values come out (before/after apportionment, total vs. taxable part, etc.), answer only the one the question asks for.
 ```
 
-## Tools (41)
+## Tools (48)
 
 | Group | Tool | What it does |
 |---|---|---|
@@ -148,6 +148,13 @@ When answering Korean tax questions, use korean-tax-mcp and korean-tax-calc-mcp 
 | | `one_house_exemption_guide` | One-house household CGT exemption by transfer date — holding/residence periods, adjustment-area residence rule, temporary two-house disposal deadlines, high-priced house threshold (KRW 0.9bn/1.2bn), inheritance/elderly-parent/marriage/rural-house special cases (2016–2026) |
 | | `family_business_succession_guide` | Family business inheritance deduction requirements by date of inheritance — revenue cap, deduction cap, decedent and heir requirements, post-inheritance management and recapture, payment deferral (2016–2026) |
 | | `vat_exempt_zero_rate_guide` | VAT exemption and zero-rating by supply date — exempt supplies (Art. 26), waiver, zero-rating (Arts. 21–25, Decree Art. 33 conditions) and attachments (2016–2026) |
+| | `interest_income_guide` | Interest income guide by payment date — scope, private lending vs. lending business, savings-insurance exemption, separate taxation and KRW 20M threshold, withholding rates (2016–2026) |
+| | `dividend_income_guide` | Dividend income guide by payment date — scope and deemed dividends, gross-up eligibility and rate (10% for payments from 2024-01-01), KRW 20M threshold, withholding, timing, dividend credit outline (2016–2026) |
+| | `wage_income_guide` | Wage income requirements by tax year and payment date — tax-exempt allowance caps (meals, own car, childcare, childbirth support, overtime, overseas work, invention pay), daily-worker status, flat rate for foreign employees (2016–2026) |
+| | `business_income_guide` | Business income requirements by tax year — scope, exemptions (one-house rental 0.9→1.2bn), house rental separate taxation and deemed rent, bookkeeping duty, sincere-filing confirmation, expense ratios (2016–2026) |
+| | `pension_income_guide` | Pension income requirements by receipt date — public vs. account pensions, pension-type withdrawal conditions, other withdrawals, unavoidable withdrawals, separate-taxation threshold (12M→15M), withholding, exemptions (2016–2026) |
+| | `other_income_guide` | Other income requirements — item, deemed expense rate (80→70→60%), minimum threshold, separate taxation, withholding, exemptions (2016–2026) |
+| | `retirement_income_guide` | Retirement income requirements by retirement date — scope, actual retirement, interim settlement, executive cap (3x 2012–2019, 2x from 2020), service-years deduction (2023 table), deferral (2016–2026) |
 | | `transfer_pricing_cases` | transfer pricing decisions by issue (9 issues) — taxpayer wins and upheld assessments side by side |
 | | `oecd_tp_guidelines` | OECD Transfer Pricing Guidelines 2022 — paragraph lookup, keyword search, crosswalk to the Korean statute (1,391 paragraphs) |
 | | `verify_citations` | do cited document numbers and articles exist |
