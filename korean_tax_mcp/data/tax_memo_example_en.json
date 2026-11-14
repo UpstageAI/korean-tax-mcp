@@ -1,0 +1,151 @@
+{
+ "lang": "en",
+ "head": {
+  "prepared_by": "[Team] — drafted with [tools used]",
+  "date": "1 January 2000 (illustrative)",
+  "re": "Illustrative example — late-payment charge on tax paid 30 days late",
+  "scope": "Illustrative shape only — do not reuse its content. Made-up act, rates and amounts."
+ },
+ "summary": [
+  {
+   "conclusion": "A late-payment charge of KRW 330,000 is due.",
+   "basis": "It is a fixed charge of KRW 300,000 plus a daily charge of KRW 30,000 under the made-up Example Tax Act.[^a10][^a11]"
+  },
+  {
+   "conclusion": "The charge keeps running until the tax is paid.",
+   "basis": "Each further day adds KRW 1,000 at the illustrative daily rate.[^a11]"
+  },
+  {
+   "conclusion": "A reduction is possible only on application.",
+   "basis": "The made-up act lets the tax office halve the fixed charge where the taxpayer applies within the period.[^a12]"
+  }
+ ],
+ "question": "Is a late-payment charge due when tax of KRW 10,000,000 is paid 30 days after the deadline, and how much?",
+ "short_answer": {
+  "answer": "Yes — KRW 330,000.",
+  "conditions": "This holds if the unpaid tax was KRW 10,000,000, payment was 30 days late and no reduction has been granted."
+ },
+ "facts": [
+  "Tax due: KRW 10,000,000 (illustrative figure).",
+  {
+   "text": "Payment was made 30 days after the deadline.",
+   "assumption": true,
+   "changes_answer": true,
+   "risk": "days"
+  },
+  {
+   "text": "No reduction has been applied for.",
+   "assumption": true,
+   "changes_answer": true,
+   "risk": "reduction"
+  }
+ ],
+ "analysis": [
+  {
+   "stage": "taxability",
+   "heading": "A charge arises once the deadline passes unpaid",
+   "rule": "Tax not paid by the deadline attracts a late-payment charge.[^a10]",
+   "application": "The tax was paid 30 days after the deadline.",
+   "conclusion": "A charge is due."
+  },
+  {
+   "stage": "rate",
+   "heading": "The charge is a fixed 3 percent plus 0.01 percent a day",
+   "rule": "The charge is 3 percent of the unpaid tax plus 0.01 percent of the unpaid tax for each day of delay.[^a10][^a11]",
+   "application": "3 percent of KRW 10,000,000 is KRW 300,000, and 0.01 percent a day for 30 days is KRW 30,000.",
+   "conclusion": "KRW 330,000 in total."
+  },
+  {
+   "stage": "procedure",
+   "heading": "A reduction needs an application within the period",
+   "rule": "The tax office may halve the fixed charge where the taxpayer applies within the period set by the act.[^a12]",
+   "application": "No application has been made on the facts given.",
+   "conclusion": "No reduction applies unless an application is filed in time.",
+   "confirm": "The application deadline and whether the delay had a cause the act recognises."
+  }
+ ],
+ "calculation": {
+  "currency": "KRW",
+  "rows": [
+   {
+    "item": "Unpaid tax",
+    "basis": "—",
+    "amount": "10,000,000",
+    "role": "base"
+   },
+   {
+    "item": "Fixed charge",
+    "basis": "3% of the unpaid tax",
+    "amount": "300,000",
+    "role": "component"
+   },
+   {
+    "item": "Daily charge",
+    "basis": "0.01% × 30 days",
+    "amount": "30,000",
+    "role": "component"
+   },
+   {
+    "item": "Total charge",
+    "basis": "—",
+    "amount": "330,000",
+    "role": "total"
+   },
+   {
+    "item": "Each further day",
+    "basis": "0.01% of the unpaid tax",
+    "amount": "1,000",
+    "role": "info"
+   }
+  ]
+ },
+ "risks": [
+  {
+   "id": "days",
+   "priority": "HIGH",
+   "point": "Number of days late",
+   "why": "The daily charge depends on the exact payment date.",
+   "check": "The bank record of the payment date."
+  },
+  {
+   "id": "reduction",
+   "priority": "MEDIUM",
+   "point": "Reduction not applied for",
+   "why": "The fixed charge could be halved if an application is still possible.[^a12]",
+   "check": "Whether the application period is still open."
+  },
+  {
+   "id": "figures",
+   "priority": "LOW",
+   "point": "Illustrative figures",
+   "why": "Every rate and amount here is made up to show the form.",
+   "check": "Replace each figure and citation with tool results."
+  }
+ ],
+ "next_steps": [
+  {
+   "action": "Confirm the payment date from the bank record.",
+   "owner": "[owner]"
+  },
+  {
+   "action": "Decide whether to apply for the reduction.",
+   "owner": "[owner]",
+   "deadline": "[deadline]"
+  }
+ ],
+ "footnotes": [
+  {
+   "id": "a10",
+   "text": "Example Tax Act (예시세법), Art. 10(1) — a made-up provision used only to show the citation style: statute name, original-language term in parentheses, article and paragraph."
+  },
+  {
+   "id": "a11",
+   "text": "Example Tax Act, Art. 11(2) — made-up provision (daily rate)."
+  },
+  {
+   "id": "a12",
+   "text": "Example Tax Act, Art. 12(1) — made-up provision (reduction on application)."
+  }
+ ],
+ "prepared_how": "Illustrative example: no tool was called and the act is made up. In a real memo, name the tools used and the date here, and state that the original-language text governs."
+}
