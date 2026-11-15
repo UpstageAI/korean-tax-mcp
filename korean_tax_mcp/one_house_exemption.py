@@ -24,7 +24,8 @@ DATE_MIN = D(2016, 1, 1)
 SPECIALS = ("상속주택", "동거봉양", "혼인", "농어촌주택")
 VERIFIED = ("소득세법 시행령 2026.10.1. 시행본(대통령령 제36737호 반영) 제152조의3·제154조·제155조·제156조 전문과 개정 연혁 표시, 같은 시행본의 2016~2026년 개정 부칙 — "
             "국세법령정보시스템 조회(2026-11-14). 소득세법 시행령 2016.2.17.·2017.9.19.·2018.2.13.·2018.10.23.·2019.2.12.·2019.9.16.·2020.2.11.·2021.2.17.·2022.5.31.·2024.9.15. 시행본 제154조·제155조와 부칙 — "
-            "법제처 DRF 연혁본(2026-11-14). 소득세법(법률) 제88조·제89조 연도별 문언과 제152조의3의 2017.2.3. 전 규정은 대조하지 못함")
+            "법제처 DRF 연혁본(2026-11-14). 소득세법 제88조제6호·제89조제1항제3호·제2항 2015.7.1.~2026.7.1. 시행본 12개(각 연말 기준), "
+            "소득세법 시행령 제152조의3 2017.11.21.~2026.10.1. 시행본과 그 전 제154조제1항·제2항(2016.12.5. 시행본), 제155조제1항제2호 단서(2020.12.10. 시행본) — 법제처 DRF 시행본(2026-11-15)")
 
 # 부칙 기준일
 RES_ACQ = D(2017, 8, 3)        # 2017.9.19. 개정 부칙 제2조제2항 — 2017.8.2. 이전 취득·계약은 종전 규정
@@ -108,12 +109,26 @@ def deadline_years(transfer, new_acq, both_adjusted, new_contract=None):
     return 2, False, f"{_D} 제155조제1항(2018.10.23. 개정) — 2018.9.14. 이후 조정대상지역 신규 주택 취득분 2년" + (" (2019.12.16. 이전 취득·계약분은 2020.2.11. 개정 부칙 제2항으로 종전 규정)" if transfer >= T2020 else "")
 
 
+def _household_basis(t):
+    """1세대 정의 조문 — 양도일 기준. 2016년: 시행령 제154조제1항·제2항 / 2017.1.1.: 법 제88조제6호 신설(법률 제14389호), 시행령 제152조의3(2017.2.3. 신설) /
+    2019.1.1.: 사실상 이혼으로 보기 어려운 관계 포함(법률 제16104호) / 2024.2.29.: 소득 기준 문언(부령으로 정하는 소득, 12개월 환산)."""
+    if t < D(2017, 1, 1):
+        return (f"{_D} 제154조제1항·제2항(2016.12.5. 시행본) — 2016년에는 법 제88조제6호가 없고 시행령이 1세대를 정함. 배우자 없이 1세대로 보는 경우(30세 이상, 배우자 사망·이혼, "
+                "소득이 기준 중위소득의 100분의 40 이상)는 제154조제2항")
+    b = f"{_L} 제88조제6호(2017.1.1. 신설, 법률 제14389호), {_D} " + ("제152조의3(2017.2.3. 신설)" if t >= D(2017, 2, 3) else "제154조제2항(2017.2.3. 전)")
+    if t >= D(2019, 1, 1):
+        b += " — 2019.1.1. 시행본부터 배우자에 '법률상 이혼했으나 생계를 같이하는 등 사실상 이혼한 것으로 보기 어려운 관계에 있는 사람' 포함(법률 제16104호)"
+    b += (". 소득 기준은 2024.2.29. 개정 문언(부령으로 정하는 소득이 기준 중위소득을 12개월로 환산한 금액의 100분의 40 수준 이상)" if t >= D(2024, 2, 29)
+          else ". 소득 기준은 2024.2.29. 개정 전 문언(법 제4조에 따른 소득이 기준 중위소득의 100분의 40 수준 이상)")
+    return b
+
+
 def _requirements(t):
     lux = 1_200_000_000 if t >= LUX_DATE else 900_000_000
     r = [
         {"요건": "1세대", "내용": "거주자와 그 배우자, 같은 주소에서 생계를 같이하는 가족으로 구성. 배우자는 동거·생계 여부를 묻지 않음(대법원-2026-두-30005). 배우자가 없어도 1세대로 보는 경우 — 30세 이상, 배우자의 사망·이혼, "
                                      "소득(부령으로 정하는 소득)이 기준 중위소득을 12개월로 환산한 금액의 100분의 40 수준 이상으로 독립 생계 유지 가능(미성년자 제외, 예외 있음)",
-         "근거": f"{_L} 제88조제6호, {_D} 제152조의3(2017.2.3. 신설) — 법 문언과 2017.2.3. 전 규정·소득 기준의 연도별 문언은 미확인"},
+         "근거": _household_basis(t)},
         {"요건": "1주택", "내용": "양도일 현재 국내에 1주택(주택 수는 세대원 전원 기준. 겸용주택은 주택 연면적이 더 크면 전부 주택, 다가구주택은 구분 양도하지 않으면 단독주택). 2025.2.28. 이후 매매계약 후 주택 외 용도로 바꿔 양도하면 매매계약일 현재로 판정",
          "근거": f"{_D} 제154조제1항·제3항, 제155조제15항, 2025.2.28. 개정 부칙"},
         {"요건": "보유기간", "내용": "2년 이상(비거주자가 3년 이상 보유·거주한 상태로 거주자로 전환하면 3년, 그 기간 통산). 기간은 취득일부터 양도일까지(법 제95조제4항). "
@@ -157,7 +172,8 @@ def _residence_days(periods, 문제):
 
 def guide(transfer_date=None, acquisition_date=None, adjusted_area_at_acquisition=None, residence_periods=None, contract_date=None, homeless_at_contract=None,
           contract_before_designation=None, transfer_price=None, other_houses_disposed_date=None, new_house_acquisition_date=None, new_house_contract_date=None,
-          both_adjusted_at_new_acquisition=None, moved_in_date=None, special=None, special_date=None, rental_registered_date=None, rental_rule_kept=None):
+          both_adjusted_at_new_acquisition=None, moved_in_date=None, special=None, special_date=None, rental_registered_date=None, rental_rule_kept=None,
+          existing_tenant_lease_end=None):
     if transfer_date is None:
         return {"양도일별 변화": [x.strip() for x in __doc__.split("양도일·취득일에 따라 달라지는 것:")[1].strip().split("\n")],
                 "입력": "transfer_date(2016-01-01 이후)를 주면 그 양도일의 요건과 사실관계 판정", "특례 구분": list(SPECIALS), "확인 시행본": VERIFIED}
@@ -171,6 +187,7 @@ def guide(transfer_date=None, acquisition_date=None, adjusted_area_at_acquisitio
     na = _date(new_house_acquisition_date, "new_house_acquisition_date", 문제)
     nc = _date(new_house_contract_date, "new_house_contract_date", 문제)
     mi = _date(moved_in_date, "moved_in_date", 문제)
+    tle = _date(existing_tenant_lease_end, "existing_tenant_lease_end", 문제)
     sd = _date(special_date, "special_date", 문제)
     rd = _date(rental_registered_date, "rental_registered_date", 문제)
     if rental_rule_kept is not None and not isinstance(rental_rule_kept, bool):
@@ -272,7 +289,7 @@ def guide(transfer_date=None, acquisition_date=None, adjusted_area_at_acquisitio
             판정.append({"항목": "일시적 2주택 — 처분기한", "판정": "확인 필요", "사유": "신규 주택 취득일 현재 종전 주택과 신규 주택이 모두 조정대상지역이면 처분기한이 짧아짐 — both_adjusted_at_new_acquisition 확인",
                        "근거": f"{_D} 제155조제1항"})
         else:
-            판정.extend(_temporary(t, acq, na, nc, bool(both_adjusted_at_new_acquisition), mi))
+            판정.extend(_temporary(t, acq, na, nc, bool(both_adjusted_at_new_acquisition), mi, tle))
 
     # 고가주택
     if transfer_price is not None:
@@ -290,8 +307,10 @@ def guide(transfer_date=None, acquisition_date=None, adjusted_area_at_acquisitio
         out["판정"] = 판정
     out["한계"] = [
         "보유·거주기간은 초일불산입으로 n년이 되는 날(취득일의 n년 뒤 같은 날) 이후 양도면 충족으로 계산. 여러 번 나눠 거주하면 날짜를 합산(730일 미만 미충족, 731일 이상 충족, 그 사이는 확인 필요)",
-        "소득세법(법률) 제88조·제89조의 연도별 문언과 제152조의3의 2017.2.3. 전 규정은 대조하지 못함(미확인). 2020.2.11. 개정의 전입요건 예외(기존 임차인 등) 문언은 미확인. "
-        "시행령 제154조·제155조는 2016~2024 시행본을 법제처 연혁본으로 대조함",
+        "소득세법 제88조제6호·제89조와 시행령 제152조의3(그 전 제154조제1항·제2항)은 2016~2026년 연말 시행본을 법제처 원문으로 대조함 — 1세대 정의는 2017.1.1. 법률로 옮겨졌고(그 전은 시행령), "
+        "고가주택 12억원은 2021.12.8. 법 제89조제1항제3호에 직접 규정. 시행령 제154조·제155조는 2016~2024 시행본을 법제처 연혁본으로 대조함",
+        "2019.12.17.~ 취득분의 1년 양도·전입 기한은 신규 주택 취득일 현재 기존 임차인이 살고 있고 그 임대차 종료일이 취득일부터 1년 뒤이면 임대차 종료일까지(취득일부터 2년 한도, 취득 후 갱신한 계약 제외)로 늘어남 — "
+        "existing_tenant_lease_end로 판정. 임대차계약서 등 증명서류로 확인되는지는 사실 판단",
         "임대사업자 거주요건 면제(구 제154조제1항제4호)는 등록 신청일(rental_registered_date)과 단서 준수(rental_rule_kept)를 입력값으로 봄 — 임대의무기간·증가율 준수 여부는 사실 판단",
         "다루지 않는 특례: 공동상속주택 소수지분(제155조제3항), 문화유산주택(제6항), 부득이한 사유로 취득한 수도권 밖 주택(제8항), 수도권 밖 이전 기관 종사자(제16항), 장기임대주택·장기어린이집과 거주주택(제20항~), "
         "조합원입주권·분양권과 주택(제156조의2·제156조의3), 상생임대주택(제155조의3), 대체주택·재건축 관련 특례, 농어촌주택은 요건 안내만",
@@ -334,7 +353,7 @@ def _residence(spans, acq, t, basis):
     return {"항목": "거주기간 2년", "판정": res, "사유": f"거주 {len(spans)}회 합산 {days}일 — 2년(730~731일) 기준" + (" — 경계라 날짜 계산 확인" if res == "확인 필요" else ""), "근거": basis}
 
 
-def _temporary(t, acq, na, nc, both, mi):
+def _temporary(t, acq, na, nc, both, mi, tle=None):
     out = []
     basis = f"{_D} 제155조제1항"
     if acq:
@@ -349,15 +368,29 @@ def _temporary(t, acq, na, nc, both, mi):
         return out
     yrs, move_in, why = deadline_years(t, na, both, nc)
     until = _add_years(na, yrs)
-    ok = t <= until
-    out.append({"항목": "일시적 2주택 — 처분기한", "판정": "충족" if ok else "미충족", "사유": f"신규 주택 취득 {na}부터 {yrs}년 이내({until}까지) 종전 주택 양도 — 양도일 {t}", "처분기한(년)": yrs, "근거": why})
-    if move_in:
-        b = f"{_D} 제155조제1항(2020.2.11. 개정), 대구지방법원-2024-구합-23544"
-        if mi is None:
-            out.append({"항목": "일시적 2주택 — 신규 주택 전입", "판정": "확인 필요", "사유": "신규 주택 취득일부터 1년 이내 세대전원 이사·전입신고(moved_in_date) 확인. 기존 임차인이 있는 경우 등 예외 문언은 미확인", "근거": b})
+    ext = ""
+    if move_in and tle is not None:
+        # 제155조제1항제2호 단서(2020.2.11. 개정, 2020.12.10. 시행본 대조): 취득일 현재 기존 임차인 거주 + 임대차 종료일이 취득일부터 1년 후 →
+        # 각 목의 기간(1년 양도·1년 전입)을 임대차 종료일까지, 취득일부터 2년 한도. 취득 후 갱신한 계약은 인정하지 않음.
+        if tle > _add_years(na, 1):
+            until = min(tle, _add_years(na, 2))
+            ext = (f" — 신규 주택 취득일 현재 기존 임차인의 임대차 종료일 {tle}이 취득일부터 1년 뒤라 기한을 임대차 종료일까지로 봄(취득일부터 2년 한도, 취득 후 갱신한 계약은 제외, "
+                   "임대차계약서 등 증명서류로 확인되는 경우 — 제155조제1항제2호 단서)")
         else:
-            lim = _add_years(na, 1)
-            out.append({"항목": "일시적 2주택 — 신규 주택 전입", "판정": "충족" if mi <= lim else "미충족", "사유": f"전입 {mi} — 기한 {lim}", "근거": b})
+            ext = f" — 기존 임차인의 임대차 종료일 {tle}이 취득일부터 1년 이내라 기한 연장 없음(제155조제1항제2호 단서는 종료일이 취득일부터 1년 후인 경우만)"
+    ok = t <= until
+    out.append({"항목": "일시적 2주택 — 처분기한", "판정": "충족" if ok else "미충족",
+                "사유": (f"신규 주택 취득 {na}부터 {yrs}년 이내({until}까지) 종전 주택 양도 — 양도일 {t}" if not ext or until == _add_years(na, yrs)
+                         else f"신규 주택 취득 {na} — {until}까지 종전 주택 양도 — 양도일 {t}") + ext, "처분기한(년)": yrs, "근거": why})
+    if move_in:
+        b = f"{_D} 제155조제1항제2호(2020.2.11. 개정, 2020.12.10. 시행본 대조), 대구지방법원-2024-구합-23544"
+        lim = until if ext and until != _add_years(na, yrs) else _add_years(na, 1)
+        if mi is None:
+            out.append({"항목": "일시적 2주택 — 신규 주택 전입", "판정": "확인 필요",
+                        "사유": f"신규 주택 취득일부터 1년 이내({lim}까지) 세대전원 이사·전입신고(moved_in_date) 확인." + (ext if ext else
+                                " 취득일 현재 기존 임차인이 살고 있고 그 임대차 종료일이 취득일부터 1년 뒤이면 임대차 종료일까지(2년 한도) — existing_tenant_lease_end 입력"), "근거": b})
+        else:
+            out.append({"항목": "일시적 2주택 — 신규 주택 전입", "판정": "충족" if mi <= lim else "미충족", "사유": f"전입 {mi} — 기한 {lim}" + ext, "근거": b})
     return out
 
 

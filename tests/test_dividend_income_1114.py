@@ -69,10 +69,11 @@ def test_capitalization_sources_and_item_renumbering():
 
 def test_reserve_reduction_and_reduced_corp():
     # 제17조제3항제6호·제7호(2025.1.1. 이후 감액으로 지급받는 소득분)
-    assert J(G.guide("2024-12-31", "이익배당", {"reserve_reduction": "자본준비금"}))["배당가산(Gross-up)"]["판정"] == "확인 필요"
+    assert J(G.guide("2024-12-31", "이익배당", {"reserve_reduction": "자본준비금"}))["배당가산(Gross-up)"]["판정"] == "대상(배당소득에 해당하는 경우)"   # 2024.7.1. 시행본 제17조제3항에 감액 배당 제외 호 없음
     cut = J(G.guide("2025-01-01", "이익배당", {"reserve_reduction": "자본준비금"}))["배당가산(Gross-up)"]
-    assert cut["판정"] == "대상 아님" and "제7호" in cut["근거"]
-    assert "제6호" in J(G.guide("2025-01-01", "이익배당", {"reserve_reduction": "재평가적립금"}))["배당가산(Gross-up)"]["근거"]
+    # 제7호가 빼는 것은 법인세법 제18조제8호 나목·다목뿐(소득세법 2025.10.1. 시행본) — 가목 준비금 감액 배당은 가산 대상이라 종류를 확인해야 함
+    assert cut["판정"] == "확인 필요" and "제7호" in cut["근거"] and "나목·다목" in cut["사유"] and "가목" in cut["사유"] and cut["가산율(%)"] == 10
+    assert "제17조제3항제6호" in J(G.guide("2025-01-01", "이익배당", {"reserve_reduction": "재평가적립금"}))["배당가산(Gross-up)"]["근거"]
     # 시행령 제27조의3 — 제1항제1호 100분의 100, 제2호 산식 비율. 법 조문 번호 2024년 제4호 → 2025년 제5호
     full = J(G.guide("2024-06-30", "이익배당", {"reduced_corp": "전액감면"}))["배당가산(Gross-up)"]
     assert full["판정"] == "대상 아님" and "제17조제3항제4호" in full["근거"]
@@ -135,7 +136,7 @@ def test_timing_and_accrual_year():
     assert J(r)["배당가산(Gross-up)"]["가산율(%)"] == 10   # 부칙 문언은 지급일 기준
     assert "결산확정일" in J(G.guide("2022-03-31", "인정배당"))["수입시기"]["사유"]
     assert "합병등기" in J(G.guide("2022-03-31", "의제배당_합병"))["수입시기"]["사유"]
-    assert J(G.guide("2022-03-31", "법인으로보는단체"))["수입시기"]["판정"] == "확인 필요"
+    assert J(G.guide("2022-03-31", "법인으로보는단체"))["수입시기"]["판정"] == "안내"   # 시행령 제46조에 전용 호 없음 — 제2호
 
 
 def test_high_dividend_special_rule():
