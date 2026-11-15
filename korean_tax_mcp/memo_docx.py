@@ -21,7 +21,7 @@ EA = "Malgun Gothic"                   # 동아시아 글꼴: 윈도·맥용 Wor
 FONTS = {"en": {"body": "Georgia", "sans": "Arial"}, "ko": {"body": "Arial", "sans": "Arial"}}   # 한글은 eastAsia 글꼴로, 영문·숫자는 어디에나 있는 글꼴로
 SIZE = {"en": {"body": 20, "cell": 18, "note": 16}, "ko": {"body": 20, "cell": 18, "note": 16}}   # 반 포인트: 본문 10pt, 표 9pt, 각주 8pt
 LINE, CELL_LINE = 264, 250             # 줄 간격(240 = 1줄): 본문 1.1줄, 표 칸 1.04줄
-KEEP_ROWS, KEEP_HEIGHT = 16, 7400      # 이보다 작은 표(행 수, 어림 높이 twip — 반 쪽)는 통째로 한 쪽에 둔다
+KEEP_ROWS, KEEP_HEIGHT = 4, 1450       # 이보다 작은 표(행 수, 어림 높이 twip — 쪽의 약 10%)만 통째로 한 쪽에 둔다. 더 큰 표를 묶으면 앞 쪽 아래가 크게 빈다
 TAG = {0: ("FBE4E1", "9B2C1F"), 1: ("FDF1D6", "8A5A00"), 2: ("E4F2E7", "22663A")}   # 우선순위 칸 (바탕, 글자)
 NS = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
       'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"')
@@ -140,11 +140,11 @@ class Doc:
         self.add(self.p(self.inline(text, notes=False, font="sans", size=19, bold=True), after=40, before=110, line=0, style="Heading2", keep=True))
 
     def caption(self, text):
-        """표 위의 작은 제목 — 표와 떨어지지 않는다."""
+        """표 위의 작은 제목 — 표의 첫 행(머리 행 + 다음 행)과 떨어지지 않는다."""
         self.add(self.p(self.inline(text, notes=False, font="sans", size=17, bold=True, color=MUTED), before=100, after=50, line=0, keep=True))
 
     def rule(self):
-        self.add(self.p("", after=80, line=0, border=True))
+        self.add(self.p("", after=80, line=0, border=True, keep=True))          # 선만 쪽 끝에 남지 않게 다음 문단과
 
     def new_list(self):
         """번호 목록 하나 — 목록마다 1부터 다시 센다."""
@@ -164,10 +164,16 @@ class Doc:
 
     def table(self, widths, rows, header=True):
         """rows: [[칸 XML]] — 첫 행은 머리(쪽이 넘어가면 반복), 모든 행은 쪽 경계에서 갈라지지 않는다.
-        작은 표는 통째로 한 쪽에 둔다(마지막 행을 뺀 모든 문단에 '다음 문단과 함께'). 큰 표는 행 사이에서만 넘어간다."""
+        붙여 두는 묶음은 작게: 아주 작은 표(KEEP_ROWS행·KEEP_HEIGHT 이하)만 통째로 한 쪽에 둔다(마지막 행을 뺀 모든 문단에 '다음 문단과 함께').
+        그보다 큰 표는 행 사이에서 넘어가되 머리 행은 첫 행과, 마지막 두 행은(둘이 KEEP_HEIGHT 이하일 때) 서로 붙는다 —
+        머리 행만 쪽 끝에 남거나 합계 행 하나만 다음 쪽으로 넘어가지 않는다."""
         trs = ["".join(cells) for cells in rows]
-        if len(trs) <= KEEP_ROWS and sum(self._row_tall(f"<w:tr>{r}</w:tr>") for r in trs) <= KEEP_HEIGHT:
-            trs = [r.replace("<w:p><w:pPr>", "<w:p><w:pPr><w:keepNext/>") for r in trs[:-1]] + trs[-1:]
+        tall = [self._row_tall(f"<w:tr>{r}</w:tr>") for r in trs]
+        if len(trs) <= KEEP_ROWS and sum(tall) <= KEEP_HEIGHT: tied = set(range(len(trs) - 1))
+        else:
+            tied = {0} if header and len(trs) > 1 else set()
+            if len(trs) > 2 and sum(tall[-2:]) <= KEEP_HEIGHT: tied.add(len(trs) - 2)
+        trs = [r.replace("<w:p><w:pPr>", "<w:p><w:pPr><w:keepNext/>") if i in tied else r for i, r in enumerate(trs)]
         out = [f'<w:tbl><w:tblPr><w:tblW w:w="{sum(widths)}" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
                '<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar></w:tblPr>'
                "<w:tblGrid>" + "".join(f'<w:gridCol w:w="{x}"/>' for x in widths) + "</w:tblGrid>"]
@@ -276,7 +282,7 @@ class Doc:
         self.block = "short_answer"
         if sa["answer"] or sa["conditions"]:
             k += 1; self.h1(f'{k}. {L["short_answer"]}')
-            self.add(self.p(self.inline(sa["answer"], bold=True) + self.run(" ") + self.inline(sa["conditions"]), keep=bool(s["key_figures"])))
+            self.add(self.p(self.inline(sa["answer"], bold=True) + self.run(" ") + self.inline(sa["conditions"])))          # 숫자 표와 묶지 않는다 — 제목 + 결론 문단 + 표가 한 덩어리가 되면 앞 쪽 아래가 빈다
         if s["key_figures"]:
             self.block = "key_figures"
             if not (sa["answer"] or sa["conditions"]): k += 1; self.h1(f'{k}. {L["key_figures"]}')
@@ -327,7 +333,7 @@ class Doc:
             self.block = "review"
             k += 1; self.h1(f'{k}. {L["review"]}')
             if rv["verdict"] and not (review_up and rv["findings"]):          # 결론부에 이미 찍은 판정은 표 앞에서 되풀이하지 않는다
-                self.add(self.p(self.inline(rv["verdict"], bold=True), keep=bool(rv["findings"])))
+                self.add(self.p(self.inline(rv["verdict"], bold=True)))
             if rv["findings"]:
                 ws = [900, 3300, 2300, W - 6500]
                 rows = [[self.hd(L["severity"], ws[0]), self.hd(L["finding"], ws[1]), self.hd(L["amount"], ws[2]), self.hd(L["fix"], ws[3])]]
@@ -389,7 +395,7 @@ class Doc:
 
     def length(self):
         """분량 어림 — {pages, blocks: {블록: 쪽}}. 실제 쪽수는 Word가 정하므로 어림값이다."""
-        usable = PAGE_H - 2 * MARGIN_TB          # LibreOffice로 뽑은 쪽수에 맞춰 본 값(긴 메모 5.7쪽 → 5.9, 짧은 예시 1.45쪽 → 1.4)
+        usable = PAGE_H - 2 * MARGIN_TB          # LibreOffice로 뽑은 분량에 맞춰 본 값(긴 메모 5.6쪽 → 5.9, 짧은 예시 1.35쪽 → 1.4). 묶는 규칙과는 무관한 높이의 합
         blocks = {b: round(self.height[b] / usable, 2) for b in BLOCKS if self.height.get(b)}
         return {"pages": round(sum(self.height.values()) / usable, 1), "blocks": blocks}
 

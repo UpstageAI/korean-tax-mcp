@@ -244,7 +244,7 @@ def test_docx_is_well_formed_with_real_footnotes(tmp_path, lang):
     assert num.count("<w:startOverride w:val=\"1\"/>") == 2 and '<w:numId w:val="2"/>' in doc and '<w:numId w:val="3"/>' in doc
     assert doc.count('<w:numId w:val="2"/>') == 3 and doc.count('<w:numId w:val="3"/>') == len(EX[lang]["next_steps"])
     assert doc.count('<w:numId w:val="1"/>') == len(EX[lang]["facts"])
-    # 머리: 표 한 개(작성·일자·제목·범위), 본문 10pt·줄 간격 1.1, 작은 표는 통째로 한 쪽에(마지막 행을 뺀 문단에 '다음 문단과 함께')
+    # 머리: 표 한 개(작성·일자·제목·범위), 본문 10pt·줄 간격 1.1, 표의 머리 행은 첫 행과 함께(묶음 크기는 test_tax_memo_pagebreak_1115)
     head = re.findall(r"<w:tbl>.*?</w:tbl>", doc)[0]
     for k in ("prepared_by", "date", "re", "scope"): assert M.plain(EX[lang]["head"][k]) in re.sub(r"<[^>]+>", "", head).replace("&amp;", "&")
     assert "<w:tblHeader/>" not in head and doc.index("</w:tbl>") < doc.index('<w:pStyle w:val="Heading1"/>')
@@ -253,7 +253,7 @@ def test_docx_is_well_formed_with_real_footnotes(tmp_path, lang):
         if "<w:numPr>" in para and "<w:t" in para: assert max(int(x) for x in re.findall(r'<w:sz w:val="(\d+)"/>', para)) >= 20
     for tbl in re.findall(r"<w:tbl>.*?</w:tbl>", doc)[1:]:
         rows = re.findall(r"<w:tr>.*?</w:tr>", tbl)
-        assert all("<w:keepNext/>" in r for r in rows[:-1]) and "<w:keepNext/>" not in rows[-1]
+        assert "<w:keepNext/>" in rows[0] and "<w:keepNext/>" not in rows[-1]          # 머리 행은 첫 행과 붙고, 마지막 행 뒤에서는 쪽이 넘어갈 수 있다
     text = re.sub(r"<[^>]+>", "", doc)
     h1 = [re.sub(r"<[^>]+>", "", p) for p in re.findall(r"<w:p>.*?</w:p>", doc) if '<w:pStyle w:val="Heading1"/>' in p]
     heads = (["MEMORANDUM", "Executive summary", "1. Question presented", "2. Short answer", "3. Facts and assumptions", "4. Analysis",
