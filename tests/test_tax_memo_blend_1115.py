@@ -24,7 +24,7 @@ NEW_RULES = ("M24", "M25", "T09", "T10", "T11", "T12", "T13")
 def _blend(base, lang):
     """기본 구조에 선택 블록을 모두 얹는다."""
     s = copy.deepcopy(base); o = M.optional_blocks(lang)["example"]
-    s["head"].update(o["head"]); s["key_figures"] = o["key_figures"]; s["review"] = o["review"]; s["limitations"] = o["limitations"]
+    s["head"].update(o["head"]); s["workings_check"] = o["workings_check"]; s["key_figures"] = o["key_figures"]; s["review"] = o["review"]; s["limitations"] = o["limitations"]
     s["authorities"] = o["authorities"]; s.pop("next_steps"); s["action_list"] = o["action_list"]
     next(a for a in s["analysis"] if a["stage"] == "procedure")["table"] = o["analysis_table"]
     calc = s["calculation"]          # 쟁점 안의 표와 같은 숫자의 계산 표는 한 번만(M27) — 표에 든 경우는 scenarios에서 뺀다
@@ -94,8 +94,8 @@ def test_all_blocks_pass_every_rule(tmp_path, lang):
     assert _codes(FULL[lang]) == []
     assert _codes(_blend(M.example(lang), lang)) == []          # 안내가 돌려주는 예시 + 선택 블록 예시도 그대로 통과
     g = M.guide(lang)
-    assert g["optional_blocks"] == M.optional_blocks(lang) and len(g["checks"]) == len(M.RULES) == 42
-    assert set(g["optional_blocks"]["example"]) == {"head", "key_figures", "analysis_table", "review", "action_list", "limitations", "authorities"}
+    assert g["optional_blocks"] == M.optional_blocks(lang) and len(g["checks"]) == len(M.RULES) == 47
+    assert set(g["optional_blocks"]["example"]) == {"head", "workings_check", "key_figures", "analysis_table", "review", "action_list", "limitations", "authorities"}
     for key in ("key_figures", "review", "action_list", "limitations", "authorities"):
         assert key in g["schema"] and key in g["guide"], key
     for key in ("to", "basis", "workings"): assert key in g["schema"]["head"]

@@ -3,7 +3,7 @@
 입력은 tax_memo.check가 정리한 구조. 모양: A4(본문 10pt·줄 간격 1.1), 제목·머리 표 한 개, 번호 붙은 요약, 소제목, 표(머리·합계 음영, 우선순위 색),
 실제 Word 각주(읽는 순서로 번호, 같은 출처는 처음 번호를 다시 씀), 바닥글 안내와 쪽 번호.
 선택 블록(있을 때만 찍음): 머리의 수신·근거 자료·계산 파일, 결론 아래 숫자 표(경우 열 나란히), 쟁점 안의 표, 기존 처리 검토 결과,
-조치 목록 표, 한계와 미확인 사항, 주요 근거.
+조치 목록 표, 한계와 미확인 사항, 주요 근거, '작성 방법' 문단의 엑셀 대조 결과 한 줄(workings_check).
 한글이 어느 환경에서나 보이도록 모든 글자 조각에 동아시아 글꼴(맑은 고딕)을 지정한다.
 """
 import re
@@ -391,10 +391,20 @@ class Doc:
             self.block = "authorities"
             self.h2(L["authorities"])
             for x in s["authorities"]: self.add(self.p(self.inline(x, notes=False, size=small), after=20, line=CELL_LINE, num=1))
-        if s["prepared_how"]:
+        how = " ".join(x for x in (s["prepared_how"], M.workings_line(s)) if x)          # 함께 가는 엑셀을 계산 도구와 대조한 결과 한 줄(workings_check가 있을 때만)
+        if how:
             self.block = "prepared_how"
+            para = lambda text: self.p(self.run(L["how"] + " ", bold=True, size=small - 1, color=MUTED) + self.inline(text, notes=False, size=small - 1, color=MUTED), line=CELL_LINE)
+            before = dict(self.height)
             self.rule()
-            self.add(self.p(self.run(L["how"] + " ", bold=True, size=small - 1, color=MUTED) + self.inline(s["prepared_how"], notes=False, size=small - 1, color=MUTED), line=CELL_LINE))
+            self.add(para(how))
+            if how != s["prepared_how"]:
+                # 대조 결과 한 줄은 분량 어림에 넣지 않는다 — 대조 결과를 적었다고 분량 경고(M26)가 붙으면 안 된다. 어림은 작성자가 쓴 글만 센다
+                self.height = before
+                if s["prepared_how"]:
+                    body = self.body; self.body = []          # 높이만 다시 쌓고 본문은 그대로
+                    self.rule(); self.add(para(s["prepared_how"]))
+                    self.body = body
         for text in self.notes:          # 각주가 쪽 아래에서 차지하는 높이
             n, _ = _lines(text, W, z["note"])
             self.height["footnotes"] = self.height.get("footnotes", 0) + 30 + n * z["note"] * 10 * 1.16

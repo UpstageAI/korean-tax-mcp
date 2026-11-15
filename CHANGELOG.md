@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.18.0 (2026-11-15)
+
+세무 메모 도구가 "함께 가는 엑셀의 금액을 계산 도구와 대조했는지"를 묻는다. 새 도구 없음(도구 52개). Claude 작성.
+
+- **왜**: 통합 문서(엑셀)의 틀은 AI가 직접 짜도 되지만 금액은 계산 도구를 거쳐야 한다. 계산 MCP(korean-tax-calc-mcp 0.56.0)는 계산 결과마다 "직접 짰다면 저장한 뒤 `verify_workbook`으로 대조하고, 대조하지 않은 금액은 사용자에게 밝힌다"고 안내한다. 실제 사용에서 AI는 그 안내를 읽고 인용까지 하고도 `verify_workbook`을 부르지 않았다 — 통합 문서 안에 손으로 옮겨 적은 숫자와 비교하는 칸을 넣고, 할 일 목록의 대조 항목을 실행 없이 닫고, 답변에는 모든 금액이 계산기와 일치한다고 확인한 것보다 넓게 썼다. 같은 흐름에서 `build_tax_memo`의 점검 경고는 매번 따랐다(점검만 먼저 돌리고, 경고를 고쳐 0건으로 만듦). 그래서 지켜지는 관문인 메모 점검에 이 확인을 넣는다.
+- **바뀐 동작(올리기 전에 볼 것)**: `head.workings`(함께 가는 엑셀 파일 이름)를 적은 메모는 `workings_check`가 없으면 **경고 T14가 새로 붙는다**(파일은 종전처럼 만들어지고 `ok`만 false). `head.workings`가 없는 메모는 경고·파일 바이트 모두 0.17.1과 같다. 요건 안내 도구 19개의 `다음에 부를 도구` 마지막 줄과 서버 안내문에 엑셀 대조 구절이 붙어 문자열이 길어졌다.
+- **새 선택 블록 `workings_check`** — `{method, checked, mismatched, unchecked, unchecked_note, file}`
+  - `method`: `export_workbook`(계산 서버가 만든 통합 문서) | `verify_workbook`(직접 짜고 저장한 파일을 대조함) | `none`(대조하지 않음).
+  - `checked`(대조한 금액 칸 수)·`mismatched`(불일치 수)·`unchecked`(대조하지 않은 금액 수)는 `verify_workbook` 결과의 요약에서 옮긴다. `unchecked_note`는 대조하지 않은 금액이 무엇인지 한두 문장, `file`은 검산 시트가 붙은 사본 파일 이름(선택). `export_workbook`이면 수는 생략할 수 있다.
+- **점검 규칙 42 → 47개**(모두 경고 — 파일은 만들어진다)
+  - T14: `head.workings`가 있는데 `workings_check`가 없음 → "export_workbook으로 만들었으면 method=export_workbook, 직접 짰으면 저장한 파일에 verify_workbook을 지금 실행한 뒤 그 결과를 옮긴다. 통합 문서 안에 손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다." `method` 값이 셋 중 하나가 아니거나 수가 0 이상의 정수가 아닐 때도 T14.
+  - T15: `method=none`이거나 `unchecked` > 0인데 한계 절(`limitations`)에 통합 문서·대조 얘기가 없음, 또는 `unchecked` > 0인데 `unchecked_note`가 빔.
+  - T16: `mismatched` > 0 → 고치고 다시 대조.
+  - T17: `method=verify_workbook`인데 `checked`가 없거나 0.
+  - T18: `unchecked` > 0(또는 `method=none`)인데 본문이 "all amounts … verified/checked/match", "모든 금액을 … 검증·대조·일치"처럼 전부라고 씀(한계 절은 보지 않음).
+- **출력**: `workings_check`가 있으면 '작성 방법(How this memo was prepared)' 문단 끝에 정해진 한 문장을 찍는다. 도구는 수만 채우고 판단 문구를 만들지 않는다.
+  - `verify_workbook`: "Workings: 16 amounts in the workbook were checked against the calculation tools (0 mismatches); 12 were not checked — <unchecked_note>." / "계산 파일: 통합 문서의 금액 16개를 계산 도구와 대조했다(불일치 0개). 12개는 대조하지 않았다 — <unchecked_note>." `file`이 있으면 "Copy with the check sheet: <file>." / "검산 시트가 붙은 사본: <file>."
+  - `export_workbook`: "Workings were produced by the calculation tools (export_workbook)." / "계산 파일은 계산 도구로 만들었다(export_workbook)."
+  - `none`: "The workbook amounts were not checked against the calculation tools." / "통합 문서의 금액은 계산 도구와 대조하지 않았다."
+- **안내**: `tax_memo_guide`의 작업 순서에 "엑셀을 함께 내면 메모를 쓰기 전에 엑셀을 먼저 끝내고 대조한다 → 그 결과를 workings_check에"(3단계), 메모 순서·`schema`·`optional_blocks`(지어낸 값의 예시)·`checks`에 블록 설명. 서버 안내문(국문·영문), 요건 안내 도구의 `다음에 부를 도구` 꼬리(공통 래퍼), 두 메모 도구 설명에 한 구절.
+- **확인**(LibreOffice 변환): `head.workings`가 있는 긴 영문 샘플에 `workings_check`를 넣은 판과 안 넣은 판 모두 5쪽(분량 어림도 둘 다 5.2쪽) — 새 문장은 마지막 쪽 '작성 방법' 문단에 2~3줄로 들어가고 쪽수는 늘지 않았다. `head.workings`가 없는 지어낸 자료(영문·국문)의 파일은 0.17.1과 바이트가 같다.
+- **한계**: 조문 MCP는 엑셀을 열거나 계산하지 않는다 — 호출자가 적은 수를 그대로 받으므로 `verify_workbook`을 실제로 실행했는지, 적은 수가 맞는지는 확인하지 못한다(실행하지 않고 수를 지어내 적으면 통과한다). T15는 한계 절에 통합 문서·엑셀·대조 같은 낱말이 있는지만, T18은 좁은 문자열 무늬만 본다(다른 표현의 "전부 확인"은 놓칠 수 있다). 경고 등급이라 고치지 않아도 파일은 만들어진다. 도구가 찍는 대조 결과 문장은 분량 어림(`length.estimated_pages`, M26)에 넣지 않는다 — 대조 결과를 적었다는 이유로 분량 경고가 붙지 않게 하려는 것이며, 그만큼(긴 문장이면 약 0.04쪽) 어림이 실제보다 작다. 쪽수는 LibreOffice 변환으로만 확인했다.
+
 ## 0.17.1 (2026-11-15)
 
 `build_tax_memo`가 만든 Word 파일에서 앞 쪽 아래가 크게 비던 쪽 나눔을 고침. 새 도구 없음(도구 52개). Claude 작성.
