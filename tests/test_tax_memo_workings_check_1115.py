@@ -226,11 +226,26 @@ def test_line_none(lang, want, tmp_path):
     assert M.build(s, str(tmp_path), "n")["ok"]
 
 
-def test_line_adds_to_the_length_estimate():
-    base = M.build(_with("en", {"method": "export_workbook"}), check_only=True)["length"]["blocks"]["prepared_how"]
-    long = M.build(_with("en", {"method": "verify_workbook", "checked": 16, "mismatched": 0, "unchecked": 12, "unchecked_note": "sums and differences worked out in the workbook itself, " * 3},
-                         limitations=LIM["en"]), check_only=True)["length"]["blocks"]["prepared_how"]
-    assert long > base
+@pytest.mark.parametrize("lang", ["en", "ko"])
+def test_line_is_not_counted_in_the_length_estimate(lang, tmp_path):
+    """대조 결과를 적었다는 이유로 분량 경고(M26)가 붙지 않는다 — 블록이 더하는 문장은 분량 어림에서 뺀다."""
+    long = {"method": "verify_workbook", "checked": 16, "mismatched": 0, "unchecked": 12, "unchecked_note": NOTE[lang] + ", " + ", ".join([NOTE[lang]] * 6), "file": FILE[lang]}
+    plain = M.build(_with(lang, limitations=LIM[lang]), check_only=True)          # 블록 없는 판(T14만 붙음)
+    for wc in (long, {"method": "export_workbook"}, {"method": "none"}):
+        r = M.build(_with(lang, wc, limitations=LIM[lang]), check_only=True)
+        assert r["length"] == plain["length"], wc["method"]
+        assert r["warnings"] == [] and [x[1:4] for x in plain["warnings"]] == ["T14"]
+    # 목표 쪽수에 바짝 붙은 메모: 블록을 넣어도 어림값이 같고 M26이 새로 붙지 않는다
+    est = plain["length"]["estimated_pages"]
+    near = _with(lang, long, limitations=LIM[lang], target_pages=1)
+    base = _with(lang, limitations=LIM[lang], target_pages=1)
+    a = M.build(near, check_only=True); b = M.build(base, check_only=True)
+    assert a["length"]["estimated_pages"] == b["length"]["estimated_pages"] == est
+    assert len(a["warnings"]) == len(b["warnings"]) - 1 and sum(x.startswith("[M26]") for x in a["warnings"]) == sum(x.startswith("[M26]") for x in b["warnings"])
+    assert M.workings_line(M.check(near)[1]) in _how(near, tmp_path)          # 문장은 그대로 찍힌다
+    # 작성 방법 글 없이 블록만 있으면 그 문단은 어림에 들지 않는다
+    only = M.build(_with(lang, long, limitations=LIM[lang], prepared_how=""), check_only=True)
+    assert "prepared_how" not in only["length"]["blocks"]
 
 
 # ── 안내 ──

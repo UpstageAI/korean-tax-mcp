@@ -394,8 +394,17 @@ class Doc:
         how = " ".join(x for x in (s["prepared_how"], M.workings_line(s)) if x)          # 함께 가는 엑셀을 계산 도구와 대조한 결과 한 줄(workings_check가 있을 때만)
         if how:
             self.block = "prepared_how"
+            para = lambda text: self.p(self.run(L["how"] + " ", bold=True, size=small - 1, color=MUTED) + self.inline(text, notes=False, size=small - 1, color=MUTED), line=CELL_LINE)
+            before = dict(self.height)
             self.rule()
-            self.add(self.p(self.run(L["how"] + " ", bold=True, size=small - 1, color=MUTED) + self.inline(how, notes=False, size=small - 1, color=MUTED), line=CELL_LINE))
+            self.add(para(how))
+            if how != s["prepared_how"]:
+                # 대조 결과 한 줄은 분량 어림에 넣지 않는다 — 대조 결과를 적었다고 분량 경고(M26)가 붙으면 안 된다. 어림은 작성자가 쓴 글만 센다
+                self.height = before
+                if s["prepared_how"]:
+                    body = self.body; self.body = []          # 높이만 다시 쌓고 본문은 그대로
+                    self.rule(); self.add(para(s["prepared_how"]))
+                    self.body = body
         for text in self.notes:          # 각주가 쪽 아래에서 차지하는 높이
             n, _ = _lines(text, W, z["note"])
             self.height["footnotes"] = self.height.get("footnotes", 0) + 30 + n * z["note"] * 10 * 1.16
