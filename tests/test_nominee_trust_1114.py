@@ -83,7 +83,7 @@ def test_not_deemed_cases():
 def test_real_estate_and_restore():
     r = N.guide("타인명의", "토지", "2020-05-01")                                          # G14
     assert r["증여의제"]["판정"] == "해당 없음" and "부동산 실권리자명의 등기에 관한 법률" in r["부동산"]
-    assert any("미확인" in x for x in r["한계"])
+    assert not any("미확인" in x for x in r["한계"])   # 2026-11-15 원문 대조로 닫음
     r = N.guide("타인명의", "비상장주식", "2020-05-01", restored_to="실제소유자")             # G18
     assert r["실명 환원"]["판정"] == "증여 아님"
     assert N.guide("타인명의", "비상장주식", "2020-05-01", restored_to="제3자", restored_date="2023-01-01")["실명 환원"]["판정"] == "새 증여"

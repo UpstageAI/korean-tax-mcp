@@ -685,7 +685,8 @@ def tiers(law, article_no, as_of="", notes=None):
 def _en_versions(law):
     try: d = _get("lawSearch.do", "target=elaw&display=20&query=" + urllib.parse.quote(law))
     except Exception: return []
-    return [v for v in _list(d.get("LawSearch", {}).get("law")) if v.get("법령명한글") == law]
+    # 2026-11-15: 영문법령 검색 응답의 법령명에 검색어 강조 태그(<strong class="tbl_tx_type">)가 붙어 이름 비교가 모두 실패했음 → 태그를 떼고, 띄어쓰기만 다른 이름도 같은 법령으로 봄
+    return [v for v in _list(d.get("LawSearch", {}).get("law")) if _name_key(re.sub(r"<[^>]+>", "", v.get("법령명한글") or "")) == _name_key(law)]
 
 
 def article_en(law, article_no):
@@ -697,7 +698,14 @@ def article_en(law, article_no):
     v = max(vs, key=lambda x: x.get("시행일자", ""))
     d = _get("lawService.do", f"target=elaw&MST={v['법령일련번호']}&JO={jo6(norm)}")
     body = "\n".join(t.strip() for t in _texts(d) if t.strip())
-    return {"법령": v.get("법령명영문") or law, "조": norm, "적용 시행일": v.get("시행일자"), "본문": body or "article not found",
+    if not body:
+        # 2026-11-15: 영문법령 응답이 {"Law": {"JoSection": {"Jo": [{joNo, joBrNo, joYn, joCts}]}}} 형식으로 오고 JO 인자와 관계없이 전문이 옴 —
+        # 조 번호(4자리)·가지번호(2자리)가 같은 조문 행(joYn == "Y")의 joCts를 본문으로 쓴다
+        jo = jo6(norm)
+        rows = _list(((d.get("Law") or {}).get("JoSection") or {}).get("Jo"))
+        body = "\n".join((r.get("joCts") or "").strip() for r in rows
+                         if r.get("joYn") == "Y" and r.get("joNo") == jo[:4] and (r.get("joBrNo") or "00") == jo[4:6])
+    return {"법령": v.get("법령명영문") or re.sub(r"<[^>]+>", "", v.get("법령명한글") or "") or law, "조": norm, "적용 시행일": v.get("시행일자"), "본문": body or "article not found",
             "주의": "Official English translation by the Korea Legislation Research Institute — not legally binding and may lag behind amendments; "
                    "the Korean text prevails. Translation edition may differ from the as_of date."}
 

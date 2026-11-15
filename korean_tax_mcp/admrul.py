@@ -118,6 +118,8 @@ def search(name):
     query = f"target=admrul&display=10&query={urllib.parse.quote(name)}"
     data = law._get("lawSearch.do", query)
     rows = data.get("AdmRulSearch", {}).get("admrul", [])
+    if isinstance(rows, dict):      # 검색 결과가 1건이면 법제처가 목록이 아니라 객체 하나를 돌려줌
+        rows = [rows]
     if not rows:
         return None
     exact = [r for r in rows if r.get("행정규칙명") == name]

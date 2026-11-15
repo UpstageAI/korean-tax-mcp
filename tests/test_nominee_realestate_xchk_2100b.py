@@ -11,4 +11,4 @@ def test_real_estate_text_no_unverified():
     assert "5억원 이하 5%" in items["과징금"]["내용"] and "2년 초과 15%" in items["과징금"]["내용"] and "100분의 50" in items["과징금"]["내용"]
     assert "100분의 20" in items["이행강제금·벌칙·특례"]["내용"] and "2억원 이하 벌금" in items["이행강제금·벌칙·특례"]["내용"]
     assert "상대방이 그 약정을 몰랐으면" in items["명의신탁약정·등기의 효력"]["내용"]
-    assert "2016.1.6. 개정 전" in " ".join(r["한계"]) and "제34488호" in r["확인 시행본"]
+    assert "2017.1.7." in " ".join(r["한계"]) and "제34488호" in r["확인 시행본"]   # 벌칙 제7조 2014.8.7.·2017.1.7.·2020.3.24. 시행본 대조(2026-11-15)
