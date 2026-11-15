@@ -218,12 +218,12 @@ Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for
 | | `compare_with_case` | your facts vs rulings: supports / contradicts / distinguish |
 | Tax memo (2) | `tax_memo_guide` | logic line for a tax memo or opinion — 3-point executive summary, question, short answer, facts and assumptions, issues in examiner order (characterization, taxability, rate, treaty, procedure, related taxes), calculation, risks, next steps, footnotes — with the JSON schema and an illustrative example of the shape (English / Korean, made-up case) |
 | | `build_tax_memo` | validates the structure against that line (42 rules, incl. the optional blocks — key-figures table, review of past handling, action list, limitations — and a length check against `target_pages`, default 5: rule/application/conclusion and a citation per issue, summary amounts vs the calculation table, totals, footnote ids …) and writes a Word .docx with real footnotes — no file on errors, warnings to fix and rebuild |
-| Treaties, residency, PE (5) | `tax_treaty` | treaties with 96 countries (Korean / English) |
+| Treaties, residency, PE (6) | `tax_treaty` | treaties with 96 countries (Korean / English) |
 | | `treaty_withholding_rates` | withholding caps on dividends, interest, royalties |
 | | `residency_check` | 3-stage residence determination (rules) |
 | | `residency_report` | review report (your own AI by default, Solar optional) |
 | | `permanent_establishment_guide` | Korean PE test under domestic law (CITA Art. 94, ITA Art. 120) by element and year, 2016-2026 |
-| | `royalty_withholding_guide` | withholding on cross-border royalties: characterization, Korean source (CITA Art. 93 item 8), treaty cap, local income tax, procedure (Art. 98-6), gross-up, transfer pricing, by payment date 2016-2026, with the 2025 en banc decision on unregistered patents |
+| | `royalty_withholding_guide` | withholding on cross-border royalties: characterization, Korean source (CITA Art. 93 item 8), treaty cap, local income tax, procedure (Art. 98-6), gross-up, transfer pricing, by payment date 2016-2026, individual recipients under the Income Tax Act, with the 2025 en banc decision on unregistered patents |
 | Documents (3) | `search_forms` | annexes and official forms |
 | | `search_nts_publications` | NTS guidebooks |
 | | `search_local_documents` | PDFs on your PC (`KOREAN_TAX_MCP_DOCS`) |
