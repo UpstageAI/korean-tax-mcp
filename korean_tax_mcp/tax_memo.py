@@ -63,6 +63,10 @@ SCHEMA = {
     "head": {"prepared_by": "str(required)", "date": "str(required)", "re": "str(required, subject)", "scope": "str(required)",
              "to": "str(optional, addressee)", "basis": "str(optional: documents relied on and the as-of date of the law)",
              "workings": "str(optional: file name of the accompanying Excel workings)"},
+    "workings_check": "{method: 'export_workbook'|'verify_workbook'|'none', checked: int(amount cells checked against the calculation tools), mismatched: int, "
+                      "unchecked: int(amounts not checked), unchecked_note: str(1-2 sentences: which amounts were not checked), file: str(optional: file name of the copy with the check sheet)} "
+                      "— give it whenever head.workings is set: how the amounts in the Excel workings were checked against korean-tax-calc-mcp. With method='export_workbook' checked and unchecked may be left out. "
+                      "Copy the counts from the verify_workbook result; this server does not open the workbook",
     "summary": "[{conclusion: str(one sentence, printed bold — the answer, with the amount if any), basis: str(1-2 sentences + at least one [^id])}] — exactly 3",
     "background": "str(optional, one short paragraph)",
     "question": "str(1-2 sentences, required)",
@@ -97,11 +101,13 @@ GUIDE["en"] = """[Tax memo — the logic line] The server fixes the order of rea
 [Workflow]
 1. Gather the facts from the user (who pays whom, what for, how much, when, residence, documents held).
 2. Call the tools before writing. Requirements and sources here: the requirement-guide tools (*_guide), find_article, law_article (as_of), tax_treaty, search_tax_rulings, compare_outcomes. Numbers in korean-tax-calc-mcp (find_tool picks the calculator). Take the issues from the requirement-guide results, from the calculators' issue lists (쟁점) and from the user's documents — this guide gives no checklist for any particular transaction. Do not compute or cite from memory.
-3. Fill the structure JSON (schema and example below). Run verify_citations on the footnotes.
-4. build_tax_memo(structure) → fix every warning → build again. check_only=true validates without writing.
+3. If an Excel file goes with the memo, finish and check the Excel before you write the memo: make it with export_workbook (korean-tax-calc-mcp), or build it yourself, save it and run verify_workbook on the saved file. Then put the result in workings_check. Cells inside the workbook that compare against numbers you typed in by hand are not a check.
+4. Fill the structure JSON (schema and example below). Run verify_citations on the footnotes.
+5. build_tax_memo(structure) → fix every warning → build again. check_only=true validates without writing.
 Nothing may be asserted that is not in a tool result or in the user's facts; anything else goes under assumptions (facts) or open points (risks).
 [Order of the memo]
 - Head: prepared_by, date, re (subject), scope. Optional lines when known: to (addressee), basis (documents relied on and the as-of date of the law), workings (file name of the Excel workings that go with the memo).
+- workings_check (give it whenever head.workings is set): how the amounts in that workbook were checked against the calculation tools. method = "export_workbook" (the calculation server made the workbook), "verify_workbook" (you built it and ran verify_workbook on the saved file — copy its counts: checked, mismatched, unchecked, plus unchecked_note saying in one or two sentences which amounts were not checked, and file = the copy with the check sheet) or "none" (no check was run). Any mismatch is fixed and the check run again before the memo goes out. Amounts not checked (unchecked > 0, or method "none") are named under limitations, and the memo does not say that all amounts were verified. The server prints one fixed sentence from these counts in the closing "How this memo was prepared" paragraph; it does not open the workbook.
 - Executive summary: exactly 3 numbered items. Each = one conclusion sentence (the answer, with the amount if any; printed bold) + one or two sentences of basis + at least one footnote. Answer first; do not narrate how you worked.
 - 1 Question presented: one or two sentences.
 - 2 Short answer: starts with the answer (bold), then the conditions it depends on. Optional key_figures: a numbers table right under the answer — one row label column plus 1 to 3 scenario columns side by side, the total row marked role="total". With two or more scenarios name the one you recommend (recommended = that column's heading) and state in note the condition under which each applies. Every amount in it must also be in the calculation or the analysis.
@@ -133,11 +139,13 @@ GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버
 [작업 순서]
 1. 사용자에게서 사실을 모은다(누가 누구에게, 무엇의 대가로, 얼마를, 언제, 거주지, 갖춘 서류).
 2. 쓰기 전에 도구를 호출한다. 요건·근거는 이 서버: 요건 안내 도구(*_guide), find_article, law_article(as_of), tax_treaty, search_tax_rulings, compare_outcomes. 숫자는 korean-tax-calc-mcp(find_tool로 계산기를 고름). 쟁점은 요건 안내 결과, 계산기가 돌려준 쟁점 목록, 사용자가 준 문서에서 가져온다 — 이 안내에는 특정 거래의 점검 목록이 없다. 기억으로 계산하거나 인용하지 않는다.
-3. 구조 JSON을 채운다(아래 schema·example). 각주는 verify_citations로 확인한다.
-4. build_tax_memo(structure) → 경고를 모두 고침 → 다시 만든다. check_only=true면 파일 없이 점검만 한다.
+3. 엑셀을 함께 내면 메모를 쓰기 전에 엑셀을 먼저 끝내고 대조한다: export_workbook(korean-tax-calc-mcp)으로 만들거나, 직접 짰으면 저장한 파일에 verify_workbook을 실행한다. 그 결과를 workings_check에 적는다. 통합 문서 안에 손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다.
+4. 구조 JSON을 채운다(아래 schema·example). 각주는 verify_citations로 확인한다.
+5. build_tax_memo(structure) → 경고를 모두 고침 → 다시 만든다. check_only=true면 파일 없이 점검만 한다.
 도구 결과나 사용자가 준 사실에 없는 것은 단정하지 않는다. 그런 내용은 전제(facts)나 확인할 점(risks)에 적는다.
 [메모 순서]
 - 머리: prepared_by(작성), date(일자), re(제목), scope(범위). 알면 선택으로 to(수신), basis(근거 자료와 법령 기준일), workings(함께 가는 엑셀 계산 파일 이름).
+- workings_check(head.workings를 적었으면 함께 적는다): 그 통합 문서의 금액을 계산 도구와 어떻게 대조했는지. method = "export_workbook"(계산 서버가 만든 통합 문서), "verify_workbook"(직접 짜고 저장한 파일에 verify_workbook을 실행함 — 그 결과의 수를 옮긴다: checked 대조한 금액 칸 수, mismatched 불일치 수, unchecked 대조하지 않은 금액 수, unchecked_note 대조하지 않은 금액이 무엇인지 한두 문장, file 검산 시트가 붙은 사본 이름), "none"(대조하지 않음). 불일치가 있으면 고치고 다시 대조한 뒤에 메모를 낸다. 대조하지 않은 금액(unchecked > 0 또는 method "none")은 한계 절에 적고, 메모에 모든 금액을 검증했다고 쓰지 않는다. 서버는 이 수로 정해진 한 문장을 "작성 방법" 문단에 찍을 뿐 통합 문서를 열지 않는다.
 - 핵심 요약: 번호 붙은 항목 정확히 3개. 항목마다 결론 한 문장(답, 금액이 있으면 포함, 굵게 인쇄) + 근거 한두 문장 + 각주 1개 이상. 답부터 쓰고 작업 과정은 쓰지 않는다.
 - 1 쟁점: 한두 문장.
 - 2 결론: 답(굵게)으로 시작하고, 그 답이 성립하는 조건을 이어 쓴다. 선택 key_figures: 답 바로 아래 숫자 표 — 항목 열 하나와 경우(시나리오) 열 1~3개를 나란히, 합계 행은 role="total". 경우가 둘 이상이면 권고하는 쪽(recommended = 그 열 제목)과 경우마다 성립하는 조건(note)을 적는다. 표의 금액은 모두 계산이나 검토에도 있어야 한다.
@@ -191,8 +199,11 @@ MARK = re.compile(r"\[\^([^\]\s]+)\]")
 _HANGUL = re.compile(r"[가-힣]")
 _TOP_KEYS = {"lang", "head", "summary", "background", "question", "short_answer", "facts", "analysis", "decision_table",
              "calculation", "risks", "next_steps", "footnotes", "notice", "prepared_how", "title",
-             "key_figures", "review", "action_list", "limitations", "authorities", "target_pages"}
+             "key_figures", "review", "action_list", "limitations", "authorities", "target_pages", "workings_check"}
 HEAD_KEYS = ("to", "prepared_by", "date", "re", "scope", "basis", "workings")
+# 함께 가는 엑셀의 금액을 계산 도구와 대조한 방법(workings_check.method). 이 서버는 엑셀을 열지 않고 호출자가 적은 결과만 받는다
+WORKINGS_METHODS = ("export_workbook", "verify_workbook", "none")
+WORKINGS_COUNTS = ("checked", "mismatched", "unchecked")
 
 
 def _s(v):
@@ -224,6 +235,14 @@ def resolve_lang(structure, lang=""):
     head = (structure or {}).get("head") if isinstance((structure or {}).get("head"), dict) else {}
     probe = _s(head.get("re")) + _s((structure or {}).get("question"))
     return "ko" if _HANGUL.search(probe) else "en"
+
+
+def _count(v):
+    """대조 결과의 수 — 0 이상의 정수만. 없거나 읽을 수 없으면 None."""
+    if v is None or isinstance(v, bool): return None
+    try: x = float(str(v).replace(",", "").strip())
+    except ValueError: return None
+    return int(x) if x >= 0 and x == int(x) else None
 
 
 def _rows(v):
@@ -339,6 +358,12 @@ def normalize(structure, lang):
     else: lim = None
     if lim and (lim["text"] or lim["items"]): s["limitations"] = lim
     s["authorities"] = [_s(x) for x in (src.get("authorities") if isinstance(src.get("authorities"), list) else []) if _s(x)]
+    wc = src.get("workings_check")
+    s["workings_check"] = None
+    if isinstance(wc, dict) and wc:
+        s["workings_check"] = {"method": _s(wc.get("method")).lower(), **{k: _count(wc.get(k)) for k in WORKINGS_COUNTS},
+                               "unchecked_note": _s(wc.get("unchecked_note")), "file": _s(wc.get("file")),
+                               "unreadable": [k for k in WORKINGS_COUNTS if wc.get(k) not in (None, "") and _count(wc.get(k)) is None]}
     return s, sorted(set(src) - _TOP_KEYS)
 
 
@@ -361,6 +386,11 @@ _PAST = {"en": re.compile(r"\b(?:so far|to date|until now|up to now|have we|did 
          "ko": re.compile(r"지금까지|그동안|이제까지|여태|기존 (?:처리|신고|원천징수)|과거 (?:처리|신고|지급|원천징수)|종전 (?:처리|신고)|처리(?:가|는|를)? ?(?:맞|적정|올바|제대로)|적정했|적정하였|맞았|맞게 (?:처리|신고|원천징수|납부)|제대로 (?:처리|신고|원천징수|납부)")}
 # 확인하지 못했다고 적은 표시(T13)
 _UNVERIFIED = re.compile(r"\b(?:not (?:been )?verified|(?:was|were|is|are|been) not confirmed|not been confirmed|unverified|unconfirmed|could not (?:be )?(?:verif|confirm)\w*|unable to (?:verify|confirm))\b|미확인|확인하지 못|확인되지 않|확인 못|검증하지 못", re.I)
+# 한계 절이 함께 가는 엑셀(대조하지 않은 금액)을 말하고 있는가(T15)
+_WORKBOOK = re.compile(r"\b(?:workbooks?|workings|spreadsheets?|excel|verify_workbook|xlsx)\b|엑셀|계산 파일|통합 ?문서|워크북|대조하지|대조 안|대조되지", re.I)
+# 금액을 전부 검증·대조했다는 표현(T18) — 좁게: '모든 금액/all amounts' 바로 뒤에 검증·대조·일치가 오는 문장만
+_ALL_CHECKED = {"en": re.compile(r"(?<!not )\b(?:all|every|each)(?: of)?(?: the)? (?:amounts?|figures?|numbers?)\b[^.;:\n]{0,40}?\b(?:verified|checked|reconciled|validated|confirmed|match(?:es|ed)?|agrees?|ties?)\b", re.I),
+                "ko": re.compile(r"(?:모든|전체|전부) ?(?:금액|숫자|수치)[은는이가을를도]?\s?[^.。\n]{0,20}?(?:검증|대조|일치|확인)(?:했|하였|됐|되었|함|됨|을 마|를 마|한다|합니다|을 거)")}
 _NUMERIC = re.compile(r"^[\s\d,.\-−△()%+×÷*/—–]*\d[\s\d,.\-−△()%+×÷*/—–]*(?:\((?:est\.?|추정)\))?$")
 
 
@@ -441,7 +471,8 @@ def _fmt(x):
 
 _SHAPES = (("head", dict), ("summary", list), ("short_answer", (dict, str)), ("facts", list), ("analysis", list), ("decision_table", dict),
            ("calculation", dict), ("risks", list), ("next_steps", list), ("footnotes", (list, dict)),
-           ("key_figures", dict), ("review", dict), ("action_list", list), ("limitations", (dict, list, str)), ("authorities", list))
+           ("key_figures", dict), ("review", dict), ("action_list", list), ("limitations", (dict, list, str)), ("authorities", list),
+           ("workings_check", dict))
 
 
 TARGET_PAGES = 5          # 기본 권고 분량(A4 쪽)
@@ -714,6 +745,44 @@ def check(structure, lang="", target_pages=0):
         cited = set(MARK.findall(lim["text"] + " " + " ".join(lim["items"])))
         for i in flagged_notes:
             if i not in cited: W("T13", f"limitations: footnote '{i}' is marked not verified but is not cited here — add the point with [^{i}]", f"limitations: 각주 '{i}'는 미확인으로 적었는데 여기에 없음 — 그 점을 [^{i}]와 함께 적음")
+    # ── 함께 가는 엑셀의 금액을 계산 도구와 대조했는가(T14~T18). 이 서버는 엑셀을 열지 않는다 — 호출자가 적은 결과를 받고, 빠졌으면 알린다 ──
+    wc = s["workings_check"]
+    if s["head"]["workings"] and not wc:
+        W("T14", "workings_check: this memo goes with an Excel workings file (head.workings) — state how its amounts were checked against the calculation tools. "
+                 "If the workbook was made with export_workbook (korean-tax-calc-mcp), set method='export_workbook'. If you built it yourself, run verify_workbook on the saved file now, "
+                 "then copy its result (the summary counts: checked, matched, mismatched, not checked) into workings_check {method: 'verify_workbook', checked, mismatched, unchecked, unchecked_note, file}. "
+                 "Cells inside the workbook that compare against numbers you typed in by hand do not count as a check. If no check was run, set method='none' and say so under limitations",
+          "workings_check: 이 메모는 엑셀 계산 파일을 함께 낸다(head.workings) — 그 금액을 계산 도구와 어떻게 대조했는지 적는다. "
+          "export_workbook(korean-tax-calc-mcp)으로 만들었으면 method='export_workbook', 직접 짰으면 저장한 파일에 verify_workbook을 지금 실행한 뒤 "
+          "그 결과(요약의 대조·일치·불일치·대조_안_한_금액)를 workings_check {method: 'verify_workbook', checked, mismatched, unchecked, unchecked_note, file}에 옮긴다. "
+          "통합 문서 안에 손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다. 대조하지 않았으면 method='none'으로 적고 한계 절에 밝힌다")
+    if wc:
+        if wc["method"] not in WORKINGS_METHODS:
+            W("T14", f"workings_check.method '{wc['method']}': use {' | '.join(WORKINGS_METHODS)}", f"workings_check.method '{wc['method']}': {' | '.join(WORKINGS_METHODS)} 중 하나")
+        for k in wc["unreadable"]:
+            W("T14", f"workings_check.{k}: not a whole number — copy the count from the verify_workbook result", f"workings_check.{k}: 0 이상의 정수가 아님 — verify_workbook 결과의 수를 옮긴다")
+        open_n = wc["unchecked"] or 0
+        if wc["method"] == "none" or open_n > 0:
+            what = "the workbook amounts were not checked against the calculation tools (method='none')" if wc["method"] == "none" else f"{open_n} workbook amount(s) were not checked against the calculation tools"
+            what_ko = "통합 문서의 금액을 계산 도구와 대조하지 않았다(method='none')" if wc["method"] == "none" else f"통합 문서의 금액 {open_n}개를 계산 도구와 대조하지 않았다"
+            if open_n > 0 and not plain(wc["unchecked_note"]):
+                W("T15", f"workings_check.unchecked_note: empty — {open_n} amount(s) were not checked; say in one or two sentences which ones", f"workings_check.unchecked_note: 비어 있음 — 대조하지 않은 금액 {open_n}개가 무엇인지 한두 문장으로 적음")
+            lim_text = (lim["text"] + " " + " ".join(lim["items"])) if lim else ""
+            if not _WORKBOOK.search(plain(lim_text)):
+                W("T15", f"limitations: {what}, but limitations does not say so — add an item naming the workbook amounts that were not checked (use unchecked_note)",
+                  f"limitations: {what_ko}는 내용이 한계 절에 없음 — 대조하지 않은 통합 문서 금액이 무엇인지(unchecked_note) 한계 절의 항목으로 적음")
+            for where, text in _texts(s):
+                if where.startswith("limitations"): continue
+                m = _ALL_CHECKED[lang].search(plain(text))
+                if m:
+                    W("T18", f"{where}: '{m.group(0)}' — but {what}. Say what was checked and what was not",
+                      f"{where}: '{m.group(0)}' — 그런데 {what_ko}. 대조한 것과 대조하지 않은 것을 나눠 적음")
+        if (wc["mismatched"] or 0) > 0:
+            W("T16", f"workings_check.mismatched = {wc['mismatched']}: fix the workbook (or the calculator call) and run verify_workbook again — do not send the memo with mismatches open",
+              f"workings_check.mismatched = {wc['mismatched']}: 통합 문서(또는 계산 도구 호출)를 고치고 verify_workbook을 다시 실행한다 — 불일치가 남은 채로 메모를 내지 않는다")
+        if wc["method"] == "verify_workbook" and not wc["checked"] and "checked" not in wc["unreadable"]:
+            W("T17", "workings_check.checked: missing or 0 with method='verify_workbook' — run verify_workbook on the saved file and copy the number of amounts it checked; if nothing was checked, set method='none'",
+              "workings_check.checked: method='verify_workbook'인데 없거나 0 — 저장한 파일에 verify_workbook을 실행하고 대조한 금액 수를 옮긴다. 대조한 것이 없으면 method='none'")
     # M27 같은 표를 두 번 찍지 않는다 — 쟁점 안의 표와 금액이 모두 같은 계산 표(scenarios)
     if calc:
         for k, sc in enumerate(calc["scenarios"]):
@@ -765,7 +834,37 @@ RULES = [
     "T13 whatever is marked not verified is collected under limitations (not-verified footnotes cited there)",
     "M26 length: the estimated pages stay within target_pages (default 5); the warning names the longest blocks and the issues over budget",
     "M27 a table is printed once: no calculation scenario that repeats an issue table",
+    "T14 a memo with Excel workings (head.workings) states how the workbook amounts were checked against the calculation tools (workings_check: export_workbook | verify_workbook | none)",
+    "T15 workbook amounts not checked (unchecked > 0 or method none) are named under limitations, with unchecked_note",
+    "T16 no mismatches left open between the workbook and the calculation tools",
+    "T17 method verify_workbook carries the number of amounts checked",
+    "T18 no 'all amounts verified' wording while workbook amounts are unchecked",
 ]
+
+
+def workings_line(s):
+    """'작성 방법' 문단에 찍는 한 줄 — workings_check의 수만 채운 정해진 문장(판단 문구를 만들지 않는다). 없거나 method가 다르면 ''."""
+    wc = s.get("workings_check")
+    if not wc or wc["method"] not in WORKINGS_METHODS: return ""
+    ko = s["lang"] == "ko"
+    n, m, u = wc["checked"], wc["mismatched"], wc["unchecked"] or 0
+    note = plain(wc["unchecked_note"]).rstrip(" .。")
+    pl = lambda x, one, many: one if x == 1 else many
+    if wc["method"] == "none":
+        return "통합 문서의 금액은 계산 도구와 대조하지 않았다." if ko else "The workbook amounts were not checked against the calculation tools."
+    if ko: left = f" {u}개는 대조하지 않았다" + (f" — {note}." if note else ".") if u else ""
+    else: left = f"; {u} {pl(u, 'was', 'were')} not checked" + (f" — {note}" if note else "") if u else ""
+    if wc["method"] == "export_workbook":
+        if ko: out = "계산 파일은 계산 도구로 만들었다(export_workbook)." + (f" 통합 문서의 금액{left}" if u else "")
+        else: out = "Workings were produced by the calculation tools (export_workbook)" + (f"; {u} {pl(u, 'amount', 'amounts')} in the workbook {pl(u, 'was', 'were')} not checked" + (f" — {note}" if note else "") if u else "") + "."
+    elif n is None:
+        out = ("계산 파일: verify_workbook으로 대조했으나 대조한 금액 수를 적지 않았다." + left) if ko else ("Workings: the workbook was checked with verify_workbook; the number of amounts checked was not recorded" + left + ".")
+    else:
+        if ko: out = f"계산 파일: 통합 문서의 금액 {n}개를 계산 도구와 대조했다" + (f"(불일치 {m}개)" if m is not None else "") + "." + left
+        else: out = (f"Workings: {n} {pl(n, 'amount', 'amounts')} in the workbook {pl(n, 'was', 'were')} checked against the calculation tools"
+                     + (f" ({m} {pl(m, 'mismatch', 'mismatches')})" if m is not None else "") + left + ".")
+    if wc["file"]: out += (f" 검산 시트가 붙은 사본: {wc['file']}." if ko else f" Copy with the check sheet: {wc['file']}.")
+    return out
 
 
 # ── 만들기 ──

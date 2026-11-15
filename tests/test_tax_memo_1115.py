@@ -41,7 +41,7 @@ def test_examples_pass_every_rule(lang):
 def test_guide_returns_logic_line_schema_and_example():
     for lang in ("en", "ko"):
         g = M.guide(lang)
-        assert g["lang"] == lang and g["example"] == M.example(lang) and len(g["checks"]) == len(M.RULES) == 42
+        assert g["lang"] == lang and g["example"] == M.example(lang) and len(g["checks"]) == len(M.RULES) == 47
         assert g["example_note"] == M.EXAMPLE_NOTE[lang]
         assert [x["stage"] for x in g["stages"]] == list(M.STAGES) and g["priorities"] == list(M.PRIORITIES[lang])
         for key in ("head", "summary", "question", "short_answer", "facts", "analysis", "calculation", "risks", "next_steps", "footnotes", "prepared_how"):
@@ -140,6 +140,7 @@ def test_every_rule_has_a_failing_case():
     covered = {c for c, _ in FAIL} | {"E01", "E02", "E03", "M10"}      # E·M10은 아래 테스트
     covered |= {"M24", "M25", "T09", "T10", "T11", "T12", "T13"}      # 선택 블록 규칙은 test_tax_memo_blend_1115.py
     covered |= {"M26", "M27"}      # 분량 규칙은 test_tax_memo_length_1115.py
+    covered |= {"T14", "T15", "T16", "T17", "T18"}      # 엑셀 대조 규칙은 test_tax_memo_workings_check_1115.py
     assert {r[:3] for r in M.RULES} <= covered, {r[:3] for r in M.RULES} - covered
 
 
