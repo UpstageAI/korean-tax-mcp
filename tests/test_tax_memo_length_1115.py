@@ -84,20 +84,22 @@ def test_tables_do_not_break_across_pages(tmp_path):
     s = _mut(lambda s: (s.update(key_figures=o["key_figures"], action_list=o["action_list"]), s.pop("next_steps")))
     _, doc, _ = _doc(s, tmp_path)
     assert doc.count("<w:tr>") == doc.count("<w:cantSplit/>")          # 어느 행도 쪽 경계에서 갈라지지 않는다
-    for tbl in re.findall(r"<w:tbl>.*?</w:tbl>", doc):          # 묶음은 작게: 아주 작은 표(4행 이하)만 통째로, 그보다 크면 머리 행 + 첫 행, 마지막 두 행만
+    whole = 0
+    for tbl in re.findall(r"<w:tbl>.*?</w:tbl>", doc):          # 쪽의 20% 이하 표는 통째로(마지막 행을 뺀 모든 문단이 다음 문단과 함께), 더 큰 표(위험 표)는 머리 행 + 첫 행만
         rows = re.findall(r"<w:tr>.*?</w:tr>", tbl)
         keep = ["<w:keepNext/>" in r for r in rows]
         for r, k in zip(rows, keep): assert r.count("<w:keepNext/>") == (r.count("<w:p>") if k else 0)
-        assert not keep[-1]
-        if len(rows) <= D.KEEP_ROWS: assert all(keep[:-1])
-        else: assert keep[0] == ("<w:tblHeader/>" in rows[0]) and not any(keep[1:-2])
+        assert keep[-1] == ("A. No reduction" in tbl)          # 결론 아래 숫자 표만 마지막 행이 조건 주석과 붙는다
+        assert all(keep[:-1]) or keep == [True] + [False] * (len(rows) - 1)
+        whole += all(keep[:-1])
+    assert whole >= 6
     # 결론 문단 → 숫자 표: 순서는 그대로지만 결론 문단을 표에 묶지 않는다(묶으면 제목 + 결론 + 표가 한 덩어리가 되어 앞 쪽 아래가 빈다)
     answer = [p for p in re.findall(r"<w:p>.*?</w:p>", doc) if EX["en"]["short_answer"]["answer"][:20] in p][-1]
     assert "<w:keepNext/>" not in answer and doc.index(answer) < doc.index("A. No reduction") < doc.index("3. Facts and assumptions")
     # 표 제목(쟁점 안의 표, 계산의 다른 경우)은 표의 첫 행과 떨어지지 않는다
     for title in [sc["title"] for sc in EX["en"]["calculation"]["scenarios"]]:
         assert "<w:keepNext/>" in [p for p in re.findall(r"<w:p>.*?</w:p>", doc) if title in p][0]
-    # 큰 표는 행 사이에서 넘어간다(머리 행 반복) — 머리 행 + 첫 행만 붙는다(마지막 두 행은 키가 커서 묶지 않음)
+    # 쪽의 20%가 넘는 큰 표는 행 사이에서 넘어간다(머리 행 반복) — 머리 행 + 첫 행만 붙는다
     big = _mut(lambda s: s.update(risks=[dict(s["risks"][0], id=f"r{k}", why="Made-up reason that runs over more than one line in the table cell. " * 4) for k in range(20)]))
     big["facts"] = [f for f in big["facts"] if isinstance(f, str)]
     _, doc, _ = _doc(big, tmp_path, "big")

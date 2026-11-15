@@ -1,9 +1,11 @@
-"""세무 메모 쪽 나눔 — 붙여 두는 묶음(다음 문단과 함께)이 작아야 앞 쪽에 큰 빈 공간이 생기지 않는다. 작성 Mia(윤승미)
+"""세무 메모 쪽 나눔 — 붙여 두는 묶음(다음 문단과 함께)의 크기와 경계. 작성 Mia(윤승미)
 
 자료는 지어낸 사례(tests/fixtures/tax_memo_fixture_en.json)를 늘려 만든 것 — 머리 블록 6줄, 요약 3항(각주 6개), 질문 한 문단,
 결론 문단 + 숫자 표(경우 2열·6행) + 주석 + 판정 문단. 0.17.0에서는 이 모양에서 '결론 제목 + 결론 문단 + 표 제목 + 표 전체'가
-한 덩어리로 묶여 1쪽 아래가 비고 통째로 2쪽으로 넘어갔다. 외부 호출 없음.
-문서 XML의 묶음 크기는 어디서나 검사하고, 쪽수는 LibreOffice(soffice)와 pdfinfo가 있을 때만 본다.
+한 덩어리로 묶여 1쪽 아래 절반이 비고 통째로 2쪽으로 넘어갔다. 외부 호출 없음.
+규칙: 결론 문단은 숫자 표와 묶지 않는다. 숫자 표는 표 제목·조건 주석과 함께 통째로(쪽의 약 30%까지), 다른 표는 쪽의 약 20% 이하이면 통째로,
+그보다 크면 행 사이에서 넘어가되 머리 행 + 첫 행, 합계 행 + 앞 행은 붙는다.
+문서 XML의 묶음은 어디서나 검사하고, 쪽 나눔은 LibreOffice(soffice)와 poppler가 있을 때만 본다.
 """
 import copy
 import json
@@ -95,70 +97,87 @@ def chains(doc):
     return out
 
 
-# ── 문서 XML: 묶음 크기 (LibreOffice 없이) ──
-LIMIT = 0.2 * USABLE          # 어느 묶음이 통째로 다음 쪽으로 넘어가도 앞 쪽에 비는 자리는 쪽의 5분의 1 아래
+# ── 문서 XML: 묶음의 크기와 경계 (LibreOffice 없이) ──
+def _rows(tbl): return re.findall(r"<w:tr>.*?</w:tr>", tbl, re.S)
+def _keep(tbl): return ["<w:keepNext/>" in r for r in _rows(tbl)]
+def _tables(doc): return re.findall(r"<w:tbl>.*?</w:tbl>", doc, re.S)
+def _paras(doc): return re.findall(r"<w:p>.*?</w:p>", re.sub(r"<w:tbl>.*?</w:tbl>", "", doc, flags=re.S), re.S)
 
 
-def test_kept_together_chains_stay_small(tmp_path):
+def test_limits():
+    assert 0.19 * USABLE <= D.KEEP_HEIGHT <= 0.2 * USABLE and 0.29 * USABLE <= D.KEEP_KEY <= 0.3 * USABLE
+
+
+def test_kept_together_chains_stay_bounded(tmp_path):
+    """통째로 넘어가는 묶음의 키 = 앞 쪽에 생길 수 있는 빈 자리. 숫자 표 묶음은 쪽의 36%(표 30% + 제목·주석), 그 밖은 27%(표 20% + 제목들) 아래."""
     for name, s in (("repro", repro()), ("fixture", EX), ("example", M.example("en")), ("ko", M.example("ko"))):
         _, doc = _doc(s, tmp_path, name)
-        worst = max(chains(doc), key=lambda c: c[0])
-        assert worst[0] <= LIMIT, (name, round(worst[0] / USABLE, 2), worst[1])
-    assert D.KEEP_ROWS == 4 and D.KEEP_HEIGHT <= 0.1 * USABLE          # 통째로 두는 표는 쪽의 10% 이하
+        for tall, texts in chains(doc):
+            key = any(x.startswith("Charge for the made-up period") for x in texts)
+            assert tall <= (0.36 if key else 0.27) * USABLE, (name, round(tall / USABLE, 2), texts)
 
 
-def test_old_rule_would_fail_this_check(tmp_path, monkeypatch):
-    """검사가 실제로 결함을 잡는지 — 0.17.0의 규칙(반 쪽 이하 표는 통째로)으로 되돌리면 재현 입력에서 기준을 넘는 묶음이 나온다."""
-    monkeypatch.setattr(D, "KEEP_ROWS", 16); monkeypatch.setattr(D, "KEEP_HEIGHT", 7400)
-    _, doc = _doc(repro(), tmp_path)
-    worst = max(chains(doc), key=lambda c: c[0])
-    assert worst[0] > LIMIT and len(worst[1]) > 5
-
-
-def test_short_answer_is_not_tied_to_the_figures_table(tmp_path):
+def test_key_figures_table_is_one_block_but_not_tied_to_the_answer(tmp_path):
     s = repro()
     _, doc = _doc(s, tmp_path)
-    paras = re.findall(r"<w:p>.*?</w:p>", doc, re.S)
-    answer = [p for p in paras if "Yes — pay KRW 330,000" in p][-1]
-    assert "<w:keepNext/>" not in answer          # 결론 문단은 표에 묶지 않는다(제목은 결론 문단의 첫 두 줄과만)
-    title = [p for p in paras if s["key_figures"]["title"] in p][0]
-    assert "<w:keepNext/>" in title          # 표 제목은 표의 첫 행과
-    tables = re.findall(r"<w:tbl>.*?</w:tbl>", doc, re.S)
-    key = [t for t in tables if "A. No reduction" in t][0]
-    rows = re.findall(r"<w:tr>.*?</w:tr>", key, re.S)
-    assert len(rows) == 7 and all("<w:cantSplit/>" in r for r in rows) and "<w:tblHeader/>" in rows[0]          # 행은 갈라지지 않고 머리 행은 다음 쪽에 반복
-    keep = ["<w:keepNext/>" in r for r in rows]
-    assert keep == [True, False, False, False, False, True, False]          # 머리 행 + 첫 행, 마지막 두 행만 붙는다 — 그 사이에서는 쪽이 넘어갈 수 있다
-    for r in (rows[0], rows[-2]): assert r.count("<w:keepNext/>") == r.count("<w:p>")
+    answer = [p for p in _paras(doc) if "Yes — pay KRW 330,000" in p][-1]
+    assert "<w:keepNext/>" not in answer          # 결론 문단은 표에 묶지 않는다(제목은 결론 문단의 첫 줄들과만)
+    title = [p for p in _paras(doc) if s["key_figures"]["title"] in p][0]
+    assert "<w:keepNext/>" in title          # 표 제목 → 표
+    key = [t for t in _tables(doc) if "A. No reduction" in t][0]
+    rows = _rows(key)
+    assert len(rows) == 7 and all("<w:cantSplit/>" in r for r in rows) and "<w:tblHeader/>" in rows[0]
+    assert all(_keep(key))          # 모든 행이 한 덩어리: 마지막 행까지 '다음 문단과 함께' — 마지막 행은 조건 주석과 붙는다
+    for r in rows: assert r.count("<w:keepNext/>") == r.count("<w:p>")
+    note = [p for p in _paras(doc) if "A applies as things stand" in p][0]
+    assert "<w:keepNext/>" not in note and doc.index(key) < doc.index(note)          # 사슬은 주석에서 끝난다
+    # 사슬로 보면: 표 제목에서 시작해 주석에서 끝나고, 결론 제목·결론 문단은 들어 있지 않다
+    chain = [c for c in chains(doc) if any(x.startswith("Charge for the made-up period") for x in c[1])][0][1]
+    assert chain[0].startswith("Charge for the made-up period") and chain[-1].startswith("A applies as things stand") and len(chain) == 9
     assert doc.index(answer) < doc.index(key) < doc.index("3. Facts and assumptions")          # 순서는 그대로: 결론 → 숫자 표 → 사실관계
+    # 주석이 없으면 마지막 행에서 끝난다
+    s["key_figures"]["note"] = ""
+    _, doc = _doc(s, tmp_path, "nonote")
+    assert _keep([t for t in _tables(doc) if "A. No reduction" in t][0]) == [True] * 6 + [False]
+    # 쪽의 30%를 넘는 숫자 표는 행 사이에서 넘어가되 합계 행은 앞 행과 붙는다
+    s["key_figures"]["rows"] = [[f"Made-up line {k} that is long enough to run over on to a second line of the first column of this table", "1,000", "1,000"] for k in range(12)] \
+                               + [{"cells": ["Total charge", "330,000", "180,000"], "role": "total"}, ["Days counted", "30", "30"]]
+    _, doc = _doc(s, tmp_path, "tall")
+    assert _keep([t for t in _tables(doc) if "A. No reduction" in t][0]) == [True] + [False] * 11 + [True, False, False]
 
 
-def test_small_tables_stay_whole_and_review_verdict_is_free(tmp_path):
+def test_other_tables_whole_up_to_a_fifth_of_a_page_and_total_row_stays_with_the_row_before(tmp_path):
     s = repro(); s["short_answer"] = {"answer": "", "conditions": ""}          # 결론이 없으면 판정 문단은 검토 결과 절의 표 앞에 찍힌다
+    rows = s["calculation"]["rows"]
+    s["calculation"]["rows"] = [dict(rows[1], item=f"Made-up component {k} with a name long enough to wrap in its cell of the calculation table") for k in range(14)] + rows[3:]          # … 합계, 참고 행
     _, doc = _doc(s, tmp_path)
-    d = D.Doc({"lang": "en", "footnotes": []}); seen = set()
-    for tbl in re.findall(r"<w:tbl>.*?</w:tbl>", doc, re.S):
-        rows = re.findall(r"<w:tr>.*?</w:tr>", tbl, re.S)
-        tall = [d._row_tall(r) for r in rows]
-        keep = ["<w:keepNext/>" in r for r in rows]
-        small = len(rows) <= D.KEEP_ROWS and sum(tall) <= D.KEEP_HEIGHT
-        seen.add(small)
-        assert not keep[-1]
-        if small: assert all(keep[:-1])          # 아주 작은 표는 통째로
-        else:
-            want = [False] * len(rows)
-            want[0] = "<w:tblHeader/>" in rows[0]          # 머리 행 + 첫 행
-            if sum(tall[-2:]) <= D.KEEP_HEIGHT: want[-2] = True          # 마지막 두 행
-            assert keep == want
-    assert seen == {True, False}
-    verdict = [p for p in re.findall(r"<w:p>.*?</w:p>", doc, re.S) if s["review"]["verdict"][:30] in p]
+    d = D.Doc({"lang": "en", "footnotes": []}); seen = set(); big = False
+    for tbl in _tables(doc)[1:]:          # 머리 표(머리 행 없음)는 뺀다
+        rows = _rows(tbl); keep = _keep(tbl)
+        whole = sum(d._row_tall(r) for r in rows) <= (D.KEEP_KEY if "A. No reduction" in tbl else D.KEEP_HEIGHT)
+        seen.add(whole)
+        if whole: assert all(keep[:-1])          # 쪽의 20% 이하 표는 통째로
+        elif "Made-up component" in tbl:          # 큰 계산 표: 머리 행 + 첫 행, 합계 행 바로 앞 행만 붙는다
+            total = [i for i, r in enumerate(rows) if "Total charge" in r][0]
+            assert len(rows) == 17 and total == 15 and keep == [i in (0, total - 1) for i in range(17)]
+            big = True
+        else: assert keep == [True] + [False] * (len(rows) - 1)          # 합계 행이 없는 큰 표(위험 표): 머리 행 + 첫 행
+    assert seen == {True, False} and big
+    verdict = [p for p in _paras(doc) if s["review"]["verdict"][:30] in p]
     assert verdict and all("<w:keepNext/>" not in p for p in verdict)          # 판정 문단은 발견 사항 표에 묶지 않는다
-    rule = [p for p in re.findall(r"<w:p>.*?</w:p>", doc, re.S) if "<w:pBdr>" in p]
+    rule = [p for p in _paras(doc) if "<w:pBdr>" in p]
     assert len(rule) == 1 and "<w:keepNext/>" in rule[0]          # 가는 선만 쪽 끝에 남지 않게 '작성 방법' 문단과
 
 
+def test_tied_rule():
+    assert D.tied([300] * 7, True, [5], D.KEEP_HEIGHT) == {0, 1, 2, 3, 4, 5}          # 7행 계산 표(쪽의 14%): 통째로
+    assert D.tied([300] * 7, True, [5], D.KEEP_HEIGHT, tail=True) == set(range(7))
+    assert D.tied([300] * 12, True, [10], D.KEEP_HEIGHT) == {0, 9}          # 큰 표: 머리 행 + 첫 행, 합계 앞 행
+    assert D.tied([300] * 12, False, [], D.KEEP_HEIGHT) == set() and D.tied([300] * 12, True, [10], D.KEEP_KEY) == set(range(11))
+
+
 def test_length_estimate_does_not_change_with_keep_rules(tmp_path):
-    """분량 어림은 문단·표 높이의 합이라 묶는 규칙과 무관하다 — 재현 입력은 LibreOffice에서 2.9쪽(3쪽), 어림 3.0."""
+    """분량 어림은 문단·표 높이의 합이라 묶는 규칙과 무관하다 — 재현 입력은 LibreOffice에서 3쪽 + 3줄, 어림 3.0."""
     r, _ = _doc(repro(), tmp_path)
     assert 2.6 <= r["length"]["estimated_pages"] <= 3.2
 
@@ -183,8 +202,11 @@ def _pages(path, tmp_path):
 
 
 @needs_office
-def test_first_page_is_filled_in_libreoffice(tmp_path):
+def test_page_breaks_in_libreoffice(tmp_path):
     r, _ = _doc(repro(), tmp_path, "repro")
     n, text = _pages(r["path"], tmp_path)
-    assert "2. Short answer" in text[0] and "Yes — pay KRW 330,000" in text[0]          # 결론 절이 1쪽에서 시작한다(0.17.0: 2쪽으로 통째로 넘어감)
-    assert n == 3          # 0.17.0: 4쪽
+    assert "2. Short answer" in text[0] and "the charge is KRW 180,000 (case B)" in text[0]          # 결론 절이 1쪽에 온다(0.17.0: 제목부터 2쪽으로 넘어감)
+    marks = ("Charge for the made-up period", "Unpaid tax", "Total charge", "Days counted", "A applies as things stand")
+    table = text[0].split("2. Short answer")[1].split("Example Tax Act (예시세법), Art. 10(1)")[0] if "Charge for the made-up period" in text[0] else text[1].split("3. Facts and assumptions")[0]
+    assert all(m in table for m in marks)          # 숫자 표는 제목·합계 행·주석까지 한 쪽에
+    assert n <= 4
