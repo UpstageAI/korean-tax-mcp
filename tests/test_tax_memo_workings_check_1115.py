@@ -80,11 +80,15 @@ def test_t14_real_flow_check_only_names_verify_workbook():
     assert len(w) == 1 and len(en["warnings"]) == 1
     for word in ("verify_workbook", "export_workbook", "korean-tax-calc-mcp", "on the saved file now", "typed in by hand do not count as a check", "method='none'"):
         assert word in w[0], word
+    assert w[0].index("Run verify_workbook (korean-tax-calc-mcp) on the saved file now") < w[0].index("If the file is a statutory form made with export_workbook, set method='export_workbook'")          # 대조가 먼저, 법정서식은 그다음
+    assert "If the workbook was made with export_workbook" not in w[0] and "If you built it yourself" not in w[0]
     ko = _call("build_tax_memo", {"structure": _with("ko"), "check_only": True})
     w = [x for x in ko["warnings"] if x.startswith("[T14]")]
     assert len(w) == 1 and len(ko["warnings"]) == 1
     for word in ("verify_workbook을 지금 실행", "export_workbook", "요약의 대조·일치·불일치·대조_안_한_금액", "손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다"):
         assert word in w[0], word
+    assert w[0].index("저장한 파일에 korean-tax-calc-mcp의 verify_workbook을 지금 실행하고") < w[0].index("법정서식을 export_workbook으로 만든 파일이면 method='export_workbook'")
+    assert "으로 만들었으면" not in w[0] and "직접 짰으면" not in w[0]
     # 경고대로 결과를 옮겨 적으면 경고 0
     fixed = _call("build_tax_memo", {"structure": _with("en", {"method": "verify_workbook", "checked": 9, "mismatched": 0, "unchecked": 0, "file": "Made_Up_checked.xlsx"}), "check_only": True})
     assert fixed["ok"] is True and fixed["warnings"] == []
@@ -257,6 +261,11 @@ def test_guide_describes_the_block_and_the_order(lang):
     assert "workings_check" in text and "verify_workbook" in text and "export_workbook" in text
     assert ("finish and check the Excel before you write the memo" in text) if lang == "en" else ("메모를 쓰기 전에 엑셀을 먼저 끝내고 대조한다" in text)
     assert text.index("verify_workbook") < text.index("build_tax_memo(structure)")          # 엑셀 대조가 메모 만들기보다 먼저
+    assert text.index("verify_workbook") < text.index("export_workbook")          # 직접 짜고 대조하는 길이 먼저, 법정서식(export_workbook)은 그다음
+    assert ("build the workings workbook yourself" in text and "only when a statutory form" in text) if lang == "en" else ("계산 근거 통합 문서는 직접 짜고" in text and "법정서식(별지 서식) 엑셀이 필요하면 export_workbook" in text)
+    for old in ("make it with export_workbook", "the calculation server made the workbook", "export_workbook(korean-tax-calc-mcp)으로 만들거나", "계산 서버가 만든 통합 문서"): assert old not in json.dumps(g, ensure_ascii=False), old
+    assert g["schema"]["workings_check"].index("verify_workbook") < g["schema"]["workings_check"].index("export_workbook")
+    assert g["optional_blocks"]["when"]["workings_check"].index("verify_workbook") < g["optional_blocks"]["when"]["workings_check"].index("export_workbook")
     ob = g["optional_blocks"]
     assert "workings_check" in ob["when"] and ob["example"]["workings_check"]["method"] in M.WORKINGS_METHODS
     assert sum(any(r.startswith(c) for r in g["checks"]) for c in NEW) == 5
@@ -274,9 +283,15 @@ def test_guide_example_block_passes():
 
 def test_server_text_points_to_the_check():
     ins = mcp.instructions
-    assert "verify_workbook으로 대조하고 그 결과를 메모 구조(workings_check)에 적는다" in ins and "run verify_workbook on the saved file" in ins
-    for line in S.MEMO_NEXT.values(): assert "export_workbook" in line and "verify_workbook" in line and "workings_check" in line
+    assert "계산 근거 통합 문서는 직접 짜고(구성 자유, 읽는 사람의 질문 단위로 필요한 줄만)" in ins and "verify_workbook으로 금액 칸을 대조한 결과를 메모 구조(workings_check)에 적는다. 법정서식(별지 서식) 엑셀이 필요하면 export_workbook." in ins
+    assert "build the workings workbook yourself" in ins and "run verify_workbook (korean-tax-calc-mcp) on the saved file" in ins and "Use export_workbook only when a statutory form" in ins
+    assert "export_workbook으로 만들거나" not in ins and "make it with export_workbook" not in ins
+    for line in S.MEMO_NEXT.values():
+        assert "export_workbook" in line and "verify_workbook" in line and "workings_check" in line
+        assert line.index("verify_workbook") < line.index("export_workbook")          # 직접 짜고 대조가 먼저
     r = _call("tax_crime_guide", {})          # 요건 안내 도구의 꼬리(공통 래퍼)
     assert r[S.NEXT_KEY][-1] == S.MEMO_NEXT["ko"]
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
-    for name in ("tax_memo_guide", "build_tax_memo"): assert "workings_check" in tools[name].description and "verify_workbook" in tools[name].description
+    for name in ("tax_memo_guide", "build_tax_memo"):
+        d = tools[name].description
+        assert "workings_check" in d and "verify_workbook" in d and d.index("verify_workbook") < d.index("export_workbook")

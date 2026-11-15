@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.1 (2026-11-15)
+
+엑셀 안내 문구의 순서와 취지를 바꿈 — 계산 근거 통합 문서는 직접 짜고 `verify_workbook`으로 대조, `export_workbook`은 법정서식 엑셀. 새 도구 없음(도구 52개). Claude 작성.
+
+- **왜**: 0.18.0의 안내는 `export_workbook`을 먼저 권했다. 법정서식이 아닌 계산 근거 통합 문서는 구성을 AI에게 맡기고(읽는 사람의 질문 단위로 필요한 줄만), 그 금액의 근거만 도구로 검증한다. 계산 MCP(korean-tax-calc-mcp)도 `export_workbook`을 법정서식 엑셀용으로 좁힌다.
+- **바뀐 문구**(동작은 그대로): "엑셀을 함께 내면 계산 근거 통합 문서는 직접 짜고, 금액은 계산 MCP 도구로 얻고, 저장한 뒤 계산 MCP `verify_workbook`으로 금액 칸을 대조한 결과를 `workings_check`에 적는다. 법정서식(별지 서식) 엑셀이 필요하면 `export_workbook`."
+  - 경고 T14: 먼저 "저장한 파일에 `verify_workbook`을 지금 실행하고 결과를 옮긴다(method='verify_workbook')", 그다음 "법정서식을 `export_workbook`으로 만든 파일이면 method='export_workbook'". "손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다"는 그대로.
+  - `tax_memo_guide`의 작업 순서 3번·`workings_check` 블록 설명·스키마·선택 블록 안내, 서버 안내문, 요건 안내 도구의 꼬리, `tax_memo_guide`·`build_tax_memo` 설명, README·README-EN·llms.txt.
+- **그대로**: `workings_check.method` 값 셋(`export_workbook`·`verify_workbook`·`none`), 규칙 T14~T18의 판정, 메모에 찍히는 대조 결과 문장.
+- **테스트**: 안내·경고에서 `verify_workbook`이 `export_workbook`보다 먼저 나오는지와 예전 순서의 문구가 남지 않았는지를 기존 테스트에 더함.
+
 ## 0.18.0 (2026-11-15)
 
 세무 메모 도구가 "함께 가는 엑셀의 금액을 계산 도구와 대조했는지"를 묻는다. 새 도구 없음(도구 52개). Claude 작성.
