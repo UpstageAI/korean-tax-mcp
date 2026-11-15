@@ -73,7 +73,7 @@ def test_reserve_reduction_and_reduced_corp():
     cut = J(G.guide("2025-01-01", "이익배당", {"reserve_reduction": "자본준비금"}))["배당가산(Gross-up)"]
     # 제7호가 빼는 것은 법인세법 제18조제8호 나목·다목뿐(소득세법 2025.10.1. 시행본) — 가목 준비금 감액 배당은 가산 대상이라 종류를 확인해야 함
     assert cut["판정"] == "확인 필요" and "제7호" in cut["근거"] and "나목·다목" in cut["사유"] and "가목" in cut["사유"] and cut["가산율(%)"] == 10
-    assert "제6호" in J(G.guide("2025-01-01", "이익배당", {"reserve_reduction": "재평가적립금"}))["배당가산(Gross-up)"]["근거"]
+    assert "제17조제3항제6호" in J(G.guide("2025-01-01", "이익배당", {"reserve_reduction": "재평가적립금"}))["배당가산(Gross-up)"]["근거"]
     # 시행령 제27조의3 — 제1항제1호 100분의 100, 제2호 산식 비율. 법 조문 번호 2024년 제4호 → 2025년 제5호
     full = J(G.guide("2024-06-30", "이익배당", {"reduced_corp": "전액감면"}))["배당가산(Gross-up)"]
     assert full["판정"] == "대상 아님" and "제17조제3항제4호" in full["근거"]

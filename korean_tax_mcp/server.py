@@ -2021,7 +2021,7 @@ def dividend_income_guide(
     facts: Annotated[dict | None, Field(description="사실관계(선택) — corp_tax_paid: 지급 법인의 해당 소득(감자 재원 등)에 법인세가 과세되었는지(true/false) / "
                                                     "reduced_corp: '전액감면'(법인세법 제51조의2, 조세특례제한법 제100조의16·제104조의31 적용 법인) 또는 '일부감면'(조세특례제한법 제63조의2·제121조의2·제121조의4·제121조의8·제121조의9 적용 법인) / "
                                                     "capitalization_source: 자본전입 재원 '이익잉여금'·'자본준비금'·'자기주식소각이익'·'재평가적립금_토지'·'재평가적립금_토지외' / "
-                                                    "reserve_reduction: 감액 배당 재원 '자본준비금'·'재평가적립금' / institutional_pef: 기관전용 사모집합투자기구 배당인지(true/false) / "
+                                                    "reserve_reduction: 감액 배당 재원 '자본준비금'·'재평가적립금'·'재평가적립금_토지외'(토지 재평가차액 상당액이 아닌 부분)·'재평가적립금_토지' / institutional_pef: 기관전용 사모집합투자기구 배당인지(true/false) / "
                                                     "total_financial_income: 그 해 이자·배당 합계(원, 배당가산액 제외) / withheld: 원천징수되었는지(true/false) / real_name_unverified: 실지명의 미확인인지(true/false)")] = None,
     accrual_date: Annotated[str | None, Field(description="수입시기 YYYY-MM-DD(선택) — 잉여금 처분결의일·감자 결정일·결산확정일 등. 주면 귀속연도를 표시")] = None,
 ) -> dict:
