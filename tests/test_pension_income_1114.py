@@ -130,5 +130,5 @@ def test_public_pension():                      # 법 제12조제4호, 제20조�
 
 def test_outputs_common():
     r = P.guide("2024-06-01", "퇴직연금계좌", source="운용수익", **BASE)
-    assert "900만원" in r["연금소득공제"]["내용"] and "미확인" in " ".join(r["한계"]) and r["확인 시행본"] == P.VERIFIED
+    assert "900만원" in r["연금소득공제"]["내용"] and "150만원" in " ".join(r["한계"]) and r["확인 시행본"] == P.VERIFIED
     assert "pension_account_withdrawal" in r["다음 단계"][0] and all(x["id"] for x in r["관련 해석"])

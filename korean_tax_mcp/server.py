@@ -49,9 +49,12 @@ mcp = MCPServer(
                  "계산 도구(korean-tax-calc-mcp) 결과가 직접 계산이나 기억과 다르면 바로 어느 쪽을 고르지 말고, 두 값을 가르는 조문을 law_article로 열어 요건을 사실관계에 하나씩 대조한다. "
                  "도구가 틀렸다는 조문 근거를 찾지 못하면 도구 값을 따르고, 다른 값을 쓸 때는 그 조문 번호를 밝힌다. "
                  "세무 질문의 출발점은 이 서버다: 거래·사안에 맞는 요건 안내 도구(이름이 _guide로 끝나는 도구 — 예: 외국에 지급하는 사용료는 royalty_withholding_guide)를 먼저 불러 따질 요건과 확인할 사실을 받고, 사용자 자료에서 그 사실을 확인한 뒤, 안내가 알려 주는 계산 도구(korean-tax-calc-mcp)로 금액을 구한다. 요건·소득 구분·적용 세율 판단은 이 서버가, 금액 계산은 계산 서버가 맡는다. "
+                 "사용자가 메모·보고서·의견서·Word(.docx) 파일을 원하면: 요건 안내 도구(_guide) → 계산(korean-tax-calc-mcp) → tax_memo_guide → build_tax_memo 순서로 부른다. build_tax_memo가 완성된 .docx를 저장하고 경로를 돌려주므로, docx를 직접 만들거나 일반 문서 도구로 대신하지 않는다. "
                  "세무 메모·의견서·검토 보고(Word)를 원하면 tax_memo_guide로 따지는 순서와 구조를 받고 → 이 서버의 요건·조약·조문 도구로 근거를, korean-tax-calc-mcp 계산기로 숫자를 받아 구조를 채운 뒤 → build_tax_memo로 만들고 경고를 고쳐 다시 만든다(엑셀 계산서는 korean-tax-calc-mcp의 export_workbook). 도구 결과나 사용자가 준 사실에 없는 내용은 단정하지 않는다. "
                  "도구 결과는 한국어로 나오지만, 답변은 사용자가 질문한 언어로 작성한다(국문 용어는 괄호로 병기). "
-                 "Tool results are mostly in Korean; always answer in the language the user asked in, keeping key Korean terms in parentheses.")
+                 "Tool results are mostly in Korean; always answer in the language the user asked in, keeping key Korean terms in parentheses. "
+                 "If the user wants a memo, report, opinion or Word (.docx) file: requirement guide (*_guide) → calculators (korean-tax-calc-mcp) → tax_memo_guide → build_tax_memo. "
+                 "build_tax_memo writes the finished .docx and returns its path — do not build the docx yourself or with a generic document tool.")
 
 # 모르는 인자는 무시하지 않고 오류로 돌려준다. 기준일을 date로 넣으면 그동안 조용히 오늘 시행본이 나왔다(2026-11-08).
 _ARG_HINT = {"date": "as_of", "기준일": "as_of", "base_date": "as_of", "effective_date": "as_of", "law": "law_name",
@@ -96,8 +99,21 @@ LangT = Annotated[Literal["ko", "en"], Field(description="Output language. 'en':
                                                      "(tax treaties, statutes), other Korean texts returned with a host_ai_translate instruction (your AI translates); Solar machine translation only when UPSTAGE_API_KEY or on-prem Solar is configured. 기본 'ko'")]
 
 
+MEMO_NEXT = {"ko": "서면 결과물(메모·보고서·의견서·Word 파일)을 요청받았으면 반드시 tax_memo_guide → build_tax_memo를 부른다 — build_tax_memo가 완성된 .docx를 저장하고 경로를 돌려준다. docx를 직접 만들지 않는다.",
+             "en": "If a written deliverable (memo, report, opinion, Word file) was requested, you must call tax_memo_guide → build_tax_memo — build_tax_memo writes the finished .docx and returns its path. Do not build the docx yourself."}
+NEXT_KEY = "다음에 부를 도구"
+
+
+def _memo_next(name, r, lang):
+    """요건 안내 도구(이름이 _guide로 끝남) 결과의 '다음에 부를 도구'에 서면 결과물 안내 한 줄을 붙인다(도구 모듈은 고치지 않음)."""
+    if not name.endswith("_guide") or not isinstance(r, dict) or "error" in r: return r
+    cur = r.get(NEXT_KEY)
+    cur = list(cur) if isinstance(cur, (list, tuple)) else ([cur] if cur else [])
+    return {**r, NEXT_KEY: cur + [MEMO_NEXT["en" if lang == "en" else "ko"]]}
+
+
 def bilingual(fn):
-    """도구에 lang 파라미터를 붙이고 lang='en'이면 결과를 영어로."""
+    """도구에 lang 파라미터를 붙이고 lang='en'이면 결과를 영어로. 요건 안내 도구(_guide)에는 서면 결과물 안내 한 줄을 붙인다."""
     import functools, inspect
     sig = inspect.signature(fn)
     params = list(sig.parameters.values()) + [inspect.Parameter("lang", inspect.Parameter.KEYWORD_ONLY, default="ko", annotation=LangT)]
@@ -108,6 +124,7 @@ def bilingual(fn):
         tok = LANG.set(lang)
         try: r = fn(*a, **k)
         finally: LANG.reset(tok)
+        r = _memo_next(fn.__name__, r, lang)
         return i18n.english(r) if lang == "en" else r
     wrapper.__signature__ = sig.replace(parameters=params)
     wrapper.__annotations__ = {**fn.__annotations__, "lang": LangT}
@@ -772,13 +789,15 @@ WRITE_FILE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idemp
 def tax_memo_guide(
     lang: Annotated[Literal["en", "ko"], Field(description="Language of the memo and of this guide — use the user's language. 'en' (default) | 'ko'. 메모와 안내문의 언어(사용자의 언어)")] = "en",
 ) -> dict:
-    """Logic line for a Korean tax memo or opinion: the fixed order of reasoning, the structure JSON schema and an illustrative example of the shape (not of any real case). Call this first when the user asks for a tax memo, opinion or review note; then build_tax_memo.
+    """Start here whenever the user wants a tax memo, opinion, review note or report as a Word file: tax_memo_guide + build_tax_memo produce a finished Word (.docx) tax memo file — use them instead of writing your own docx script or a generic document skill. This tool returns the logic line (fixed order of reasoning), the structure JSON schema, the optional blocks and an illustrative example of the shape (not of any real case); fill the structure, then call build_tax_memo, which saves the .docx in output_dir and returns its path.
 
+    Keywords: memo, tax memo, opinion, report, review note, Word, docx, 메모, 세무 메모, 보고서, 검토 보고, 의견서, 워드.
     세무 메모·검토의견서의 따지는 순서(논리선), 구조 JSON 스키마, 모양을 보이는 예시를 돌려준다. 특정 거래의 쟁점 목록은 주지 않는다 — 쟁점은 요건 안내 도구, 계산기의 쟁점 목록, 사용자가 준 문서에서 가져온다.
     언제: 사용자가 세무 메모·의견서·검토 보고를 Word 문서로 원할 때 맨 먼저. AI가 즉흥으로 목차를 짜지 않고 이 순서를 따른다.
     순서: 머리(작성·일자·제목·범위) → 핵심 요약 3개(굵은 결론 한 문장 + 근거 + 각주) → 쟁점 → 결론 → 사실관계와 전제 → 검토(쟁점마다 근거 규정 → 적용 → 결론 + 인용; 소득·거래 구분 → 과세 여부·원천 → 세율 → 조약 → 절차 → 관련 세목 순서) → 사실관계별 결과 표(선택) → 계산 표 → 위험과 확인할 점(우선순위) → 다음 단계 → 각주(1차 자료, 원어 병기) → 작성 방법.
+    선택 블록(필요할 때만): 머리의 수신·근거 자료·계산 파일 이름, 결론 아래 숫자 표(경우 2~3개를 나란히, 권고하는 쪽 표시), 쟁점 안의 표, 기존 처리 검토 결과(이미 한 처리가 맞았는지 묻는 질문이면 필수: 판정 한 줄 + 발견 사항별 금액·위험도·조치), 조치 목록 표(번호·할 일·담당·기한), 한계와 미확인 사항, 주요 근거 목록.
     작업: 사실 수집 → 이 서버의 요건·조약·조문 도구와 korean-tax-calc-mcp 계산기 호출 → 구조 채움 → build_tax_memo → 경고 고침 → 다시 만듦. 도구 결과나 사용자가 준 사실에 없는 것은 단정하지 않고 전제나 확인할 점에 적는다.
-    반환: {lang, guide(규칙 글), stages(쟁점 순서), priorities, schema, example_note, example(지어낸 사례로 모양만 보이는 구조 — 내용을 가져다 쓰지 않는다. 그대로 넣으면 경고 0건), checks(점검 규칙 목록), next}. 읽기 전용, 외부 호출 없음.
+    반환: {lang, guide(규칙 글), stages(쟁점 순서), priorities, schema, example_note, example(지어낸 사례로 모양만 보이는 구조 — 내용을 가져다 쓰지 않는다. 그대로 넣으면 경고 0건), optional_blocks(선택 블록의 쓰임과 모양), checks(점검 규칙 목록), next}. 읽기 전용, 외부 호출 없음.
     """
     try: return _tax_memo.guide(lang)
     except ValueError as e: return {"error": str(e)}
@@ -786,22 +805,24 @@ def tax_memo_guide(
 
 @mcp.tool(annotations=WRITE_FILE)
 def build_tax_memo(
-    structure: Annotated[dict | str, Field(description="Memo structure JSON (object or its string) following tax_memo_guide's schema: head, summary(3), question, short_answer, facts, analysis, decision_table?, calculation, risks, next_steps, footnotes, prepared_how. tax_memo_guide의 schema를 따른 구조 JSON(객체 또는 그 문자열)")],
+    structure: Annotated[dict | str, Field(description="Memo structure JSON (object or its string) following tax_memo_guide's schema: head, summary(3), question, short_answer, facts, analysis, decision_table?, calculation, risks, next_steps, footnotes, prepared_how; optional blocks key_figures, review, action_list, limitations, authorities. tax_memo_guide의 schema를 따른 구조 JSON(객체 또는 그 문자열)")],
     output_dir: Annotated[str, Field(description="Folder to write the .docx into. Default '.' (the server's working folder; falls back to ~/korean-tax-mcp when that is not writable). 저장 폴더")] = ".",
     filename: Annotated[str | None, Field(description="File name (optional; '.docx' is added). Default: Tax_Memo_<subject>.docx, 국문은 세무메모_<제목>.docx")] = None,
     lang: Annotated[Literal["", "en", "ko"], Field(description="Memo language: 'en' | 'ko'. Empty = structure.lang, else detected from the subject. 메모 언어(비우면 structure.lang 또는 제목으로 판단)")] = "",
     check_only: Annotated[bool, Field(description="True = validate only, write no file. True면 점검만 하고 파일을 만들지 않음")] = False,
+    target_pages: Annotated[int, Field(ge=0, le=50, description="Length the memo should fit in, in A4 pages. 0 = structure.target_pages, else the recommended 5. A warning names the longest blocks when the estimate is over. 목표 분량(A4 쪽). 0이면 structure.target_pages, 없으면 권고값 5쪽 — 어림 쪽수가 넘으면 가장 긴 블록을 짚어 경고")] = 0,
 ) -> dict:
-    """Validate a tax memo structure against the logic line and write it as a Word file (.docx) with real footnotes. Returns the path plus errors and warnings to fix; rebuild until there are no warnings.
+    """Produces a finished Word (.docx) tax memo file — use this instead of writing your own docx script or a generic document skill. It validates the structure from tax_memo_guide against the logic line, saves the file in output_dir (default: the server's working folder, or ~/korean-tax-mcp when that folder is not writable) and returns the full path of the saved file in `path`, plus errors and warnings to fix; rebuild until there are no warnings. For any memo work call tax_memo_guide first.
 
+    Keywords: memo, tax memo, opinion, report, Word, docx, 메모, 세무 메모, 보고서, 의견서, 워드.
     세무 메모 구조를 논리선에 대어 점검하고 Word(.docx)로 만든다.
     언제: tax_memo_guide의 구조를 도구 결과로 채운 뒤. 경고가 있으면 고쳐서 다시 호출한다(경고 0건이 될 때까지).
-    점검: 머리 4칸, 요약 정확히 3개(결론 한 문장 + 근거 + 각주), 쟁점 1~2문장, 결론 = 답 + 조건, 답을 바꾸는 전제는 위험 항목과 연결, 쟁점 3개 이상·정해진 순서(stage), 쟁점마다 근거 규정·적용·결론과 조문·사건 번호 인용, 요약·결론의 금액이 계산 표에 있는지, 합계 = 구성 행의 합, 우선순위 값, 각주 id 일치(쓰인 것·정의된 것), 문단 길이, 군말, 작성 방법 문단.
-    결과물: A4, 제목·머리, 번호 붙은 요약, 표(머리·합계 음영, 우선순위 색, 행이 쪽에서 갈라지지 않음), 실제 Word 각주(읽는 순서 번호, 같은 출처는 '주 N 참조'), 바닥글 안내와 쪽 번호. 한글 글꼴(맑은 고딕) 지정.
-    반환: {path, ok, lang, errors, warnings, footnotes(각주 수), next}. errors(구조가 깨짐)가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고 고칠 점을 돌려준다.
+    점검: 머리 4칸, 요약 정확히 3개(결론 한 문장 + 근거 + 각주), 쟁점 1~2문장, 결론 = 답 + 조건, 답을 바꾸는 전제는 위험 항목과 연결, 쟁점 3개 이상·정해진 순서(stage), 쟁점마다 근거 규정·적용·결론과 조문·사건 번호 인용, 요약·결론의 금액이 계산 표에 있는지, 합계 = 구성 행의 합, 우선순위 값, 각주 id 일치(쓰인 것·정의된 것), 문단 길이, 군말, 작성 방법 문단. 선택 블록: 이미 한 처리가 맞았는지 묻는 질문이면 검토 결과 절, 결론 아래 숫자 표의 금액이 계산·검토에 있는지, 조치 목록 표의 항목마다 기한, 경우가 둘 이상이면 권고하는 쪽과 조건, 미확인으로 적은 것은 한계 절에도. 분량: 어림 쪽수가 target_pages(기본 5쪽)를 넘으면 가장 긴 블록과 기준을 넘은 쟁점을 짚고, 쟁점 안의 표를 계산 표에 되풀이하면 알린다.
+    결과물: A4(본문 10pt), 제목·머리 표, 번호 붙은 요약, 표(머리·합계 음영, 우선순위 색, 행이 쪽에서 갈라지지 않고 작은 표는 통째로 한 쪽에), 실제 Word 각주(읽는 순서 번호, 같은 출처는 처음 번호를 위첨자 글자로 다시 씀 — 그 번호는 각주로 이어지는 참조가 아님), 바닥글 안내와 쪽 번호. 한글 글꼴(맑은 고딕) 지정. 선택 블록은 넣었을 때만 찍힌다.
+    반환: {path, ok, lang, errors, warnings, length(estimated_pages·target_pages·blocks — 어림값), footnotes(각주 수), next}. errors(구조가 깨짐)가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고 고칠 점을 돌려준다.
     이 도구만 파일을 쓴다(지정한 폴더에 .docx 하나, 같은 이름이면 덮어씀). 외부 호출 없음. 엑셀 계산서는 korean-tax-calc-mcp의 export_workbook.
     """
-    try: return _tax_memo.build(structure, output_dir, filename, lang, check_only)
+    try: return _tax_memo.build(structure, output_dir, filename, lang, check_only, target_pages)
     except (ValueError, OSError) as e: return {"error": str(e)}
 
 
@@ -978,7 +999,7 @@ def vat_exempt_zero_rate_guide(
     입력: supply_date(공급일), category(공급 유형), facts(유형별 사실 — 내국신용장·구매확인서 기한 내 발급, 대금 결제 방법, 상대방의 비거주자 여부와 국내사업장 유무, 상호면세 등), waive_exemption.
     반환: {공급일, 구분, 유형, 판정: [{항목, 판정(면세·과세·영세율·확인 필요 등), 사유, 근거}], 요건, 면세포기?, 영세율 첨부서류?, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 유형 목록·facts 키·날짜별 변화.
     공급일에 따라 다름: 외화 획득 용역의 비거주자 범위(2017.2.7.)·투자자문업(2020.7.1.), 보세구역 물품 반출 수출(2019.2.12.), 삭도·관광유람선 여객운송 과세(2019.1.1.), 사회적협동조합 교육·간병(2020.7.1.), 실내 도서열람 면세(2023.1.1.), 영세율 첨부서류 표(2023.2.28.), 수의사 진료 '예방 및 치료'(2023.10.1.), 시외고급고속버스 과세(2024.2.29.), 토지임대부 분양주택 부수토지 임대 면세(2024.7.1.), 동물 혈액 면세(2025.1.1.). 전자상거래 소매 중개업 영세율은 공급일이 아니라 신고·결정·경정일(2022.2.15.) 기준.
-    세액을 계산하지 않는다(계산 MCP의 vat_return_general, 공급시기는 vat_supply_timing). 시행규칙 별표 1(미가공식료품 분류표)과 조세특례제한법 시행령(국민주택 규모)은 대조하지 못해 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=공급일).
+    세액을 계산하지 않는다(계산 MCP의 vat_return_general, 공급시기는 vat_supply_timing). 미가공식료품은 시행규칙 별표 1의 구분·관세율표 번호와 단순가공식료품 목록(포장품 2022.7.1.~2025.12.31. 한시 면세)을, 국민주택 공급은 주거전용면적(85㎡, 수도권 밖 비도시 읍·면 100㎡)과 건설·설계·리모델링 용역 등록 요건을 판정한다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=공급일).
     """
     return _vat_ezr.guide(supply_date, category, facts, waive_exemption)
 
@@ -1017,7 +1038,7 @@ def pension_income_guide(
     입력: receipt_date(수령일), pension_type, 그리고 아는 사실만(age, join_date, source(재원), amount, annual_private_total, start_requested, account_value, pension_year, reason, docs_within_6m, lifetime_contract, actual_receipt_year, deposit_date, public_benefit, public_fund). 생략한 사실은 '확인 필요'로 남김.
     반환: {수령일, 과세기간, 연금 구분, 구분, 판정: [{항목, 판정(충족·미충족·연금수령·연금외수령·분리과세·종합과세·비과세·확인 필요 등), 사유, 근거}], 원천징수세율(연금수령)?, 분리과세 기준?, 연금소득공제, 관련 해석, 한계, 다음 단계, 확인 시행본}. 입력을 모두 생략하면 구분·날짜별 변화·입력 안내.
     수령일에 따라 다름: 이연퇴직소득 해외이주 인출 3년 요건(2017.2.3. 이후 입금분), 퇴직소득 연금 원천징수 70%→실제 수령연차 10년 초과 60%(2020.1.1.), 재난 15일 이상 입원 인출 사유(2022.2.15.), 15% 분리 계산 선택(2023.1.1.), 분리과세 기준 1천200만원→1천500만원(2024.1.1. 이후 지급분), 종신계약 4%→3%·20년 초과 50%(2026.1.1. 이후 지급분).
-    세액을 계산하지 않는다(계산 MCP의 pension_income, pension_account_withdrawal). 시행규칙(요양·재난 인출 한도 금액)과 지방소득세는 대조하지 않아 '한계'에 미확인으로 적는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=수령일), 부칙은 article_addenda.
+    세액을 계산하지 않는다(계산 MCP의 pension_income, pension_account_withdrawal). 요양·재난 인출 한도(시행규칙 제11조의2)는 금액을 안내하고, 지방소득세는 다루지 않는다. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of=수령일), 부칙은 article_addenda.
     """
     from . import pension_income as _pension
     return _pension.guide(receipt_date, pension_type, age, join_date, source, amount, annual_private_total, start_requested, account_value, pension_year,
@@ -1176,6 +1197,7 @@ def one_house_exemption_guide(
     special_date: Annotated[str | None, Field(description="특례 기준일 YYYY-MM-DD(선택) — 상속개시일, 동거봉양 합가일, 혼인일")] = None,
     rental_registered_date: Annotated[str | None, Field(description="양도 주택을 임대하려고 소득세법 제168조 사업자등록과 민간임대주택법 임대사업자등록을 신청한 날 YYYY-MM-DD(선택) — 구 시행령 제154조제1항제4호 거주요건 면제(2017.9.19.~2020.2.10. 양도분, 그 뒤는 2019.12.16. 이전 신청분만)")] = None,
     rental_rule_kept: Annotated[bool | None, Field(description="임대의무기간 중 양도가 아니고, 2019.2.12. 이후 임대차계약 체결·갱신분의 임대보증금·임대료 연 증가율이 5% 이하인지(선택) — 구 제154조제1항제4호 단서")] = None,
+    existing_tenant_lease_end: Annotated[str | None, Field(description="신규 주택 취득일 현재 살고 있던 기존 임차인의 임대차 종료일 YYYY-MM-DD(선택, 취득 후 갱신한 계약 제외) — 2019.12.17. 이후 취득분의 1년 양도·전입 기한을 임대차 종료일까지(2년 한도)로 늘리는 제155조제1항제2호 단서")] = None,
 ) -> dict:
     """Korean capital gains tax exemption for a one-house household as in force on the transfer date — household definition, holding and residence periods (two-year residence for houses acquired in adjustment areas), temporary two-house disposal deadlines, the high-priced house threshold and main special cases. It does not compute tax.
 
@@ -1188,7 +1210,8 @@ def one_house_exemption_guide(
     """
     return _one_house.guide(transfer_date, acquisition_date, adjusted_area_at_acquisition, residence_periods, contract_date, homeless_at_contract,
                             contract_before_designation, transfer_price, other_houses_disposed_date, new_house_acquisition_date, new_house_contract_date,
-                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date, rental_registered_date, rental_rule_kept)
+                            both_adjusted_at_new_acquisition, moved_in_date, special, special_date, rental_registered_date, rental_rule_kept,
+                            existing_tenant_lease_end)
 
 
 @mcp.tool(annotations=RO)
@@ -1281,6 +1304,7 @@ def tax_crime_procedure_guide(
     decision_date: Annotated[str | None, Field(description="절차 시점 YYYY-MM-DD(2016-01-01 이후) — 그 날짜의 조세범 처벌절차법·시행령으로 안내. 생략하면 날짜별 변화")] = None,
     offense_article: Annotated[int | None, Field(description="조세범 처벌법 조 번호(3~16, 선택) — 범칙행위 범위·선정 심의 판정")] = None,
     evasion_proviso: Annotated[bool | None, Field(description="조세포탈이 제3조제1항 단서(3억·5억원 기준)에 해당하는지(선택) — 영장 없는 압수 '장기 3년 이상' 판정")] = None,
+    offense_paragraph: Annotated[int | None, Field(description="조세범 처벌법 항 번호(선택) — 제7조·제9조·제10조·제11조·제13조는 항마다 법정형이 달라 영장 없는 압수 판정에 씀. 생략하면 항별로 안내")] = None,
     annual_reported_revenue: Annotated[float | None, Field(description="연간 신고수입금액(원, 선택) — 의무 조세범칙조사 기준(시행령 제6조) 판정")] = None,
     annual_suspected_evasion: Annotated[float | None, Field(description="연간 조세포탈 혐의금액(원, 선택)")] = None,
     expected_evaded_tax: Annotated[float | None, Field(description="조세포탈 예상세액(원, 가산세 제외, 선택) — 연간 5억원 기준")] = None,
@@ -1308,7 +1332,8 @@ def tax_crime_procedure_guide(
     """
     return _tax_crime_proc.guide(decision_date, offense_article, evasion_proviso, annual_reported_revenue, annual_suspected_evasion, expected_evaded_tax,
                                  filed_return, registered, in_progress, flight_or_destroy_risk, prison_likely, cannot_pay, unreachable,
-                                 investigation_end_date, committee_resolution_date, notice_date, notice_served_date, paid_date, accused_date)
+                                 investigation_end_date, committee_resolution_date, notice_date, notice_served_date, paid_date, accused_date,
+                                 offense_paragraph=offense_paragraph)
 
 
 @mcp.tool(annotations=RO)
@@ -1413,8 +1438,8 @@ def transfer_pricing_cases(
     이전가격 쟁점별 결정례 — 쟁점 9개에 대해 납세자 주장이 받아들여진 사례와 과세관청 처분이 유지된 사례를 나란히, 보고서에 반영할 점과 함께.
     언제: 정상가격 검토 보고서에서 회사 논리를 세울 때 같은 쟁점에서 무엇이 통했고 무엇이 통하지 않았는지 확인할 때.
     반환: {쟁점: {이름: {설명, 사례: [{문서번호, id, 구분, 일자, 결과, 요지, 읽은 범위}], 보고서에 반영할 점, 납세자 승, 과세관청 승}}, 쟁점 목록, 주의, 다음 단계}.
-    요지는 국세법령정보시스템 요지를 옮긴 것이고 '읽은 범위'가 요지·제목인 건은 본문을 대조하지 않았다 — 인용 전에 get_tax_ruling(id)로 본문 확인. 대부분 2020년 이전 구법 사안이라 현행 조문과 대조해야 한다.
-    읽기 전용. data/tp_cases.json 기반(2026-11-12 검색분), 외부 호출 없음.
+    요지는 국세법령정보시스템·조세심판원의 요지와 본문 판단 부분을 옮긴 것으로 20건 모두 본문과 대조했다(2026-11-15) — '읽은 범위'가 '요지와 본문'인 질의회신·사전답변 3건은 본문에 회신문이 따로 없어 결론은 요지 기준. 인용 전에 get_tax_ruling(id)로 본문 확인. 대부분 2020년 이전 구법 사안이라 현행 조문과 대조해야 한다.
+    읽기 전용. data/tp_cases.json 기반(2026-11-12 검색, 2026-11-15 본문 대조), 외부 호출 없음.
     """
     return _tp_report.cases(issue, outcome or "")
 
@@ -2024,7 +2049,7 @@ def residency_report(
 @mcp.tool(annotations=RO)
 @bilingual
 def permanent_establishment_guide(
-    year: Annotated[int | None, Field(description="판정 연도(2016~2026) — 그해 연말 시행본으로 판정. 생략하면 요소 목록과 연도별 변화")] = None,
+    year: Annotated[int | None, Field(description="판정 연도(2016~2026) — 그해 연말 시행본으로 판정. 외국법인은 사업연도 개시일이 속하는 연도, 비거주자는 소득이 발생한 연도(부칙 일반적 적용례). 생략하면 요소 목록과 연도별 변화")] = None,
     taxpayer: Annotated[Literal["외국법인", "비거주자"], Field(description="외국법인(법인세법 제94조) 또는 비거주자(소득세법 제120조)")] = "외국법인",
     fixed_place: Annotated[bool | None, Field(description="국내에 사업의 전부 또는 일부를 수행하는 고정된 장소가 있는지(선택)")] = None,
     place_types: Annotated[list[Literal["지점·사무소·영업소", "상점·판매장소", "작업장·공장·창고", "건설현장", "용역 제공 장소", "광산·천연자원 장소"]] | None, Field(description="국내 장소 유형(선택, 여러 개)")] = None,
@@ -2037,7 +2062,7 @@ def permanent_establishment_guide(
     combined_not_preparatory: Annotated[bool | None, Field(description="상호 보완적 활동을 결합한 전체 활동이 예비적·보조적 성격이 아닌지(선택) — 2019년부터 제5항제2호")] = None,
     agent_contract_authority: Annotated[bool | None, Field(description="국내에서 본인을 위해 계약을 체결할 권한을 가지고 반복 행사하는 자가 있는지(선택)")] = None,
     agent_principal_role: Annotated[bool | None, Field(description="체결 권한은 없지만 계약 체결 과정에서 중요한 역할을 반복 수행하는 자가 있는지(선택) — 2019년부터 제3항제2호")] = None,
-    agent_types: Annotated[list[Literal["자산 상시 보관·배달", "특수관계 외국법인을 위한 독립대리인", "보험료 징수·보험 인수"]] | None, Field(description="대리인이 시행령의 '이에 준하는 자' 유형에 해당하면(선택)")] = None,
+    agent_types: Annotated[list[Literal["자산 상시 보관·배달", "주로 특정 외국법인만을 위한 독립대리인", "특수관계 외국법인을 위한 독립대리인", "보험료 징수·보험 인수"]] | None, Field(description="대리인이 시행령(법인세법 시행령 제133조·소득세법 시행령 제180조)의 '이에 준하는 자' 유형에 해당하면(선택) — 독립대리인은 2025년까지 '주로 특정 외국법인(비거주자)만을 위한', 2026.2.27.부터 '전적으로 또는 거의 전적으로 특수관계 외국법인(비거주자)을 위한'이 요건")] = None,
     treaty_country: Annotated[str | None, Field(description="거주지국(한글, 선택) — 조세조약 고정사업장 조항 조회 안내에 씀")] = None,
 ) -> dict:
     """Korean permanent establishment (domestic place of business) test under domestic law for a given year — fixed place, listed places, construction sites over six months, service PE (more than six months in twelve, or similar services for two years or more), dependent agents (contract authority; from 2019 also the principal role in concluding contracts), the preparatory or auxiliary exclusion (unconditional through 2018; from 2019 only if preparatory and auxiliary, from 2020 preparatory or auxiliary) and the anti-fragmentation rule from 2019. Treaty PE articles can differ and are not decided here; use tax_treaty.
@@ -2045,8 +2070,8 @@ def permanent_establishment_guide(
     국내사업장(고정사업장) 판정 안내 — 법인세법 제94조(외국법인)·소득세법 제120조(비거주자)의 요소(고정된 장소, 포함 장소, 6개월 초과 건설현장, 용역 PE, 종속대리인, 준비적·보조적 활동 제외, 세분화 방지)에 사실을 대어 요소별로 '국내사업장 있음·해당 없음·확인 필요'를 돌려준다.
     언제: 외국법인이나 비거주자가 국내에 지점·사무소·현장·직원·대리인을 두었을 때 국내사업장이 생기는지, 연도에 따라 종속대리인·예비적 활동 요건이 어떻게 달랐는지 확인할 때.
     입력: year(2016~2026), taxpayer, 장소 사실(fixed_place, place_types, construction_months, service_months_in_12, similar_service_years), 활동 사실(specific_activities, preparatory_or_auxiliary, related_pe_complementary, combined_not_preparatory), 대리인 사실(agent_contract_authority, agent_principal_role, agent_types), treaty_country.
-    반환: {기준 연도, 적용 시행본, 납세자, 결론, 판정: [{항목, 판정, 사유, 근거}], 확인 필요, 요소(연도별 조문 요지), 조세조약, 다음 단계, 한계, 확인 시행본}.
-    연도에 따라 다름: 2018년까지 종속대리인은 계약 체결 권한 반복 행사자만·특정 활동 장소는 조건 없이 제외, 2019년 계약 체결 과정의 중요한 역할 추가·'예비적이며 보조적'일 때만 제외·세분화 방지 신설, 2020년부터 '예비적 또는 보조적', 2022년부터 외국법인연락사무소 자료 제출.
+    반환: {기준 연도, 적용 시행본, 적용 기준(부칙 적용례), 납세자, 결론, 판정: [{항목, 판정, 사유, 근거}], 확인 필요, 요소(연도별 조문 요지), 조세조약, 다음 단계, 해석·판례: [{문서번호, 구분, 일자, id, 쟁점, 요지, 읽은 범위}], 한계, 확인 시행본}.
+    연도에 따라 다름: 2018년까지 종속대리인은 계약 체결 권한 반복 행사자만·특정 활동 장소는 조건 없이 제외, 2019년 계약 체결 과정의 중요한 역할 추가·'예비적이며 보조적'일 때만 제외·세분화 방지 신설, 2020년부터 '예비적 또는 보조적', 2022년부터 외국법인연락사무소 자료 제출, 2026.2.27.부터 시행령의 독립대리인 요건 변경.
     조세조약의 고정사업장 조항이 국내법과 다르거나 우선할 수 있음 — tax_treaty(country, keyword='고정사업장')로 확인. 사실 판단(고정성, 예비적·보조적 성격, 대리인 독립성)은 하지 않음. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of).
     """
     return _pe.guide(year, taxpayer, fixed_place, place_types, construction_months, service_months_in_12, similar_service_years, specific_activities,
@@ -2058,7 +2083,7 @@ def permanent_establishment_guide(
 def royalty_withholding_guide(
     payment_date: Annotated[str | None, Field(description="사용료 지급일 YYYY-MM-DD(2016-01-01~2026-12-31). 생략하면 요소 목록·지급일별 변화·결정 트리·미등록 특허 판례")] = None,
     recipient_country: Annotated[str | None, Field(description="수취인 거주지국(한글). 예: '미국', '일본', '싱가포르'. 조세조약 사용료 조문을 조회해 세율·요건에 씀")] = None,
-    recipient_type: Annotated[Literal["법인", "개인", "corporation", "individual"], Field(description="수취인이 외국법인인지 비거주자 개인인지. 개인은 소득세법을 대조하지 못해 조약 부분만 참고")] = "법인",
+    recipient_type: Annotated[Literal["법인", "개인", "corporation", "individual"], Field(description="수취인이 외국법인인지 비거주자 개인인지. 개인은 사용료를 소득세법(제119조제10호·제156조·제156조의6·제156조의8)으로 안내하고, 개인의 인적용역은 조약 조항 확인으로 돌림")] = "법인",
     licensed: Annotated[list[Literal["특허", "노하우", "상표", "저작권", "소프트웨어", "용역", "권리 양도",
                                      "patent", "know-how", "trademark", "copyright", "software", "services", "sale of the right"]] | None,
                         Field(description="지급 대상(여러 개면 혼합계약). 용역은 노하우 이전이 없는 순수 기술·경영 용역, 권리 양도는 특허권 등의 매각")] = None,
@@ -2078,23 +2103,24 @@ def royalty_withholding_guide(
     payer_vat_exempt_business: Annotated[bool | None, Field(description="지급자에게 부가가치세 면세사업이 있어 사용료가 거기에 쓰이는지(선택)")] = None,
     related_to_imported_goods: Annotated[bool | None, Field(description="사용료가 지급자가 수입하는 물품과 관련되는지(선택) — 관세 과세가격 가산 검토")] = None,
     amount_krw: Annotated[int | None, Field(description="지급액(원, 선택) — 국제거래명세서 면제 기준(무형자산거래 1억원 이하)과 지급명세서 가산세 안내에만 씀. 세액은 계산하지 않음", ge=0)] = None,
+    settled_by_setoff: Annotated[bool | None, Field(description="사용료를 송금하지 않고 상대방에게서 받을 채권과 상계·차감 정산했는지(선택) — 상계해도 사용료 총액을 원천징수")] = None,
 ) -> dict:
     """Requirement guide for cross-border royalties paid from Korea to a foreign corporation or nonresident, in the order a tax examiner checks them — characterization (royalty, know-how, software, services, sale of the right), Korean source (Corporate Tax Act Article 93 item 8, including sub-item (c) for payments from 1 January 2020, and the treaty source rule), domestic rate of 20 percent, treaty cap (for the Korea-US treaty 15 percent under Article 14(1) or 10 percent under Article 14(2); other countries from the treaty text), local income tax, procedure (reduced-rate application before payment, filing duty from 2026, refund claim within five years, payment by the 10th of the following month, payment statement), gross-up for net-of-tax clauses, transfer pricing, VAT reverse charge and customs value. It returns a decision path to 0, 10, 15, 20 percent or other, the Supreme Court en banc decision of 18 September 2025 (2021Du59908) on patents not registered in Korea, and confidence labels. It does not compute tax.
 
-    국외 지급 사용료 원천징수 요건 안내 — 내국법인 등이 외국법인·비거주자에게 지급하는 특허·노하우·상표·저작권·소프트웨어 사용료(용역·권리 양도 포함)에 사실을 대어 조사 순서대로 요소별 판정, 확인할 사실, 근거, 확신도(확인함·유추·미확인)를 돌려준다.
+    국외 지급 사용료 원천징수 요건 안내 — 내국법인 등이 외국법인·비거주자에게 지급하는 특허·노하우·상표·저작권·소프트웨어 사용료(용역·권리 양도 포함)에 사실을 대어 조사 순서대로 요소별 판정, 확인할 사실, 근거, 확신도(확인함·유추·근거 없음·미확인)를 돌려준다. 수취인이 개인이면 소득세법 조문으로 안내한다.
     언제: "미국 모회사에 주는 기술 사용료, 몇 %를 떼야 하나", "국내 미등록 특허 사용료도 원천징수하나", "신청서를 지급 뒤에 받았는데 15%로 해도 되나", "순액으로 송금하기로 했는데 과세표준은" 같은 질문.
-    입력: payment_date(지급일), recipient_country, recipient_type, licensed(여러 개면 혼합계약)와 allocation, 사실(patent_registered_in_korea, used_in_korea, services_performed_in_korea, sale_price_contingent, attributable_to_korean_pe, application_before_payment, application_date, beneficial_owner_confirmed, related_party, net_of_tax, accrued_unpaid, payer_vat_exempt_business, related_to_imported_goods), amount_krw. 모르는 사실은 비워 두면 그 요소가 '확인 필요'로 나오고 추정하지 않는다.
-    반환: {지급일, 수취인, 지급 대상, 결정: {결론, 구분(0%·10%·15%·20%·기타·확인 필요), 법인세율·지방소득세율·합계, 경로, 전제, 막힌 사실?, 가능한 결과?}, 판정: [{항목, 판정, 사유, 근거, 확신도}], 확인할 사실, 미등록 특허 판례, 결정 트리, 다음에 부를 도구, 미확인, 한계, 확인 시행본, 기준일 주의?}.
-    판정 순서: 소득 구분 → 국내원천(법인세법 제93조제8호, 조약 원천 조항) → 국내 세율(제98조제1항제6호) → 조약 제한세율 → 지방소득세(제98조의7, 지방세법 제103조의52) → 절차(제98조의6, 지급명세서 제120조의2) → 세금부담 약정(기본통칙 98-0…2) → 이전가격(국제조세조정에 관한 법률 제7조·제13조, 시행령 제36조) → 부가가치세 대리납부·관세 과세가격.
-    지급일에 따라 다름: 제93조제8호 다목은 2020.1.1. 이후 지급분부터(그 전은 단서 후문), 신청서 세무서 제출(제98조의6제4항)은 2026.1.1. 이후 신청분부터, 경정청구는 2026.1.1.부터 제5항. 국내 미등록 특허는 대법원 2025. 9. 18. 선고 2021두59908 전원합의체 판결로 종전 판례 8건이 변경됨.
-    한미 조세조약은 원문으로 확인한 값, 다른 나라는 조약 원문 자동 추출값이라 tax_treaty로 조문을 읽어야 한다. 조문 번호·세율은 2026년 시행본 기준 — 2025년 이전 지급분은 law_article(as_of)로 확인. 세액 계산은 계산 MCP nonresident_withholding, 서면 메모는 tax_memo_guide.
+    입력: payment_date(지급일), recipient_country, recipient_type, licensed(여러 개면 혼합계약)와 allocation, 사실(patent_registered_in_korea, used_in_korea, services_performed_in_korea, sale_price_contingent, attributable_to_korean_pe, application_before_payment, application_date, beneficial_owner_confirmed, related_party, net_of_tax, accrued_unpaid, settled_by_setoff, payer_vat_exempt_business, related_to_imported_goods), amount_krw. 모르는 사실은 비워 두면 그 요소가 '확인 필요'로 나오고 추정하지 않는다.
+    반환: {지급일, 수취인, 지급 대상, 결정: {결론, 구분(0%·10%·15%·20%·기타·확인 필요), 법인세율(개인은 소득세율)·지방소득세율·합계, 경로, 전제, 막힌 사실?, 가능한 결과?}, 판정: [{항목, 판정, 사유, 근거, 확신도}], 확인할 사실, 미등록 특허 판례, 결정 트리, 다음에 부를 도구, 근거 없음(찾아본 곳·날짜와 함께 닫은 쟁점), 미확인, 한계, 확인 시행본, 기준일 주의?}.
+    판정 순서: 소득 구분 → 국내원천(법인세법 제93조제8호, 조약 원천 조항) → 국내 세율(제98조제1항제6호, 2018년까지 제3호) → 조약 제한세율 → 지방소득세(제98조의7 — 2020년까지 국제조세조정에 관한 법률 제29조, 지방세법 제103조의52) → 절차(제98조의6, 지급명세서 제120조의2) → 세금부담 약정(기본통칙 98-0…2) → 이전가격(국제조세조정에 관한 법률 제7조·제13조, 시행령 제36조) → 부가가치세 대리납부·관세 과세가격.
+    지급일에 따라 다름: 제93조제8호 다목은 2020.1.1. 이후 지급분부터(그 전은 단서 후문), 실질귀속자 증명서류는 2023.1.1. 이후 신청분부터, 경정청구 기산일은 2019.1. 이후 원천징수분부터 다음 달 11일, 신청서 세무서 제출(제98조의6제4항)은 2026.1.1. 이후 신청분부터, 경정청구는 2026.1.1.부터 제5항. 말레이시아 라부안 소재 수취인은 국내 세율을 먼저 적용(제98조의5, 재정경제부 고시 제2006-21호). 국내 미등록 특허는 대법원 2025. 9. 18. 선고 2021두59908 전원합의체 판결로 종전 판례 8건이 변경됨.
+    한미 조세조약은 원문으로 확인한 값, 다른 나라는 조약 원문 자동 추출값이라 tax_treaty로 조문을 읽어야 한다. 법인세법 제93조·제98조·제98조의6과 소득세법 대응 조문, 지급명세서 가산세·지방세법·국세기본법·부가가치세법·관세법·국제조세조정에 관한 법률 조문은 2016~2025 각 연말 시행본으로 대조해 지급일로 나눴고, 서식·기본통칙·고시는 현행본 기준이라 2025년 이전 지급분은 law_article(as_of)로 확인. 세액 계산은 계산 MCP nonresident_withholding, 서면 메모는 tax_memo_guide.
     읽기 전용. recipient_country를 주면 국세법령정보시스템 공개 조회로 조약 조문을 읽음(키 불필요, 1일 캐시) — 조회에 실패하면 조약 부분만 '확인 필요'.
     """
     from . import royalty_withholding as _royalty
     return _royalty.guide(payment_date, recipient_country, recipient_type, licensed, allocation, patent_registered_in_korea, used_in_korea,
                           services_performed_in_korea, sale_price_contingent, attributable_to_korean_pe, application_before_payment, application_date,
                           beneficial_owner_confirmed, related_party, net_of_tax, accrued_unpaid, payer_vat_exempt_business, related_to_imported_goods,
-                          amount_krw, treaty_lookup=lambda c: ntis.withholding_rates(c, "사용료"))
+                          amount_krw, treaty_lookup=lambda c: ntis.withholding_rates(c, "사용료"), settled_by_setoff=settled_by_setoff)
 
 
 @mcp.tool(annotations=RO)
@@ -2108,7 +2134,7 @@ def dividend_income_guide(
     facts: Annotated[dict | None, Field(description="사실관계(선택) — corp_tax_paid: 지급 법인의 해당 소득(감자 재원 등)에 법인세가 과세되었는지(true/false) / "
                                                     "reduced_corp: '전액감면'(법인세법 제51조의2, 조세특례제한법 제100조의16·제104조의31 적용 법인) 또는 '일부감면'(조세특례제한법 제63조의2·제121조의2·제121조의4·제121조의8·제121조의9 적용 법인) / "
                                                     "capitalization_source: 자본전입 재원 '이익잉여금'·'자본준비금'·'자기주식소각이익'·'재평가적립금_토지'·'재평가적립금_토지외' / "
-                                                    "reserve_reduction: 감액 배당 재원 '자본준비금'·'재평가적립금' / institutional_pef: 기관전용 사모집합투자기구 배당인지(true/false) / "
+                                                    "reserve_reduction: 감액 배당 재원 '자본준비금'·'재평가적립금'·'재평가적립금_토지외'(토지 재평가차액 상당액이 아닌 부분)·'재평가적립금_토지' / institutional_pef: 기관전용 사모집합투자기구 배당인지(true/false) / "
                                                     "total_financial_income: 그 해 이자·배당 합계(원, 배당가산액 제외) / withheld: 원천징수되었는지(true/false) / real_name_unverified: 실지명의 미확인인지(true/false)")] = None,
     accrual_date: Annotated[str | None, Field(description="수입시기 YYYY-MM-DD(선택) — 잉여금 처분결의일·감자 결정일·결산확정일 등. 주면 귀속연도를 표시")] = None,
 ) -> dict:
