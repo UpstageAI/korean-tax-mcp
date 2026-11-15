@@ -21,7 +21,7 @@ EA = "Malgun Gothic"                   # 동아시아 글꼴: 윈도·맥용 Wor
 FONTS = {"en": {"body": "Georgia", "sans": "Arial"}, "ko": {"body": "Arial", "sans": "Arial"}}   # 한글은 eastAsia 글꼴로, 영문·숫자는 어디에나 있는 글꼴로
 SIZE = {"en": {"body": 20, "cell": 18, "note": 16}, "ko": {"body": 20, "cell": 18, "note": 16}}   # 반 포인트: 본문 10pt, 표 9pt, 각주 8pt
 LINE, CELL_LINE = 264, 250             # 줄 간격(240 = 1줄): 본문 1.1줄, 표 칸 1.04줄
-KEEP_HEIGHT, KEEP_KEY = 2950, 4450     # 어림 높이(twip)가 이 이하인 표는 통째로 한 쪽에: 보통 표는 쪽의 약 20%, 결론 아래 숫자 표는 약 30%. 표를 넘겨도 앞 쪽에 비는 자리는 표 키까지
+KEEP_HEIGHT, KEY_WHOLE = 2950, 4       # 어림 높이(twip)가 KEEP_HEIGHT(쪽의 약 20%) 이하인 표는 통째로 한 쪽에. 결론 아래 숫자 표는 머리 행을 뺀 행이 KEY_WHOLE개 이하일 때만 통째로, 그보다 길면 쪽 사이에서 나뉜다
 TAG = {0: ("FBE4E1", "9B2C1F"), 1: ("FDF1D6", "8A5A00"), 2: ("E4F2E7", "22663A")}   # 우선순위 칸 (바탕, 글자)
 NS = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
       'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"')
@@ -53,15 +53,24 @@ def _lines(xml, width, default_size):
     return n, size
 
 
-def tied(tall, header, totals, limit, tail=False):
-    """표의 행 가운데 다음 행(마지막 행이면 표 아래 문단)과 붙일 행 번호 — tall은 행별 어림 높이(twip).
-    키가 limit 이하인 표는 통째로(마지막 행을 뺀 모든 행). 그보다 큰 표는 행 사이에서 넘어가되 머리 행은 첫 행과,
-    합계(강조) 행은 바로 앞 행과 붙어 머리 행만 쪽 끝에 남거나 합계 행만 다음 쪽으로 넘어가지 않는다.
-    tail이면 통째로 두는 표의 마지막 행도 아래 문단(주석)과 붙는다."""
-    n = len(tall)
-    if sum(tall) <= limit: return set(range(n if tail else n - 1))
-    keep = {0} if header and n > 1 else set()
-    return keep | {i - 1 for i in totals if 0 < i < n}
+def tied(tall, header, totals, limit, tail=False, key=False):
+    """표의 행 가운데 다음 행(마지막 행이면 표 아래 문단)과 붙일 행 번호 — tall은 행별 어림 높이(twip), totals는 합계(강조) 행 번호.
+    보통 표: 키가 limit 이하면 통째로(마지막 행을 뺀 모든 행). 그보다 크면 행 사이에서 넘어가되 머리 행은 첫 행과,
+    합계 행은 바로 앞 행·바로 뒤 행과 붙어 머리 행만 쪽 끝에 남거나 합계 행만 쪽 맨 위·맨 아래에 놓이지 않는다.
+    결론 아래 숫자 표(key): 머리 행을 뺀 행이 KEY_WHOLE개 이하면 통째로. 그보다 길면 쪽 사이에서 나뉘되 머리 행 + 첫 두 행,
+    합계 행 + 앞 행 + 뒤 행(합계 표시가 없으면 마지막 세 행), 마지막 두 행은 한 덩어리 — 표를 통째로 넘기느라 앞 쪽 아래가 비지 않게.
+    묶음이 겹쳐 나뉠 자리가 하나도 없으면 가운데에 가장 가까운 합계 행의 뒤쪽을 푼다. tail이면 마지막 행도 아래 문단(주석)과 붙는다."""
+    n = len(tall); last = n - 1
+    totals = [i for i in totals if 0 < i < n]
+    around = {j for i in totals for j in (i - 1, i)}          # 합계 앞 행 → 합계 행 → 뒤 행
+    if key and n - 1 > KEY_WHOLE:
+        keep = ({0, 1, last - 1} | (around or {last - 2})) - {last}
+        if len(keep) == last:          # 나뉠 자리가 없음: 둘째 행부터의 합계 행 하나를 뒤 행에서 뗀다(앞 행과는 그대로). 뒤 행도 합계인 행은 되도록 피한다
+            free = [i for i in totals if 1 < i < last]
+            keep.discard(min([i for i in free if i + 1 not in totals] or free, key=lambda i: abs(i - last / 2)))
+        return keep | ({last} if tail else set())
+    if key or sum(tall) <= limit: return set(range(n if tail else last))
+    return (({0} if header and n > 1 else set()) | around) - {last}
 
 
 class Doc:
@@ -151,7 +160,7 @@ class Doc:
         self.add(self.p(self.inline(text, notes=False, font="sans", size=19, bold=True), after=40, before=110, line=0, style="Heading2", keep=True))
 
     def caption(self, text):
-        """표 위의 작은 제목 — 표(통째로 두는 표면 표 전체, 큰 표면 머리 행 + 첫 행)와 떨어지지 않는다."""
+        """표 위의 작은 제목 — 표(통째로 두는 표면 표 전체, 나뉘는 표면 머리 행 + 첫 행, 숫자 표면 첫 두 행)와 떨어지지 않는다."""
         self.add(self.p(self.inline(text, notes=False, font="sans", size=17, bold=True, color=MUTED), before=100, after=50, line=0, keep=True))
 
     def rule(self):
@@ -173,11 +182,11 @@ class Doc:
                 + f'<w:tcMar><w:top w:w="{pad}" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:bottom w:w="{pad}" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar>'
                 + f"</w:tcPr>{para}</w:tc>")
 
-    def table(self, widths, rows, header=True, totals=(), limit=0, tail=False):
+    def table(self, widths, rows, header=True, totals=(), limit=0, tail=False, key=False):
         """rows: [[칸 XML]] — 첫 행은 머리(쪽이 넘어가면 반복), 모든 행은 쪽 경계에서 갈라지지 않는다.
-        어느 행을 다음 행과 붙일지는 tied()가 정한다. totals: 합계(강조) 행 번호, limit: 통째로 두는 키(0이면 KEEP_HEIGHT), tail: 마지막 행을 표 아래 문단과 붙임."""
+        어느 행을 다음 행과 붙일지는 tied()가 정한다. totals: 합계(강조) 행 번호, limit: 통째로 두는 키(0이면 KEEP_HEIGHT), tail: 마지막 행을 표 아래 문단과 붙임, key: 결론 아래 숫자 표."""
         trs = ["".join(cells) for cells in rows]
-        keep = tied([self._row_tall(f"<w:tr>{r}</w:tr>") for r in trs], header, totals, limit or KEEP_HEIGHT, tail)
+        keep = tied([self._row_tall(f"<w:tr>{r}</w:tr>") for r in trs], header, totals, limit or KEEP_HEIGHT, tail, key)
         trs = [r.replace("<w:p><w:pPr>", "<w:p><w:pPr><w:keepNext/>") if i in keep else r for i, r in enumerate(trs)]
         out = [f'<w:tbl><w:tblPr><w:tblW w:w="{sum(widths)}" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
                '<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar></w:tblPr>'
@@ -226,9 +235,9 @@ class Doc:
         for r, cells in zip(tb["rows"], rows):
             tot = r["role"] == "total"; fill = (EMPH if key else SOFT) if tot else ""
             out.append([self.tc(c or ("—" if i else ""), ws[i], tot, fill, "right" if numeric[i] else "") for i, c in enumerate(cells)])
-        # 결론 아래 숫자 표는 합계 행이 한눈에 보이게 통째로(쪽의 약 30%까지), 표 제목·조건 주석과도 붙는다. 위의 결론 문단과는 묶지 않는다
+        # 결론 아래 숫자 표는 쪽 사이에서 나뉠 수 있다(합계 행은 앞뒤 행과 함께, 표 제목은 머리 행 + 첫 두 행과, 조건 주석은 마지막 행과). 위의 결론 문단과는 묶지 않는다
         self.table(ws, out, totals=[i for i, r in enumerate(tb["rows"], 1) if r["role"] == "total"],
-                   limit=KEEP_KEY if key else 0, tail=key and bool(tb["note"]))
+                   tail=key and bool(tb["note"]), key=key)
         if tb["note"]:
             self.add(self.p(self.inline(tb["note"], italic=True, color=MUTED, size=self.z["body"] - 2), before=60))
 
