@@ -63,9 +63,9 @@ SCHEMA = {
     "head": {"prepared_by": "str(required)", "date": "str(required)", "re": "str(required, subject)", "scope": "str(required)",
              "to": "str(optional, addressee)", "basis": "str(optional: documents relied on and the as-of date of the law)",
              "workings": "str(optional: file name of the accompanying Excel workings)"},
-    "workings_check": "{method: 'export_workbook'|'verify_workbook'|'none', checked: int(amount cells checked against the calculation tools), mismatched: int, "
+    "workings_check": "{method: 'verify_workbook'|'export_workbook'|'none', checked: int(amount cells checked against the calculation tools), mismatched: int, "
                       "unchecked: int(amounts not checked), unchecked_note: str(1-2 sentences: which amounts were not checked), file: str(optional: file name of the copy with the check sheet)} "
-                      "— give it whenever head.workings is set: how the amounts in the Excel workings were checked against korean-tax-calc-mcp. With method='export_workbook' checked and unchecked may be left out. "
+                      "— give it whenever head.workings is set: how the amounts in the Excel workings were checked against korean-tax-calc-mcp. With method='export_workbook' (a statutory form made by export_workbook) checked and unchecked may be left out. "
                       "Copy the counts from the verify_workbook result; this server does not open the workbook",
     "summary": "[{conclusion: str(one sentence, printed bold — the answer, with the amount if any), basis: str(1-2 sentences + at least one [^id])}] — exactly 3",
     "background": "str(optional, one short paragraph)",
@@ -101,13 +101,13 @@ GUIDE["en"] = """[Tax memo — the logic line] The server fixes the order of rea
 [Workflow]
 1. Gather the facts from the user (who pays whom, what for, how much, when, residence, documents held).
 2. Call the tools before writing. Requirements and sources here: the requirement-guide tools (*_guide), find_article, law_article (as_of), tax_treaty, search_tax_rulings, compare_outcomes. Numbers in korean-tax-calc-mcp (find_tool picks the calculator). Take the issues from the requirement-guide results, from the calculators' issue lists (쟁점) and from the user's documents — this guide gives no checklist for any particular transaction. Do not compute or cite from memory.
-3. If an Excel file goes with the memo, finish and check the Excel before you write the memo: make it with export_workbook (korean-tax-calc-mcp), or build it yourself, save it and run verify_workbook on the saved file. Then put the result in workings_check. Cells inside the workbook that compare against numbers you typed in by hand are not a check.
+3. If an Excel file goes with the memo, finish and check the Excel before you write the memo: build the workings workbook yourself (the layout is yours — only the lines the reader's questions need), take the amounts from the korean-tax-calc-mcp calculators, save it and run verify_workbook (korean-tax-calc-mcp) on the saved file to check the amount cells. Then put the result in workings_check. Use export_workbook only when a statutory form (별지 서식) is needed as an Excel file. Cells inside the workbook that compare against numbers you typed in by hand are not a check.
 4. Fill the structure JSON (schema and example below). Run verify_citations on the footnotes.
 5. build_tax_memo(structure) → fix every warning → build again. check_only=true validates without writing.
 Nothing may be asserted that is not in a tool result or in the user's facts; anything else goes under assumptions (facts) or open points (risks).
 [Order of the memo]
 - Head: prepared_by, date, re (subject), scope. Optional lines when known: to (addressee), basis (documents relied on and the as-of date of the law), workings (file name of the Excel workings that go with the memo).
-- workings_check (give it whenever head.workings is set): how the amounts in that workbook were checked against the calculation tools. method = "export_workbook" (the calculation server made the workbook), "verify_workbook" (you built it and ran verify_workbook on the saved file — copy its counts: checked, mismatched, unchecked, plus unchecked_note saying in one or two sentences which amounts were not checked, and file = the copy with the check sheet) or "none" (no check was run). Any mismatch is fixed and the check run again before the memo goes out. Amounts not checked (unchecked > 0, or method "none") are named under limitations, and the memo does not say that all amounts were verified. The server prints one fixed sentence from these counts in the closing "How this memo was prepared" paragraph; it does not open the workbook.
+- workings_check (give it whenever head.workings is set): how the amounts in that workbook were checked against the calculation tools. method = "verify_workbook" (you built the workbook and ran verify_workbook on the saved file — copy its counts: checked, mismatched, unchecked, plus unchecked_note saying in one or two sentences which amounts were not checked, and file = the copy with the check sheet), "export_workbook" (a statutory form made by the calculation server's export_workbook) or "none" (no check was run). Any mismatch is fixed and the check run again before the memo goes out. Amounts not checked (unchecked > 0, or method "none") are named under limitations, and the memo does not say that all amounts were verified. The server prints one fixed sentence from these counts in the closing "How this memo was prepared" paragraph; it does not open the workbook.
 - Executive summary: exactly 3 numbered items. Each = one conclusion sentence (the answer, with the amount if any; printed bold) + one or two sentences of basis + at least one footnote. Answer first; do not narrate how you worked.
 - 1 Question presented: one or two sentences.
 - 2 Short answer: starts with the answer (bold), then the conditions it depends on. Optional key_figures: a numbers table right under the answer — one row label column plus 1 to 3 scenario columns side by side, the total row marked role="total". With two or more scenarios name the one you recommend (recommended = that column's heading) and state in note the condition under which each applies. Every amount in it must also be in the calculation or the analysis.
@@ -139,13 +139,13 @@ GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버
 [작업 순서]
 1. 사용자에게서 사실을 모은다(누가 누구에게, 무엇의 대가로, 얼마를, 언제, 거주지, 갖춘 서류).
 2. 쓰기 전에 도구를 호출한다. 요건·근거는 이 서버: 요건 안내 도구(*_guide), find_article, law_article(as_of), tax_treaty, search_tax_rulings, compare_outcomes. 숫자는 korean-tax-calc-mcp(find_tool로 계산기를 고름). 쟁점은 요건 안내 결과, 계산기가 돌려준 쟁점 목록, 사용자가 준 문서에서 가져온다 — 이 안내에는 특정 거래의 점검 목록이 없다. 기억으로 계산하거나 인용하지 않는다.
-3. 엑셀을 함께 내면 메모를 쓰기 전에 엑셀을 먼저 끝내고 대조한다: export_workbook(korean-tax-calc-mcp)으로 만들거나, 직접 짰으면 저장한 파일에 verify_workbook을 실행한다. 그 결과를 workings_check에 적는다. 통합 문서 안에 손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다.
+3. 엑셀을 함께 내면 메모를 쓰기 전에 엑셀을 먼저 끝내고 대조한다: 계산 근거 통합 문서는 직접 짜고(구성 자유, 읽는 사람의 질문 단위로 필요한 줄만), 금액은 korean-tax-calc-mcp 계산 도구로 얻고, 저장한 파일에 korean-tax-calc-mcp의 verify_workbook을 실행해 금액 칸을 대조한다. 그 결과를 workings_check에 적는다. 법정서식(별지 서식) 엑셀이 필요하면 export_workbook. 통합 문서 안에 손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다.
 4. 구조 JSON을 채운다(아래 schema·example). 각주는 verify_citations로 확인한다.
 5. build_tax_memo(structure) → 경고를 모두 고침 → 다시 만든다. check_only=true면 파일 없이 점검만 한다.
 도구 결과나 사용자가 준 사실에 없는 것은 단정하지 않는다. 그런 내용은 전제(facts)나 확인할 점(risks)에 적는다.
 [메모 순서]
 - 머리: prepared_by(작성), date(일자), re(제목), scope(범위). 알면 선택으로 to(수신), basis(근거 자료와 법령 기준일), workings(함께 가는 엑셀 계산 파일 이름).
-- workings_check(head.workings를 적었으면 함께 적는다): 그 통합 문서의 금액을 계산 도구와 어떻게 대조했는지. method = "export_workbook"(계산 서버가 만든 통합 문서), "verify_workbook"(직접 짜고 저장한 파일에 verify_workbook을 실행함 — 그 결과의 수를 옮긴다: checked 대조한 금액 칸 수, mismatched 불일치 수, unchecked 대조하지 않은 금액 수, unchecked_note 대조하지 않은 금액이 무엇인지 한두 문장, file 검산 시트가 붙은 사본 이름), "none"(대조하지 않음). 불일치가 있으면 고치고 다시 대조한 뒤에 메모를 낸다. 대조하지 않은 금액(unchecked > 0 또는 method "none")은 한계 절에 적고, 메모에 모든 금액을 검증했다고 쓰지 않는다. 서버는 이 수로 정해진 한 문장을 "작성 방법" 문단에 찍을 뿐 통합 문서를 열지 않는다.
+- workings_check(head.workings를 적었으면 함께 적는다): 그 통합 문서의 금액을 계산 도구와 어떻게 대조했는지. method = "verify_workbook"(직접 짜고 저장한 파일에 verify_workbook을 실행함 — 그 결과의 수를 옮긴다: checked 대조한 금액 칸 수, mismatched 불일치 수, unchecked 대조하지 않은 금액 수, unchecked_note 대조하지 않은 금액이 무엇인지 한두 문장, file 검산 시트가 붙은 사본 이름), "export_workbook"(계산 서버의 export_workbook으로 만든 법정서식), "none"(대조하지 않음). 불일치가 있으면 고치고 다시 대조한 뒤에 메모를 낸다. 대조하지 않은 금액(unchecked > 0 또는 method "none")은 한계 절에 적고, 메모에 모든 금액을 검증했다고 쓰지 않는다. 서버는 이 수로 정해진 한 문장을 "작성 방법" 문단에 찍을 뿐 통합 문서를 열지 않는다.
 - 핵심 요약: 번호 붙은 항목 정확히 3개. 항목마다 결론 한 문장(답, 금액이 있으면 포함, 굵게 인쇄) + 근거 한두 문장 + 각주 1개 이상. 답부터 쓰고 작업 과정은 쓰지 않는다.
 - 1 쟁점: 한두 문장.
 - 2 결론: 답(굵게)으로 시작하고, 그 답이 성립하는 조건을 이어 쓴다. 선택 key_figures: 답 바로 아래 숫자 표 — 항목 열 하나와 경우(시나리오) 열 1~3개를 나란히, 합계 행은 role="total". 경우가 둘 이상이면 권고하는 쪽(recommended = 그 열 제목)과 경우마다 성립하는 조건(note)을 적는다. 표의 금액은 모두 계산이나 검토에도 있어야 한다.
@@ -749,12 +749,14 @@ def check(structure, lang="", target_pages=0):
     wc = s["workings_check"]
     if s["head"]["workings"] and not wc:
         W("T14", "workings_check: this memo goes with an Excel workings file (head.workings) — state how its amounts were checked against the calculation tools. "
-                 "If the workbook was made with export_workbook (korean-tax-calc-mcp), set method='export_workbook'. If you built it yourself, run verify_workbook on the saved file now, "
+                 "Run verify_workbook (korean-tax-calc-mcp) on the saved file now, "
                  "then copy its result (the summary counts: checked, matched, mismatched, not checked) into workings_check {method: 'verify_workbook', checked, mismatched, unchecked, unchecked_note, file}. "
+                 "If the file is a statutory form made with export_workbook, set method='export_workbook'. "
                  "Cells inside the workbook that compare against numbers you typed in by hand do not count as a check. If no check was run, set method='none' and say so under limitations",
           "workings_check: 이 메모는 엑셀 계산 파일을 함께 낸다(head.workings) — 그 금액을 계산 도구와 어떻게 대조했는지 적는다. "
-          "export_workbook(korean-tax-calc-mcp)으로 만들었으면 method='export_workbook', 직접 짰으면 저장한 파일에 verify_workbook을 지금 실행한 뒤 "
+          "저장한 파일에 korean-tax-calc-mcp의 verify_workbook을 지금 실행하고 "
           "그 결과(요약의 대조·일치·불일치·대조_안_한_금액)를 workings_check {method: 'verify_workbook', checked, mismatched, unchecked, unchecked_note, file}에 옮긴다. "
+          "법정서식을 export_workbook으로 만든 파일이면 method='export_workbook'. "
           "통합 문서 안에 손으로 옮겨 적은 숫자와 비교한 칸은 대조로 치지 않는다. 대조하지 않았으면 method='none'으로 적고 한계 절에 밝힌다")
     if wc:
         if wc["method"] not in WORKINGS_METHODS:
@@ -834,7 +836,7 @@ RULES = [
     "T13 whatever is marked not verified is collected under limitations (not-verified footnotes cited there)",
     "M26 length: the estimated pages stay within target_pages (default 5); the warning names the longest blocks and the issues over budget",
     "M27 a table is printed once: no calculation scenario that repeats an issue table",
-    "T14 a memo with Excel workings (head.workings) states how the workbook amounts were checked against the calculation tools (workings_check: export_workbook | verify_workbook | none)",
+    "T14 a memo with Excel workings (head.workings) states how the workbook amounts were checked against the calculation tools (workings_check: verify_workbook | export_workbook | none)",
     "T15 workbook amounts not checked (unchecked > 0 or method none) are named under limitations, with unchecked_note",
     "T16 no mismatches left open between the workbook and the calculation tools",
     "T17 method verify_workbook carries the number of amounts checked",

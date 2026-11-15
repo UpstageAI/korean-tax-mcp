@@ -212,7 +212,7 @@ flowchart LR
 | | `compare_outcomes` | 같은 쟁점의 납세자 승·패 결정 나란히 |
 | | `compare_with_case` | 우리 사실관계와 해석·판례 비교(지지·반대·구별) |
 | 세무 메모 (2) | `tax_memo_guide` | 세무 메모·의견서의 따지는 순서(요약 3개 → 쟁점 → 결론 → 사실관계와 전제 → 검토: 구분·과세 여부·세율·조약·절차·관련 세목 → 계산 → 위험 → 다음 단계 → 각주), 구조 스키마, 모양을 보이는 예시(국·영문, 지어낸 사례) |
-| | `build_tax_memo` | 구조를 그 순서에 대어 점검(규칙 47개: 요약 3개·쟁점별 근거 규정/적용/결론·인용, 금액과 계산 표 대조, 합계 검산, 각주 일치, 선택 블록 — 결론 아래 숫자 표·기존 처리 검토 결과·조치 목록 표·한계 등, 엑셀을 함께 내면(`head.workings`) 그 금액을 계산 도구와 대조한 결과(`workings_check` — [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)의 `export_workbook`·`verify_workbook`)가 적혀 있는지와 대조하지 않은 금액이 한계 절에 있는지, 목표 쪽수(`target_pages`, 기본 5쪽)를 넘으면 가장 긴 블록을 짚음)하고 실제 각주가 달린 Word(.docx)로 저장 — 오류면 파일 없음, 경고는 고쳐 다시 만듦 |
+| | `build_tax_memo` | 구조를 그 순서에 대어 점검(규칙 47개: 요약 3개·쟁점별 근거 규정/적용/결론·인용, 금액과 계산 표 대조, 합계 검산, 각주 일치, 선택 블록 — 결론 아래 숫자 표·기존 처리 검토 결과·조치 목록 표·한계 등, 엑셀을 함께 내면(`head.workings`) 그 금액을 계산 도구와 대조한 결과(`workings_check` — [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)의 `verify_workbook`(직접 짠 통합 문서 대조)·`export_workbook`(법정서식))가 적혀 있는지와 대조하지 않은 금액이 한계 절에 있는지, 목표 쪽수(`target_pages`, 기본 5쪽)를 넘으면 가장 긴 블록을 짚음)하고 실제 각주가 달린 Word(.docx)로 저장 — 오류면 파일 없음, 경고는 고쳐 다시 만듦 |
 | 조약·거주자·국내사업장 (6) | `tax_treaty` | 조세조약 96개국 조문(국·영문) |
 | | `treaty_withholding_rates` | 배당·이자·사용료 제한세율 |
 | | `residency_check` | 거주자·비거주자 3단계 판정(규칙) |
