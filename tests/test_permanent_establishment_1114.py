@@ -11,7 +11,7 @@ def J(r):
 
 def test_overview_and_errors():
     r = G.guide()
-    assert len(r["연도별로 달라지는 것"]) == 4 and "세분화 방지" in r["요소"]
+    assert len(r["연도별로 달라지는 것"]) == 5 and "세분화 방지" in r["요소"]
     assert "error" in G.guide(2015) and "error" in G.guide(2027) and "error" in G.guide(2024, taxpayer="법인")
     assert "error" in G.guide(2024, place_types=["공장"]) and "error" in G.guide(2024, service_months_in_12=13)
 
@@ -59,11 +59,11 @@ def test_dependent_agent_by_year():
 
 
 def test_decree_agents_and_individual():
+    # 시행령 제133조·제180조 연도별 문언과 판정은 tests/test_unverified_wp6_law_1115.py(2026-11-15 원문 대조)
     assert "주로 특정 외국법인만" in G.guide(2018)["요소"]["대통령령으로 정하는 자"]
     assert "전적으로 또는 거의 전적으로" in G.guide(2026)["요소"]["대통령령으로 정하는 자"]
-    assert "확인 필요" in J(G.guide(2022, agent_types=["특수관계 외국법인을 위한 독립대리인"]))["대통령령으로 정하는 자"]["근거"]
     r = G.guide(2024, taxpayer="비거주자", agent_types=["자산 상시 보관·배달"])
-    assert J(r)["대통령령으로 정하는 자"]["판정"] == "확인 필요" and "소득세법 제120조" in r["요소"]["고정된 장소"]
+    assert J(r)["대통령령으로 정하는 자"]["판정"] == "국내사업장 있음" and "소득세법 제120조" in r["요소"]["고정된 장소"]
 
 
 def test_liaison_office_and_treaty():
