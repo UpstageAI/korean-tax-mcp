@@ -3,6 +3,14 @@
 대조한 원문(조회일 2026-11-15): 법인세법 제93조 2019.12.31.·2020.1.1.·2026.7.1. 시행본과 부칙 <제16833호> 제8조, 제98조·제98조의6·제98조의7·제120조의2(2026.7.1.),
 부칙 <제21217호, 2025.12.23.> 제13조, 법인세법 시행령 제137조·제138조의7(2026.10.1.), 기본통칙 98-0…2(2024년 고시본), 지방세법 제103조의52(2026.7.1.),
 국제조세조정에 관한 법률 시행령 제36조(2026.2.27.), 한미 조세조약 제1조·제6조·제14조·제17조, 대법원 2025. 9. 18. 선고 2021두59908 전원합의체 판결.
+절차·다른 세목 지급일별 대조(같은 날, 법제처 DRF 시행본 전문 — 2016~2025 각 연말 시행본): 법인세법 제120조의2·제76조제7항(2016.1.25.·2017.1.1.·2018.11.1.)·제75조의7(2019.1.1.~2025.10.1.),
+소득세법 제164조의2·제81조제1항·제81조의11·제128조, 지방세법 제103조의52·제103조의29·제103조의18·제103조의13, 국세기본법 제47조의5, 법인세법 시행령 제132조·제137조·제115조,
+부가가치세법 제52조·제53조, 관세법 제30조·시행령 제19조, 국제조세조정에 관한 법률 구 제4조·제9조·제11조·제7조·제13조·제16조와 시행령 제36조,
+부칙 <법률 제14386호> 제1조 단서·제6조, <제14389호> 제1조 단서·제7조, <제16841호> 제21조, <제17651호> 제2조·제5조, <제19191호> 제2조, <대통령령 제31088호> 제1조, <제33272호> 제2조.
+지급일별 보강(같은 날): 법인세법 제93조·제98조·제98조의4·제98조의6·제98조의7 2015~2025 각 연말 시행본과 부칙 <제14386호> 제7조·제11조, <제16008호>, <제16833호> 제8조·제10조,
+<제19193호> 제14조, <제19930호> 제7조, <제20613호> 제10조 / 소득세법 제119조제10호·제156조제1항·제156조의6·제156조의8과 시행령 제207조의8 2016~2026 각 연말 시행본, 부칙 <제16834호> 제10조 /
+구 국제조세조정에 관한 법률 제29조(2016.1.1.~2020.6.9. 시행본) / 국세기본법 시행령 제27조의4(2019.1.1.·2019.2.12.·2022.2.15.·2026.7.1.) / 법인세법 시행규칙 별지 제72호의2서식·소득세법 시행규칙 별지 제29호의12서식 /
+재정경제부 고시 제2006-21호 / 국제세원관리담당관실-85(2014.3.10.).
 조세조약은 같은 날 국세법령정보시스템 응답에서 필요한 조문만 남긴 fixtures/royalty_treaties.json(미국·베트남)과 fixtures/b_law_treaties.json(일본·싱가포르)을 되돌려 준다.
 베트남은 개정 의정서(2021.1.20.)를 뺀 본문만 넣었다 — 한 항 안의 두 세율이 각자 목 문장을 근거로 갖는지만 본다.
 """
@@ -62,7 +70,7 @@ def g(**kw):
 
 def test_overview_and_errors():
     r = G.guide()
-    assert len(r["요소"]) == 9 and len(r["결정 트리"]) == 7 and len(r["지급일별로 달라지는 것"]) == 4
+    assert len(r["요소"]) == 9 and len(r["결정 트리"]) == 7 and len(r["지급일별로 달라지는 것"]) == 10
     assert len(r["미등록 특허 판례"]["전원합의체 판결"]["변경된 판례"]) == 8
     for bad in (dict(payment_date="2015-12-31"), dict(payment_date="2027-01-01"), dict(payment_date="2026/01/01"),
                 dict(payment_date="2026-01-01", licensed=["영업권"]), dict(payment_date="2026-01-01", recipient_type="조합"),
@@ -105,10 +113,10 @@ def test_copyright_vs_patent():
 
 
 def test_software_rate_stays_unconfirmed():
-    """소프트웨어의 한미 10% 적용 여부는 미확인 — 세율을 정하지 않는다."""
+    """소프트웨어의 한미 10% 적용 여부는 근거 없음(찾아본 곳·날짜와 함께 닫음) — 세율을 정하지 않고 두 결과를 보여 준다."""
     r = g(licensed=["소프트웨어"])
     assert r["결정"]["구분"] == "확인 필요" and len(r["결정"]["가능한 결과"]) == 2
-    assert J(r)["조약 제한세율(소프트웨어)"]["확신도"] == "미확인"
+    assert J(r)["조약 제한세율(소프트웨어)"]["확신도"] == "근거 없음" and "국업46017-54" in J(r)["조약 제한세율(소프트웨어)"]["사유"]
     assert J(r)["소득 구분(소프트웨어)"]["판정"] == "확인 필요"
 
 
@@ -118,7 +126,7 @@ def test_registered_vs_unregistered_patent():
     assert reg["결정"]["구분"] == unreg["결정"]["구분"] == "15%"
     ju = J(unreg)["국내원천"]
     assert ju["판정"] == "국내원천소득" and "2021두59908" in ju["근거"] and "미등록" in ju["사유"] and ju["확신도"] == "확인함"
-    assert "다목 문언을 직접 해석한 대법원 판결은 찾지 못했고(미확인)" in ju["사유"]
+    assert "다목 문언을 직접 해석한 대법원 판결은 근거 없음(국세법령정보시스템 검색, 2026-11-15)" in ju["사유"]
     assert "2021두59908" in " ".join(unreg["결정"]["경로"])
     assert "등록 여부는 결론을 바꾸지 않음" in J(reg)["국내원천"]["사유"]
 
@@ -158,7 +166,7 @@ def test_application_before_or_after_payment():
 def test_refund_claim_paragraph_moved_in_2026():
     j26, j25 = J(g(application_before_payment=False))["절차 — 경정청구"], J(g(payment_date="2025-12-31", application_before_payment=False))["절차 — 경정청구"]
     assert j26["근거"].startswith("법인세법 제98조의6제5항") and "제4항은 신청서 세무서 제출의무" in j26["사유"]
-    assert "제4항(2025.12.31. 이전 시행본)" in j25["근거"] and "제5항" in j25["근거"]
+    assert "제4항(2025.12.31.까지 시행본)" in j25["근거"] and "제5항" in j25["근거"]
     assert "제4항 — 2026.1.1.부터 제5항" in " ".join(g(payment_date="2025-12-31", application_before_payment=False)["결정"]["경로"])
 
 
@@ -214,7 +222,7 @@ def test_pe_sale_and_mixed_contract():
 
 def test_procedure_other_taxes_and_thresholds():
     j = J(g(accrued_unpaid=True))["절차 — 원천징수 시기"]
-    assert j["확신도"] == "유추" and "시행령 제137조" in j["근거"] and "미확인" in j["사유"]
+    assert j["확신도"] == "유추" and "시행령 제137조" in j["근거"] and "settled_by_setoff" in j["사유"] and "미확인" not in j["사유"]
     assert "다음 달 10일" in J(g())["절차 — 원천징수·납부"]["판정"]
     # 국제거래명세서 면제: 무형자산거래 1억원 이하(국조령 제36조) — 1억원은 충족, 1원 넘으면 제출 대상
     assert "1억원 이하 기준은 충족" in J(g(amount_krw=100_000_000))["이전가격"]["사유"]
@@ -232,22 +240,118 @@ def test_deleted_article_not_cited_and_labels_kept():
     r = g(patent_registered_in_korea=False, net_of_tax="법인세+지방소득세", accrued_unpaid=True, amount_krw=100_000_000)
     assert not [p for p in r["판정"] if "제28조" in p["근거"]]
     assert any("제28조는 2018.12.31. 삭제" in x for x in r["한계"])
-    assert {p["확신도"] for p in r["판정"]} <= {"확인함", "유추", "미확인", "자동 추출(조문 확인 필요)"}
+    assert {p["확신도"] for p in r["판정"]} <= {"확인함", "유추", "근거 없음", "자동 추출(조문 확인 필요)"}
     u = r["미등록 특허 판례"]
-    assert [x["확신도"] for x in u["남은 불확실성"]] == ["미확인", "미확인", "유추"]
-    assert u["전원합의체 판결"]["확신도"] == "확인함" and u["후속"][3]["확신도"] == "확인함(요지만)"
-    assert len(r["미확인"]) == 12
+    assert [x["확신도"] for x in u["남은 불확실성"]] == ["근거 없음", "근거 없음", "유추"]
+    assert u["전원합의체 판결"]["확신도"] == "확인함" and u["후속"][3]["확신도"] == "확인함" and "네 건 모두 기각(본문 확인)" in u["후속"][3]["내용"]
+    assert len(r["근거 없음"]) == 6 and len(r["미확인"]) == 4
     names = " ".join(r["다음에 부를 도구"])
     for t in ("nonresident_withholding", "treaty_withholding_rates", "tax_treaty", "tax_memo_guide"):
         assert t in names, t
 
 
-def test_individual_recipient_is_not_decided_under_corporate_tax_act():
+def test_individual_recipient_uses_income_tax_act():
+    """개인(비거주자) 수취인의 사용료는 소득세법 제119조제10호·제156조·제156조의6·제156조의8, 지방세법 제103조의18로 안내."""
     r = g(recipient_type="individual")
     j = J(r)
-    assert j["국내 세율"]["판정"] == "확인 필요" and j["지방소득세"]["판정"] == "확인 필요" and j["절차"]["확신도"] == "미확인"
-    assert r["결정"]["지방소득세율(%)"] == "확인 필요"
-    assert g(recipient_type="개인", application_before_payment=False)["결정"]["구분"] == "확인 필요"
+    assert r["결정"]["구분"] == "15%" and r["결정"]["소득세율(%)"] == 15.0 and r["결정"]["합계(%)"] == 16.5 and "법인세율(%)" not in r["결정"]
+    assert j["국내 세율"]["판정"] == "20%" and j["국내 세율"]["근거"] == "소득세법 제156조제1항제6호"
+    assert "소득세법 제156조의8제1항제1호" in j["지방소득세"]["근거"] and "지방세법 제103조의18제1항" in j["지방소득세"]["근거"]
+    k = "절차 — 제한세율 적용신청서"
+    assert "소득세법 제156조의6" in j[k]["근거"] and "소득세법 시행령 제207조의8" in j[k]["근거"] and "별지 제29호의12서식" in j[k]["근거"]
+    assert "거주지국의 권한 있는 당국이 발급하는 거주자증명서" in j[k]["사유"]
+    assert "소득세법 제119조제10호" in j["국내원천"]["근거"] and "절차" not in j
+    assert not [p for p in r["판정"] if "미대조" in p["근거"] or p["확신도"] == "미확인"]
+    no = g(recipient_type="개인", application_before_payment=False)
+    assert no["결정"]["구분"] == "20%" and no["결정"]["합계(%)"] == 22.0 and "소득세법 제156조의6제3항" in " ".join(no["결정"]["경로"])
+    # 지급일별: 다목 부칙 <제16834호> 제10조, 호 번호 제3호 → 제6호
+    assert "제16834호" in J(g(recipient_type="개인", payment_date="2020-01-01", patent_registered_in_korea=False))["국내원천"]["근거"]
+    assert J(g(recipient_type="개인", payment_date="2018-12-31"))["국내 세율"]["근거"] == "소득세법 제156조제1항제3호"
+    assert J(g(recipient_type="개인", payment_date="2019-01-01"))["국내 세율"]["근거"] == "소득세법 제156조제1항제6호"
+    # 개인의 인적용역은 조약 조항 확인으로 돌린다
+    sv = G.guide(payment_date="2026-06-30", recipient_country="미국", recipient_type="개인", licensed=["용역"], services_performed_in_korea=True)
+    assert sv["결정"]["구분"] == "확인 필요" and len(sv["결정"]["가능한 결과"]) == 3
+
+
+# ── 지급일별 조문(2015~2025 각 연말 시행본 대조) ────────────────────────────
+def test_rate_item_number_before_and_after_2019():
+    """제98조제1항: 2018.12.31.까지 제3호, 2019.1.1. 시행본부터 제6호(법률 제16008호) — 세율 20%는 같다."""
+    b, a = J(g(payment_date="2018-12-31"))["국내 세율"], J(g(payment_date="2019-01-01"))["국내 세율"]
+    assert b["근거"] == "법인세법 제98조제1항제3호" and a["근거"] == "법인세법 제98조제1항제6호"
+    assert b["판정"] == a["판정"] == "20%" and "호 번호만 다름" in b["사유"] and "호 번호만 다름" not in a["사유"]
+    no = dict(application_before_payment=False)
+    assert g(payment_date="2018-12-31", **no)["결정"]["구분"] == g(payment_date="2019-01-01", **no)["결정"]["구분"] == "20%"
+
+
+def test_local_tax_rate_rule_moved_in_2021():
+    """지방소득세 세율 특례: 2020.12.31.까지 국제조세조정에 관한 법률 제29조, 2021.1.1.부터 법인세법 제98조의7 — 결과는 같다."""
+    b, a = g(payment_date="2020-12-31"), g(payment_date="2021-01-01")
+    assert "구 국제조세조정에 관한 법률 제29조제1항제1호" in J(b)["지방소득세"]["근거"] and "제29조" not in J(a)["지방소득세"]["근거"]
+    assert "법인세법 제98조의7제1항제1호" in J(a)["지방소득세"]["근거"] and "제98조의7제1항제1호" in a["결정"]["지방소득세"]
+    assert "제29조제1항제1호" in b["결정"]["지방소득세"] and b["결정"]["합계(%)"] == a["결정"]["합계(%)"] == 16.5
+
+
+def test_refund_claim_period_by_withholding_month():
+    """경정청구: 2018.12. 이전 원천징수분은 말일부터 5년(2016년까지 3년, 부칙 <제14386호> 제7조), 2019.1. 이후는 다음 달 11일부터 5년(부칙 <제19930호> 제7조)."""
+    k = "절차 — 경정청구"
+    j16, j18, j19, j23, j24 = (J(g(payment_date=x, application_before_payment=False))[k]
+                               for x in ("2016-06-30", "2018-12-31", "2019-01-01", "2023-12-31", "2024-01-01"))
+    assert "말일부터 5년 이내(2016.12.31.까지 시행본은 3년" in j16["사유"] and "제14386호 부칙 제7조" in j16["근거"] and j16["사유"] == j18["사유"]
+    assert "다음 달 11일부터 5년" in j19["사유"] and "제19930호 부칙 제7조" in j19["근거"] and "다음 달 11일" not in j18["사유"]
+    assert "'말일부터 5년'" in j23["사유"] and "말일부터" not in j24["사유"]
+    # 세율 오류 정정·후발적 사유 청구는 2020.1.1. 이후 지급분부터(부칙 <제16833호> 제10조)
+    assert "오류가 있거나" not in J(g(payment_date="2019-12-31"))[k]["사유"] and "오류가 있거나" in J(g(payment_date="2020-01-01"))[k]["사유"]
+    for x in ("2016-06-30", "2025-12-31"):
+        assert "제98조의6제4항" in J(g(payment_date=x))[k]["근거"]
+
+
+def test_proof_document_from_2023_applications():
+    """실질귀속자임을 증명하는 서류는 2023.1.1. 이후 신청분부터(부칙 <제19193호> 제14조). 법인용 서식에는 거주자증명서 첨부 문언이 없다."""
+    k = "절차 — 제한세율 적용신청서"
+    b, a = J(g(payment_date="2022-12-31"))[k]["사유"], J(g(payment_date="2023-01-01"))[k]["사유"]
+    assert "제출 서류는 제한세율 적용신청서(실질귀속자임을 증명하는 서류는 2023.1.1. 이후" in b
+    assert "제출 서류는 제한세율 적용신청서와 실질귀속자임을 증명하는 서류" in a and "제19193호 부칙 제14조" in a
+    assert "거주자증명서를 붙이라는 문언이 없음" in a
+
+
+def test_service_rules_by_date():
+    """국외 제공 인적용역 3%는 2017.1.1. 시행(부칙 <제14386호> 제11조), 인적용역의 비과세·면제신청은 2026.1.1. 이후 발생분부터(부칙 <제20613호> 제10조)."""
+    kw = dict(recipient_country="일본", licensed=["용역"], services_performed_in_korea=False)
+    b, a = G.guide(payment_date="2016-12-31", **kw), G.guide(payment_date="2017-01-01", **kw)
+    assert b["결정"]["구분"] == "0%" and b["결정"]["합계(%)"] == 0.0 and J(b)["국내원천(용역)"]["판정"] == "국내원천소득 아님"
+    assert a["결정"]["구분"] == "확인 필요" and any("3%(법인세법 제98조제1항제2호 단서)" in x for x in a["결정"]["가능한 결과"])
+    assert any("제98조제1항제4호 단서" in x for x in G.guide(payment_date="2019-01-01", **kw)["결정"]["가능한 결과"])
+    kw = dict(recipient_country="미국", licensed=["용역"], services_performed_in_korea=True)
+    b, a = G.guide(payment_date="2025-12-31", **kw), G.guide(payment_date="2026-01-01", **kw)
+    assert b["결정"]["구분"] == a["결정"]["구분"] == "20%"
+    assert "신청서 절차가 없음" in " ".join(b["결정"]["전제"]) and "비과세·면제신청서 대상" in " ".join(a["결정"]["전제"])
+    assert "신청 대상에서 제외" in J(b)["국내원천(용역)"]["사유"] and "비과세·면제신청서 대상" in J(a)["국내원천(용역)"]["사유"]
+
+
+def test_labuan_setoff_and_filled_items():
+    """말레이시아 라부안(재정경제부 고시 제2006-21호), 채권 상계(국제세원관리담당관실-85), 가산세 이자율(국세기본법 시행령 제27조의4)."""
+    my = G.guide(payment_date="2026-06-30", recipient_country="말레이시아", licensed=["특허"])
+    jp = G.guide(payment_date="2026-06-30", recipient_country="일본", licensed=["특허"])
+    k = "절차 — 특정지역(라부안)"
+    assert k in J(my) and "제2006-21호" in J(my)[k]["근거"] and "법인세법 제98조의5제1항" in J(my)[k]["근거"] and k not in J(jp)
+    s = J(g(settled_by_setoff=True))["절차 — 원천징수 시기"]
+    assert s["판정"].startswith("상계한 때") and "국제세원관리담당관실-85" in s["근거"] and s["확신도"] == "확인함"
+    assert "절차 — 원천징수 시기" not in J(g()) and "반기별 납부" in J(g())["절차 — 원천징수·납부"]["사유"]
+    p = J(g())["절차 — 미이행 가산세"]["사유"]
+    assert "1일 1만분의 3" in p and "10만분의 25(2019.2.12.~2022.2.14.)" in p and "10만분의 22(2022.2.15. 이후)" in p and "이자율은 미확인" not in p
+    t = J(g(net_of_tax="법인세+지방소득세"))["세금부담 약정"]["사유"]
+    assert "국이22601-403 문서 전체를 확인" in t and "확인하지 못함" not in t
+
+
+def test_closed_items_carry_where_and_when():
+    """근거를 찾지 못한 쟁점은 찾아본 곳·날짜와 '서면질의 필요'를 적어 닫는다. 환송심은 선고되면 다시 본다."""
+    r = g()
+    assert len(r["근거 없음"]) == 6
+    for x in r["근거 없음"]:
+        assert "근거 없음 — " in x and "2026-11-15" in x and "서면질의 필요" in x, x
+    assert "환송심은 선고되면 다시 봄" in r["근거 없음"][0] and "10%와 15% 두 결과" in r["근거 없음"][2]
+    assert not [x for x in r["미확인"] if "이자율" in x or "거주자증명서" in x or "고시 지역" in x or "22601-403" in x or "상계" in x or "원가분담" in x]
+    assert "원가분담약정" in r["결정 트리"][0] and "서면법규과-705" in r["결정 트리"][0]
 
 
 # ── 다른 나라: 조약 조회 결과로 ─────────────────────────────────────────────
@@ -382,6 +486,9 @@ def test_server_tool(treaties):
                                              "beneficial_owner_confirmed": True, "related_party": True})
     assert r["결정"]["구분"] == "15%" and r["결정"]["합계(%)"] == 16.5
     assert "error" in _call("royalty_withholding_guide", {"payment_date": "2030-01-01"})
+    ind = _call("royalty_withholding_guide", {"payment_date": "2026-06-30", "recipient_country": "미국", "recipient_type": "individual", "licensed": ["patent"], "used_in_korea": True,
+                                               "attributable_to_korean_pe": False, "application_before_payment": True, "beneficial_owner_confirmed": True, "settled_by_setoff": True})
+    assert ind["결정"]["소득세율(%)"] == 15.0 and any(p["항목"] == "절차 — 원천징수 시기" and p["판정"].startswith("상계한 때") for p in ind["판정"])
     assert len(_call("royalty_withholding_guide", {})["결정 트리"]) == 7
 
 
@@ -392,3 +499,70 @@ def test_server_tool_without_network(monkeypatch):
     r = _call("royalty_withholding_guide", {"payment_date": "2026-06-30", "recipient_country": "미국", "licensed": ["특허"], "used_in_korea": True,
                                              "application_before_payment": False, "beneficial_owner_confirmed": True})
     assert r["결정"]["구분"] == "20%" and r["조약 조회"].startswith("조회 실패")
+
+
+def test_payment_statement_penalty_rate_by_payment_year():
+    """지급명세서 미제출 가산세: 제출기한이 2018.1.1. 이후 도래하는 분부터 1%(3개월 이내 0.5%) — 법률 제14386호 부칙 제1조 단서·제6조. 그 전은 2%(1%).
+    지급명세서 기한은 지급일 다음 연도 2월 말일이라 2016.12.31. 지급분(기한 2017.2.28.)과 2017.1.1. 지급분(기한 2018.2.28.)이 경계."""
+    b, a = J(g(payment_date="2016-12-31", amount_krw=100_000_000))["절차 — 지급명세서"], J(g(payment_date="2017-01-01", amount_krw=100_000_000))["절차 — 지급명세서"]
+    assert "지급금액의 2%(기한 후 3개월 이내 제출 1%)" in b["사유"] and "2,000,000원(1,000,000원)" in b["사유"]      # 1억원 × 2%, × 1%
+    assert "지급금액의 1%(기한 후 3개월 이내 제출 0.5%)" in a["사유"] and "1,000,000원(500,000원)" in a["사유"]      # 1억원 × 1%, × 0.5%
+    for j in (b, a):
+        assert "제76조제7항제1호" in j["근거"] and "제14386호 부칙 제1조 단서·제6조" in j["근거"] and "제75조의7" not in j["근거"]
+    # 조문 번호: 2018년 지급분(기한 2019.2.28.)부터 제75조의7(2019.1.1. 신설)
+    assert "제76조제7항제1호" in J(g(payment_date="2017-12-31"))["절차 — 지급명세서"]["근거"]
+    j18 = J(g(payment_date="2018-01-01"))["절차 — 지급명세서"]
+    assert "제75조의7제1항제1호가목" in j18["근거"] and "2019.1.1. 전에 개시한 사업연도에는 제76조제7항제1호" in j18["근거"]
+    j26 = J(g())["절차 — 지급명세서"]
+    assert j26["근거"] == "법인세법 제120조의2제1항, 법인세법 제75조의7제1항제1호가목" and "2026년 시행본 기준" not in j26["사유"]
+    # 개인 수취인: 지급자가 개인사업자면 소득세법 제81조제1항 → 2019년 지급분부터 제81조의11
+    i18, i19 = (J(g(payment_date=d, recipient_type="개인"))["절차 — 지급명세서"] for d in ("2018-12-31", "2019-01-01"))
+    assert "소득세법 제81조제1항제1호" in i18["근거"] and "소득세법 제81조의11제1항제1호가목" in i19["근거"]
+    assert "대조하지 않음" not in i18["사유"] + i19["사유"]
+
+
+def test_withholding_penalty_and_local_penalty_by_date():
+    """국세기본법 제47조의5: 3%·10% 한도는 2016~2025 같음, 50% 한도는 2020.1.1. 이후 납세의무 성립분(법률 제16841호 부칙 제21조), 조 제목은 2021.1.1. 변경.
+    지방소득세 가산세 인용 조문은 2017.3.28.부터 지방세기본법 제56조(그 전 제53조의5)."""
+    k = "절차 — 미이행 가산세"
+    b, a = J(g(payment_date="2019-12-31"))[k], J(g(payment_date="2020-01-01"))[k]
+    assert "50% 한도와 납부고지 뒤 기간분은 2020.1.1. 이후 성립분부터" in b["사유"] and "전체는 50% 한도(2020.1.1. 이후 납세의무 성립분" in a["사유"]
+    assert "원천징수납부 등 불성실가산세" in J(g(payment_date="2020-12-31"))[k]["사유"]
+    assert J(g(payment_date="2021-01-01"))[k]["사유"].startswith("원천징수 등 납부지연가산세:")
+    assert J(g(payment_date="2017-03-27"))[k]["근거"].endswith("지방세기본법 제53조의5") and J(g(payment_date="2017-03-28"))[k]["근거"].endswith("지방세기본법 제56조")
+    assert "2026.10.2. 시행본 기준" not in a["사유"]
+
+
+def test_half_yearly_payment_closed_as_no_basis():
+    """반기별 납부: 직접 답한 해석례를 찾지 못해 '근거 없음'으로 닫고 문언과 두 결과를 함께 적는다(법인세법 시행령 제137조제3항·제115조제2항, 소득세법 제128조제2항)."""
+    c, i = J(g())["절차 — 원천징수·납부"], J(g(recipient_type="개인"))["절차 — 원천징수·납부"]
+    assert "시행령 제137조제3항이 제98조 원천징수세액의 납부에 제115조부터 제117조까지를 준용" in c["사유"] and "근거 없음" in c["사유"]
+    assert "제156조 세액은 제외 호에 없음" in i["사유"] and "근거 없음" in i["사유"]
+    for j in (c, i):
+        assert "다음 달 10일' 또는 '승인·지정을 받았으면 반기의 마지막 달의 다음 달 10일'" in j["사유"] and "찾아보지 못함" not in j["사유"]
+    r = g()
+    assert any("반기별" in x and "2026-11-15" in x and "서면질의 필요" in x for x in r["근거 없음"]) and not any("반기별" in x for x in r["미확인"])
+
+
+def test_transfer_pricing_articles_and_statement_exemption_by_year():
+    """국제조세조정에 관한 법률: 2021.1.1. 이후 개시 과세연도부터 제7조·제13조·제16조(그 전 구 제4조·제9조·제11조). 국제거래명세서 금액 면제(5억·1억·1억)는 2023.1.1. 이후 개시 과세연도부터."""
+    k = "이전가격"
+    o, n = J(g(payment_date="2020-12-31", amount_krw=100_000_000))[k], J(g(payment_date="2021-01-01", amount_krw=100_000_000))[k]
+    assert "구 국제조세조정에 관한 법률 제4조·제9조·제11조" in o["근거"] and "법인세 신고기한까지 제출(구 제11조제1항)" in o["사유"] and "출자로 조정(구 제9조)" in o["사유"]
+    assert "국제조세조정에 관한 법률 제7조·제13조·제16조" in n["근거"] and "출자로 조정(제13조)" in n["사유"]
+    for j in (o, n, J(g(payment_date="2022-12-31", amount_krw=100_000_000))[k]):
+        assert "1억원 이하 기준은 충족" not in j["사유"] and "면제 기준" in j["사유"]
+    y23 = J(g(payment_date="2023-01-01", amount_krw=100_000_000))[k]
+    assert "1억원 이하 기준은 충족" in y23["사유"] and "제19191호 부칙 제2조" in y23["사유"] and "2022년에 개시한 과세연도면 금액 면제 없음" in y23["사유"]
+    # 무형자산 거래 우선 적용 방법: 2019.2.12. 구 시행령 제6조의3제4항 신설
+    assert "2019.2.12. 신설" in J(g(payment_date="2019-02-11"))[k]["사유"] and "구 시행령 제6조의3제4항" in J(g(payment_date="2019-02-12"))[k]["근거"]
+    assert J(g(payment_date="2018-06-30", related_party=False))[k]["근거"].startswith("구 국제조세조정에 관한 법률 제4조")
+
+
+def test_customs_paragraph_six_from_2021_and_no_2026_only_note():
+    k = "관세 과세가격"
+    assert "2021.1.1. 시행(대통령령 제31088호)부터" in J(g(payment_date="2020-12-31"))[k]["사유"]
+    assert "수입물품과 관련된 권리사용료만큼만 가산(시행령 제19조제6항, 2021.1.1. 시행" in J(g(payment_date="2021-01-01"))[k]["사유"]
+    r = g(payment_date="2018-06-30")
+    assert "2026년 시행본만 대조한 것" not in r["기준일 주의"] and "현행본만 대조한 것: 법인세법 제98조의5" in r["기준일 주의"]
+    assert not any("2026년 시행본만 대조" in x for x in r["한계"]) and not any("2025년 이전 지급분의 지급명세서" in x for x in r["미확인"])
