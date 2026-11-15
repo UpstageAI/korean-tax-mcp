@@ -126,6 +126,7 @@ def test_contract_date_boundary_codesolar_1114():
         r = V.guide(d, "외화 획득 용역", facts={**base, **f})
         return [x for x in r["판정"] if x["항목"] == "계약일"]
     assert j("2016-09-01", contract_date="2016-08-01") == []
-    assert j("2016-09-01", contract_date="2016-03-01")[0]["판정"] == "확인 필요"
+    # 2016.7.1. 전 계약분은 개정 전 문언(대통령령 제26600호 시행본 — 상호면세 단서 없음)으로 판정(2026-11-15 대조)
+    assert j("2016-09-01", contract_date="2016-03-01")[0]["판정"] == "개정 전 문언"
     assert j("2016-09-01")[0]["판정"] == "확인 필요"
-    assert j("2018-09-01", contract_date="2015-03-01")[0]["판정"] == "확인 필요"
+    assert j("2018-09-01", contract_date="2015-03-01")[0]["판정"] == "개정 전 문언"

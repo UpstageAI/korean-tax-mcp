@@ -85,5 +85,6 @@ def test_unverified_tail_removed_after_2022():
     for cat, f in (("교육", {"registered": True}), ("금융·보험", {"listed_business": True}), ("주택 임대", {"residential": True})):
         r = V.guide("2025-05-01", cat, f)
         assert all("미확인" not in x["사유"] for x in r["판정"]), cat
-    assert "미확인" in V.guide("2025-05-01", "미가공식료품", {"simple_processed": True})["판정"][0]["사유"]   # 별표 1은 남김
-    assert P(V.guide("2025-05-01", "국민주택 공급", {}))["국민주택 공급"] == "확인 필요"
+    # 별표 1과 조세특례제한법 시행령 제106조는 2026-11-15 대조(test_vat_unverified_wp3.py) — 꼬리표 없음
+    assert "미확인" not in V.guide("2025-05-01", "미가공식료품", {"simple_processed": True})["판정"][0]["사유"]
+    assert P(V.guide("2025-05-01", "국민주택 공급", {}))["국민주택 공급"] == "확인 필요"   # supply_kind 입력 필요
