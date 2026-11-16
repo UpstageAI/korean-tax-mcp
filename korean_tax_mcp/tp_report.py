@@ -88,6 +88,17 @@ def _risk_allocation(r, parties):
     return {"위험": name, "부담자": None, "결론": "확인 필요", "경로": trail, "근거": "시행규칙 제10조4호 나목"}
 
 
+def _comparability():
+    """기능 분석 다음에 볼 비교대상 기준 — 거래의 독립성(통칙 8-0…1), 실질 지배 기준(시행령 제2조②), 사분위(통칙 8-15…1)."""
+    from . import transfer_pricing as _tp      # transfer_pricing이 이 모듈을 import하므로 늦게 부른다
+    items = {x["항목"]: x for x in _tp._DATA["비교가능 거래"]["내용"]}
+    return {"거래의 독립성": items["거래의 독립성"], "실질 지배 기준(특수관계)": items["실질 지배 기준(특수관계)"],
+            "정상가격 범위 — 사분위": items["정상가격 범위 — 사분위"],
+            "기능 유사성": "품목·거래단계·마케팅 등 기능이 함께 본질적으로 다르고 이익률에 중대한 영향을 주는데 조정이 없으면 비교가능성이 부정됨(대법원 2012두23341·2024두54065, 수원고법 2023누16871) — 위 기능 분석 결과를 후보별로 대조",
+            "선정 기준값": "transfer_pricing_guide(transaction='재화' 등)의 '비교대상 선정 기준' — 출처(법정·통칙·판례·관행)와 계산 MCP rules·screens로 넘길 값",
+            "관련 결정례": "transfer_pricing_cases(issue='비교대상')"}
+
+
 def far(parties=None, risks=None, facts=None, tested_party=""):
     """parties: {이름: {기능: [...], 자산: [...], 고유무형자산: bool}} / risks: [{위험, 계약상, 손익귀속, 관리통제, 재정능력}] /
     facts: {internal_comparable, tested_resells_to_third_parties, tested_processing_or_manufacturing, tested_bears_inventory, intermediate_goods_or_services,
@@ -100,7 +111,8 @@ def far(parties=None, risks=None, facts=None, tested_party=""):
                           "facts": "{internal_comparable, tested_resells_to_third_parties, tested_processing_or_manufacturing, tested_bears_inventory, intermediate_goods_or_services, asset_intensive, both_unique_intangibles} — 값은 true/false",
                           "tested_party": "분석대상 당사자로 보려는 쪽의 이름(선택)"},
                 "근거": "시행규칙 제6조①·제10조, 시행령 제16조①", "OECD 지침 문단": "1.33-1.39, 1.51-1.55, 1.56-1.106(1.60 여섯 단계)",
-                "보고서 항목": "개별기업보고서 Ⅱ-7(비교가능성 및 기능 분석)"}
+                "보고서 항목": "개별기업보고서 Ⅱ-7(비교가능성 및 기능 분석)",
+                "비교대상 선정": _comparability(), "계산 다음 단계": [dict(x) for x in _COMPARABLE_CALC]}
     if not isinstance(parties, dict) or len(parties) < 2:
         return {"error": "parties — 거래 당사자 둘 이상 {이름: {기능: [..], 자산: [..], 고유무형자산: bool}}"}
     names = list(parties)
@@ -191,32 +203,61 @@ def far(parties=None, risks=None, facts=None, tested_party=""):
         쟁점.append(f"{tp}: 재고 부담 없는 단순 판매로 입력했는데 위험 분석에서는 재고 관련 위험을 부담 — 둘 중 하나를 바로잡아야 영업비용 대비 매출 총이익 지표(시행규칙 제6조③4호)를 쓸 수 있음")
     return {"당사자별 기능·자산·위험": table, "위험 분석": alloc, "분석대상 당사자": tested, "산출방법 적합성": fit,
             **({"거래순이익률 지표": ind} if ind else {}), **({"쟁점": 쟁점} if 쟁점 else {}),
-            "보고서 항목": {"Ⅱ-7": "당사자별 기능·자산·위험, 위험 분석", "Ⅱ-8": "산출방법 적합성, 거래순이익률 지표", "Ⅱ-9": "분석대상 당사자"},
+            "보고서 항목": {"Ⅱ-7": "당사자별 기능·자산·위험, 위험 분석", "Ⅱ-8": "산출방법 적합성, 거래순이익률 지표", "Ⅱ-9": "분석대상 당사자", "Ⅱ-12": "비교대상 선정(독립성·기능 유사성)"},
+            "비교대상 선정": _comparability(), "계산 다음 단계": [dict(x) for x in _COMPARABLE_CALC],
             "근거": "시행규칙 제6조①②③·제10조, 시행령 제14조②③·제16조①", "OECD 지침": {"문단": _tpg.pointers(["기능 분석", "위험 분석", "비교가능성 분석요소"]), "지위": _tpg.STATUS},
             "한계": ["입력한 사실을 조문의 틀로 정리한 것 — 사실 자체가 맞는지, 비교대상과 얼마나 비슷한지는 판단하지 않는다",
                    "'문언상 맞음'은 시행규칙 제6조②의 적합성 평가 문언에 맞는다는 뜻 — 가장 합리적인 방법인지는 시행령 제14조① 다섯 기준(비교가능성, 자료 확보, 가정, 결함의 영향, 적합성)으로 판단",
                    "정상가격을 산출하지 않고 거래가격이 정상가격인지 판정하지 않는다"]}
 
 
+# 비교대상 탐색이 필요할 때 계산 MCP(korean-tax-calc-mcp) 도구를 부르는 순서 — transfer_pricing_guide·far·cases가 같이 쓴다
+_COMPARABLE_CALC = (
+    {"도구": "계산 MCP kr_comparable_candidates", "용도": "1 국내 상장·외감 기업에서 업종·규모로 비교대상 후보 모으기"},
+    {"도구": "계산 MCP kr_comparable_profile_compare", "용도": "2 후보별 매출 구성·재고·유형자산·연구개발·광고 프로필을 분석대상과 비교(제외 후보·사람 확인 표시)"},
+    {"도구": "계산 MCP tp_comparable_screen", "용도": "3 독립성·손실·특수관계 매출 등 선정 기준으로 거르고 탈락 매트릭스·사분위 범위"},
+    {"도구": "계산 MCP arm_length_range", "용도": "4 남은 비교대상 이익률로 정상가격 범위와 조정액"},
+)
+
 _CASES_PATH = os.path.join(os.path.dirname(__file__), "data", "tp_cases.json")
 with open(_CASES_PATH, encoding="utf-8") as _f:
     _CASES = json.load(_f)
 
 
+_OUTCOMES = ("납세자 승", "과세관청 승", "일부", "해석")
+_NTS_LINK = "https://taxlaw.nts.go.kr/qt/USEQTA002P.do?ntstDcmId={}"
+_TT_LINK = "https://www.law.go.kr/LSW/specialDeccInfoP.do?spDeccSeq={}"
+
+
+def _link(i):
+    i = str(i or "")
+    return _TT_LINK.format(i[3:]) if i.startswith("tt:") else (_NTS_LINK.format(i) if i else "")
+
+
+def _with_links(c):
+    c = dict(c)
+    c["링크"] = _link(c.get("id"))
+    if c.get("관련 문서"):
+        c["관련 문서"] = [{**r, "링크": _link(r.get("id"))} for r in c["관련 문서"]]
+    return c
+
+
 def cases(issue="", outcome=""):
-    """쟁점별 이전가격 결정례. issue: 쟁점 이름(일부만 써도 됨), outcome: '납세자 승'·'과세관청 승'·'해석'."""
+    """쟁점별 이전가격 결정례. issue: 쟁점 이름(일부만 써도 됨), outcome: '납세자 승'·'과세관청 승'·'일부'·'해석'."""
     allc = _CASES["쟁점"]
     k = "".join(str(issue or "").split())
     picked = {n: v for n, v in allc.items() if not k or k in "".join(n.split()) or "".join(n.split()) in k or k in "".join(v["설명"].split())}
     if not picked:
         return {"error": f"issue={issue!r} — 쟁점: {list(allc)}"}
-    if outcome and outcome not in ("납세자 승", "과세관청 승", "해석"):
-        return {"error": "outcome — '납세자 승'·'과세관청 승'·'해석'"}
+    if outcome and outcome not in _OUTCOMES:
+        return {"error": "outcome — '납세자 승'·'과세관청 승'·'일부'·'해석'"}
     out = {}
     for n, v in picked.items():
-        rows = [c for c in v["사례"] if not outcome or c["결과"] == outcome]
+        rows = [_with_links(c) for c in v["사례"] if not outcome or c["결과"] == outcome]
         out[n] = {"설명": v["설명"], "사례": rows, "보고서에 반영할 점": v["보고서에 반영할 점"],
-                  "납세자 승": sum(1 for c in v["사례"] if c["결과"] == "납세자 승"), "과세관청 승": sum(1 for c in v["사례"] if c["결과"] == "과세관청 승")}
+                  **{k: sum(1 for c in v["사례"] if c["결과"] == k) for k in _OUTCOMES[:3]}}
     return {"쟁점": out, "쟁점 목록": list(allc), "주의": _CASES["주의"], "확인일": _CASES["확인일"],
             "다음 단계": ["본문은 get_tax_ruling(id) — id가 'tt:'로 시작하면 get_tribunal_decision", "우리 사실관계와의 같고 다름은 compare_with_case",
-                      "같은 쟁점의 다른 결정은 search_tax_rulings(tax='국조')·compare_outcomes"]}
+                      "같은 쟁점의 다른 결정은 search_tax_rulings(tax='국조')·compare_outcomes, 조세심판원 결정은 사건번호로 search_tribunal_decisions(query='2023서9158')",
+                      "비교대상 선정 기준값·출처는 transfer_pricing_guide(transaction='재화')의 '비교대상 선정 기준'"],
+            "계산 다음 단계": [dict(x) for x in _COMPARABLE_CALC]}

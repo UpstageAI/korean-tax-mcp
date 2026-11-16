@@ -68,7 +68,7 @@ def test_tested_party_methods_and_indicators_for_a_distributor():
     assert fit["재판매가격방법"]["적합성"] == "문언상 맞음" and fit["비교가능 제3자 가격방법"]["적합성"] == "문언상 맞지 않음"
     assert fit["원가가산방법"]["적합성"] == "확인 필요" and fit["거래순이익률방법"]["적합성"] == "지표로 판단"
     assert [x["지표"] for x in r["거래순이익률 지표"]] == ["매출액에 대한 거래순이익의 비율", "영업비용에 대한 매출 총이익의 비율"]
-    assert r["보고서 항목"].keys() == {"Ⅱ-7", "Ⅱ-8", "Ⅱ-9"} and any("판정하지 않는다" in s for s in r["한계"])
+    assert r["보고서 항목"].keys() == {"Ⅱ-7", "Ⅱ-8", "Ⅱ-9", "Ⅱ-12"} and any("판정하지 않는다" in s for s in r["한계"])
 
 
 def test_distributor_with_processing_or_own_intangibles():
@@ -106,14 +106,14 @@ def test_tools_registered():
 
 def test_cases_by_issue():
     r = R.cases()
-    assert len(r["쟁점"]) == 9 and r["쟁점 목록"][0] == "입증책임"
+    assert len(r["쟁점"]) == 10 and r["쟁점 목록"][0] == "입증책임" and r["쟁점 목록"][-1] == "비교대상 독립성"
     total = sum(len(v["사례"]) for v in r["쟁점"].values())
-    assert total == 20
+    assert total == 33
     for v in r["쟁점"].values():
         assert v["보고서에 반영할 점"]
         for c in v["사례"]:
             # 2026-11-15 본문 대조 후 '요지'·'제목' 꼬리표 없음(tests/test_unverified_wp6_law_1115.py)
-            assert c["결과"] in ("납세자 승", "과세관청 승", "해석") and c["요지"] and c["읽은 범위"] in ("요지와 판단 부분", "요지와 본문")
+            assert c["결과"] in ("납세자 승", "과세관청 승", "일부", "해석") and c["요지"] and c["읽은 범위"] in ("요지와 판단 부분", "요지와 본문")
     d = R.cases("다년도")["쟁점"]
     assert list(d) == ["다년도 자료"] and d["다년도 자료"]["과세관청 승"] == 3 and any("제9조" in s for s in d["다년도 자료"]["보고서에 반영할 점"])
     w = R.cases("차이 조정", "납세자 승")["쟁점"]["차이 조정"]["사례"]
@@ -124,5 +124,6 @@ def test_cases_by_issue():
 def test_cases_tool():
     f = getattr(S.transfer_pricing_cases, "fn", S.transfer_pricing_cases)
     r = f(issue="비교대상")
-    assert r["쟁점"]["비교대상 선정"]["납세자 승"] == 1 and r["쟁점"]["비교대상 선정"]["과세관청 승"] == 2
+    sel = r["쟁점"]["비교대상 선정"]
+    assert (sel["납세자 승"], sel["과세관청 승"], sel["일부"]) == (7, 3, 2) and "비교대상 독립성" in r["쟁점"]
     assert any("본문" in s for s in r["주의"])

@@ -62,6 +62,10 @@ KEYS = {
     "최종 판정": "final_outcome", "최종 판정 근거": "final_reason", "유사 판례 top3": "similar_cases_top3", "법원": "court",
     "사건번호": "case_no", "선고일": "decision_date", "사건명": "case_name", "결론": "conclusion", "판결요지": "holding",
     "비고": "remarks", "판단이 갈리는 지점·추가 확인 사항": "open_points",
+    # 2026-11-16 조세심판원 사건번호 검색, 이전가격 비교대상 선정 기준
+    "검색 방식": "search_mode", "문서번호 확인": "doc_no_note", "판단 위치": "reasoning_in", "비교대상 선정": "comparable_selection",
+    "비교대상 선정 기준": "comparable_selection_criteria", "넘길 값": "pass_to_calc", "확인 질문": "check_questions", "질문": "question", "역할": "role",
+    "성격": "nature", "근거 강도": "basis_strength", "출처 구분": "source_types", "키": "key", "값": "value", "뜻": "meaning",
 }
 # 키가 데이터(법령 조문명·세목)인 표 — 영어 결과에선 [{이름, 값}] 목록으로 바꿔 키를 영어로 둔다
 DATA_MAPS = {"확인 시행본": ("provision", "effective_date"), "세목별 건수": ("tax", "count")}

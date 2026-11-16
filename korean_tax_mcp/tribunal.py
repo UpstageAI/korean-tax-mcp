@@ -12,6 +12,27 @@ from . import law
 _LAW_LINK = "https://www.law.go.kr/LSW/specialDeccInfoP.do?spDeccSeq={seq}"
 
 _LOCAL_TAX_CODE_RE = re.compile(r"지")
+# 사건번호 형태: '2023서9158', '조심2023서9158', '조심 2023서9158', '조심-2023-서-9158', '국심2006서1465'
+_CASE_NO_RE = re.compile(r"^\s*(?:(조심|국심)\s*-?\s*)?((?:19|20)\d{2})\s*-?\s*([가-힣]{1,2})\s*-?\s*(\d{1,5})\s*$")
+# 일련번호 → 청구번호. 상세 응답(lawService)은 청구번호·사건번호 칸이 비어 오므로 검색 결과에서 기억해 둔다(2026-11-16 확인)
+_BILL: dict[str, str] = {}
+
+
+def case_number(query: str):
+    """사건번호 형태면 (접두어, '2023서9158'), 아니면 None."""
+    m = _CASE_NO_RE.match(query or "")
+    if not m:
+        return None
+    return (m.group(1) or "", f"{m.group(2)}{m.group(3)}{m.group(4)}")
+
+
+def _rows(d: dict) -> list[dict]:
+    """lawSearch 응답의 decc 목록. 결과가 1건이면 법제처가 목록 대신 객체 하나를 보낸다."""
+    decc = d.get("Decc", {}) if isinstance(d, dict) else {}
+    rows = decc.get("decc", []) if isinstance(decc, dict) else []
+    if isinstance(rows, dict):
+        rows = [rows]
+    return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
 def _fmt_date(s: str) -> str:
@@ -27,14 +48,16 @@ def parse_search(d: dict, local_only: bool = False) -> list[dict]:
     - 지방세: 청구번호에 '지'가 들어가면 True (조심 20xx지xxxx).
     - local_only=True면 지방세 True인 항목만.
     """
-    decc = d.get("Decc", {})
-    rows = decc.get("decc", []) if isinstance(decc, dict) else []
     out: list[dict] = []
-    for row in rows:
+    for row in _rows(d):
         seq = (row.get("특별행정심판재결례일련번호") or "").strip()
         if not seq:
             continue
         bill = (row.get("청구번호") or "").strip()
+        if bill:
+            if len(_BILL) > 5000:
+                _BILL.clear()
+            _BILL[seq] = bill
         local = bool(_LOCAL_TAX_CODE_RE.search(bill))
         if local_only and not local:
             continue
@@ -54,6 +77,7 @@ def parse_detail(d: dict) -> dict:
     """ttSpecialDecc lawService 상세 응답을 parsed dict로.
 
     반환: {"구분","문서번호","제목","일자","세목","주문","요지","본문","관련법령","참조결정","id","링크"}
+    - 문서번호: 상세 응답의 청구번호(대개 빈 값 — detail()이 검색 결과로 채운다)
     - 일자: 'SpecialDeccService'.'의결일자'('20260819') → '2026.08.19.'
     - 관련법령: ','로 나눠 strip. 참조결정: '/'로 나눠 strip, 빈 것 제외.
     """
@@ -85,17 +109,30 @@ def parse_detail(d: dict) -> dict:
     }
 
 
-def search(query: str, n: int = 10, sort: str = "최신", local_only: bool = False) -> dict:
-    """조세심판원 재결례 검색. 반환 {"결과": [...], "전체건수": int}."""
+def _search_raw(query: str, n: int, sort: str) -> dict:
     q = urllib.parse.quote(query)
     if sort == "정확도":
         qstr = f"target=ttSpecialDecc&display={n}&page=1&query={q}"
     else:
         qstr = f"target=ttSpecialDecc&display={n}&page=1&sort=ddes&query={q}"
-    d = law._get("lawSearch.do", qstr)
-    decc = d.get("Decc", {})
-    total = int(decc.get("totalCnt") or 0)
-    return {"결과": parse_search(d, local_only=local_only), "전체건수": total}
+    return law._get("lawSearch.do", qstr)
+
+
+def search(query: str, n: int = 10, sort: str = "최신", local_only: bool = False) -> dict:
+    """조세심판원 재결례 검색. 반환 {"결과": [...], "전체건수": int, "검색 방식": "사건번호"|"키워드"}.
+
+    사건번호('2023서9158', '조심2023서9158')를 넣으면 접두어를 떼고 번호로 찾고, 청구번호가 그 번호와 같은 것만 남긴다
+    (같은 번호가 없으면 받은 결과 그대로)."""
+    cn = case_number(query)
+    d = _search_raw(cn[1] if cn else query, n, sort)
+    decc = d.get("Decc", {}) if isinstance(d, dict) else {}
+    total = int((decc.get("totalCnt") if isinstance(decc, dict) else 0) or 0)
+    items = parse_search(d, local_only=local_only)
+    if cn:
+        exact = [x for x in items if (case_number("".join(x["문서번호"].split()).replace("-", "")) or ("", ""))[1] == cn[1]]
+        if exact:
+            items, total = exact, len(exact)
+    return {"결과": items, "전체건수": total, "검색 방식": "사건번호" if cn else "키워드"}
 
 
 def detail(id: str) -> dict:
@@ -104,4 +141,27 @@ def detail(id: str) -> dict:
     if id.startswith("tt:"):
         seq = id[3:]
     d = law._get("lawService.do", f"target=ttSpecialDecc&ID={seq}")
-    return parse_detail(d)
+    out = parse_detail(d)
+    if not out["문서번호"]:
+        out["문서번호"] = _number_for(seq, out["제목"])
+        if not out["문서번호"]:
+            out["문서번호 확인"] = "법제처 상세 응답에 청구번호가 없고 사건명 검색으로도 찾지 못함 — 링크의 결정문 첫머리에서 확인"
+    return out
+
+
+def _number_for(seq: str, title: str) -> str:
+    """상세 응답에 없는 청구번호를 찾는다 — 검색 결과에서 기억한 값, 없으면 사건명 앞부분으로 검색해 일련번호가 같은 행.
+    사건명 전체로는 검색이 안 되는 경우가 있어(2026-11-16 확인: 60자 0건, 40자·20자 1~2건) 40자 → 20자 순으로 찾는다."""
+    if seq in _BILL:
+        return _BILL[seq]
+    t = " ".join((title or "").split())
+    tried = set()
+    for k in (40, 20):
+        q = t[:k]
+        if not q or q in tried:          # 제목이 20자 이하면 두 번 찾지 않음, 21~40자면 20자로도 다시 찾음
+            continue
+        tried.add(q)
+        parse_search(_search_raw(q, 30, "정확도"))
+        if seq in _BILL:
+            return _BILL[seq]
+    return ""

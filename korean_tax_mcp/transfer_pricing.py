@@ -5,6 +5,7 @@ import json
 import os
 
 from . import oecd_tpg as _tpg
+from .tp_report import _COMPARABLE_CALC
 
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "transfer_pricing.json")
 with open(_DATA_PATH, encoding="utf-8") as _f:
@@ -20,13 +21,57 @@ EXCEPTIONS = ("무상이전·채무면제", "무수익자산", "출연금대납"
 _FACT_KEYS = ("internal_comparable", "buyer_resells", "seller_cost_known", "joint_profit")
 _LAW = "국제조세조정에 관한 법률"
 # 금액 계산은 계산 MCP(korean-tax-calc-mcp) — 거래 유형별로 부를 도구
+# 비교대상 기업을 찾아야 하면 kr_comparable_candidates → kr_comparable_profile_compare → tp_comparable_screen → arm_length_range(tp_report._COMPARABLE_CALC)
+_SEARCH = [(x["도구"].removeprefix("계산 MCP "), f"비교대상 탐색 {i}/3 — " + x["용도"].split(" ", 1)[1]) for i, x in enumerate(_COMPARABLE_CALC[:3], 1)]
+_SEARCH[1] = (_SEARCH[1][0], _SEARCH[1][1] + " — rules는 '비교대상 선정 기준'의 넘길 값")
+_SEARCH[2] = (_SEARCH[2][0], _SEARCH[2][1] + " — screens·quartile_method는 '비교대상 선정 기준'의 넘길 값, 남은 비교대상은 arm_length_range로")
 _CALC = {
-    "재화": [("arm_length_range", "비교대상 이익률·가격으로 정상가격 범위(사분위)와 조정액"), ("tp_comparable_screen", "비교대상 기업 후보 선정·탈락 매트릭스")],
-    "용역": [("arm_length_range", "원가가산율 등 정상가격 범위와 조정액"), ("tp_comparable_screen", "비교대상 기업 후보 선정"), ("expat_cost_recharge", "해외 파견 인건비 청구액·가산율")],
+    "재화": _SEARCH + [("arm_length_range", "탐색·선별로 남은(또는 이미 가진) 비교대상 이익률·가격으로 정상가격 범위(사분위)와 조정액")],
+    "용역": _SEARCH + [("arm_length_range", "탐색·선별로 남은(또는 이미 가진) 원가가산율 등 비교대상으로 정상가격 범위와 조정액"), ("expat_cost_recharge", "해외 파견 인건비 청구액·가산율")],
     "금전대차": [("deemed_interest", "국외특수관계인 대여 이자의 정상이자율 적용·세무조정")],
     "지급보증": [("arm_length_range", "보증수수료율 비교대상으로 정상가격 범위와 조정액")],
-    "무형자산": [("arm_length_range", "사용료율 비교대상으로 정상가격 범위와 조정액"), ("tp_comparable_screen", "비교대상 기업 후보 선정")],
+    "무형자산": _SEARCH + [("arm_length_range", "탐색·선별로 남은(또는 이미 가진) 사용료율 비교대상으로 정상가격 범위와 조정액")],
 }
+_USES_COMPANIES = ("재화", "용역", "무형자산")     # 비교대상 '기업' 선정 기준을 보여 줄 거래 유형
+
+
+ROLES = ("판매", "제조", "용역")
+_CMP_KEYS = ("role", "limited_risk", "tested_loss", "economic_crisis")
+_DEFAULT_ROLE = {"용역": "용역"}
+
+
+def selection_criteria(transaction="재화", comparable=None):
+    """비교대상 선정 기준 묶음 — 값마다 성격·출처·기준일·근거 강도, 판례 신호는 확인 질문, 계산 MCP 입력 그대로의 '넘길 값'.
+
+    comparable: {role: 판매|제조|용역, limited_risk, tested_loss, economic_crisis}(값은 true/false, 모두 선택)."""
+    cmp_ = dict(comparable or {})
+    bad = [k for k in cmp_ if k not in _CMP_KEYS]
+    if bad:
+        return {"error": f"comparable의 키 {bad} — 허용 키: {list(_CMP_KEYS)}"}
+    role = cmp_.get("role") or _DEFAULT_ROLE.get(transaction)
+    if role is not None and role not in ROLES:
+        return {"error": f"comparable.role={role!r} — 허용값: {list(ROLES)}"}
+    c = json.loads(json.dumps(_DATA["비교대상 선정 기준"], ensure_ascii=False))
+    note = []
+    if cmp_.get("economic_crisis"):
+        row = next(x for x in c["tp_comparable_screen"] if x["키"] == "crisis_exception")
+        row["값"] = True
+        row["출처"] += " — 입력: 특수한 경제위기 상황을 고려할 필요가 있음"
+    if cmp_.get("tested_loss"):
+        note.append("분석대상도 손실 연도가 있음 — 손실 후보를 일괄로 빼지 말고 손실 원인을 사람이 확인(OECD 지침 3.64-3.65). loss_years로 걸러진 후보는 탈락 사유를 남김")
+    if cmp_.get("limited_risk"):
+        note.append("분석대상이 제한위험 기능 — 자체 마케팅·재고위험을 지는 후보와는 기능 차이를 조정하지 않으면 비교가능성이 부정된 사례가 있음(대법원 2024두54065 소형가전 부문). 광고·연구개발 비율이 높은 후보는 확인 질문으로 대조")
+    if role == "용역":
+        note.append("용역 제공자 — 재고·원재료 비교 항목은 의미가 적을 수 있어 kr_comparable_profile_compare 결과의 재고 판정은 사람이 확인. 지표는 총원가가산율 등(시행령 제8조①3호)")
+    qs = [q for q in c["확인 질문"] if role is None or role in q["역할"]]
+    prof = {x["키"]: x["값"] for x in c["kr_comparable_profile_compare"]}
+    scr = {x["키"]: x["값"] for x in c["tp_comparable_screen"] if x["키"] != "quartile_method"}
+    qm = next(x["값"] for x in c["tp_comparable_screen"] if x["키"] == "quartile_method")
+    out = {**c, "확인 질문": qs, "입력": {"거래 유형": transaction, "역할": role or "판매·제조(지정 안 함)", **{k: v for k, v in cmp_.items() if k != "role"}},
+           "넘길 값": {"kr_comparable_profile_compare": {"rules": prof}, "tp_comparable_screen": {"screens": scr, "quartile_method": qm}}}
+    if note:
+        out["주의"] = note
+    return out
 
 _NEXT = {
     "재화": [("법 제8조", f"law_article(law_name='{_LAW}', article='제8조')"), ("시행령 제14조", f"law_article(law_name='{_LAW} 시행령', article='제14조')")],
@@ -37,7 +82,7 @@ _NEXT = {
 }
 
 
-def guide(transaction, foreign_related=True, exception=None, facts=None, as_of=""):
+def guide(transaction, foreign_related=True, exception=None, facts=None, as_of="", comparable=None):
     if transaction not in TRANSACTIONS:
         return {"error": f"transaction={transaction!r} — 허용값: {list(TRANSACTIONS)}"}
     if exception is not None and exception not in EXCEPTIONS:
@@ -80,6 +125,11 @@ def guide(transaction, foreign_related=True, exception=None, facts=None, as_of="
         out["먼저 볼 방법"] = {"방법": [], "이유": f"{transaction}은 아래 '거래 유형 특칙'을 먼저 본다"}
     out["순서"] = "제1호~제5호 가운데 가장 합리적인 방법을 고르고, 제6호(그 밖의 방법)는 제1호~제5호로 산출할 수 없는 경우에만 적용(법 제8조① 단서)"
     out["비교가능 거래"] = _DATA["비교가능 거래"]
+    if transaction in _USES_COMPANIES:
+        sel = selection_criteria(transaction, comparable)
+        if "error" in sel:
+            return sel
+        out["비교대상 선정 기준"] = sel
     out["선택 기준"] = _DATA["선택 기준"]
     out["적용 절차"] = _DATA["적용 절차"]
     out["거래 유형 특칙"] = _DATA["거래 유형"][transaction]
@@ -88,7 +138,11 @@ def guide(transaction, foreign_related=True, exception=None, facts=None, as_of="
                       "조회": "oecd_tp_guidelines(paragraph='문단 번호 또는 범위') — 국조법령에 규정이 없거나 해석이 갈리는 대목의 논거 자료"}
     out["한계"] = _DATA["한계"]
     out["다음 단계"] = ([{"확인할 조문": t, "호출": c} for t, c in _NEXT[transaction]]
-                    + [{"확인할 것": "관련 해석·결정례", "호출": f"search_tax_rulings(query='정상가격 {transaction} 국외특수관계인', tax='국조')"}])
+                    + [{"확인할 것": "관련 해석·결정례", "호출": f"search_tax_rulings(query='정상가격 {transaction} 국외특수관계인', tax='국조')"}]
+                    + ([{"확인할 것": "비교대상 선정·독립성 결정례", "호출": "transfer_pricing_cases(issue='비교대상')"},
+                        {"확인할 것": "통칙 원문(사분위 8-15…1, 거래의 독립성 8-0…1)", "호출": f"basic_rules(law_name='{_LAW}', keyword='사분위')"},
+                        {"확인할 조문": "시행령 제2조②(실질 지배 기준)", "호출": f"law_article(law_name='{_LAW} 시행령', article='제2조')"}]
+                       if transaction in _USES_COMPANIES else []))
     out["계산 다음 단계"] = [{"도구": f"계산 MCP {n}", "용도": u} for n, u in _CALC[transaction]]
     a = "".join(ch for ch in str(as_of or "") if ch.isdigit())
     if a and a < "20210101":
