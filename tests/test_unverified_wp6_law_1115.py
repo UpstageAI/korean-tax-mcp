@@ -124,11 +124,11 @@ def test_tp_cases_all_read_against_body():
     with open(path, encoding="utf-8") as f:
         d = json.load(f)
     rows = [c for v in d["쟁점"].values() for c in v["사례"]]
-    assert len(rows) == 20 and all(c["id"] for c in rows)
-    assert sum(c["읽은 범위"] == "요지와 판단 부분" for c in rows) == 17 and sum(c["읽은 범위"] == "요지와 본문" for c in rows) == 3
+    assert len(rows) == 33 and all(c["id"] for c in rows)
+    assert sum(c["읽은 범위"] == "요지와 판단 부분" for c in rows) == 30 and sum(c["읽은 범위"] == "요지와 본문" for c in rows) == 3
     tt = next(c for c in rows if c["id"] == "tt:121314")
     assert tt["결과"] == "과세관청 승" and "거래순이익률방법" in tt["요지"]
     assert next(c for c in rows if c["문서번호"] == "대법원-2012-두-1969")["id"] == "000000000000151810"
     assert next(c for c in rows if c["문서번호"] == "조심-2012-중-3014")["id"] == "000000000000163309"
     r = R.cases("차이 조정")
-    assert r["쟁점"]["차이 조정"]["과세관청 승"] == 2 and r["확인일"] == "2026-11-15" and not any("대조하지 않음" in x for x in r["주의"])
+    assert r["쟁점"]["차이 조정"]["과세관청 승"] == 2 and r["확인일"] == "2026-11-16" and not any("대조하지 않음" in x for x in r["주의"])

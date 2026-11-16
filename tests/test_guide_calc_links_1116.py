@@ -7,7 +7,7 @@ from korean_tax_mcp import transfer_pricing as TP
 from korean_tax_mcp import i18n
 
 # 계산 MCP(korean-tax-calc-mcp 0.57.x)에 실제로 있는 도구 이름
-CALC_TOOLS = {"arm_length_range", "tp_comparable_screen", "expat_cost_recharge", "deemed_interest", "startup_tax_reduction",
+CALC_TOOLS = {"arm_length_range", "tp_comparable_screen", "kr_comparable_candidates", "kr_comparable_profile_compare", "expat_cost_recharge", "deemed_interest", "startup_tax_reduction",
               "sme_special_tax_reduction", "loss_carryback_refund", "minimum_tax_adjustment", "rural_special_tax", "sme_status",
               "corporate_tax", "income_tax", "branch_profits_tax", "nonresident_withholding"}
 

@@ -96,7 +96,7 @@ flowchart LR
 2. **해석·판례** — 국세법령정보시스템에서 질의회신·판례·심판례·기본통칙·집행기준을 문서번호·링크로 찾고 본문 전문을 엽니다. 쟁점이 여러 개인 질문은 쟁점마다 따로 검색합니다(`search_rulings_by_issue`). 조세심판원 재결례는 법제처 특별행정심판재결례에서 가져오며(`search_tribunal_decisions`·`get_tribunal_decision`, `LAW_OC` 필요), 취득세·재산세 같은 지방세 질의면 같은 호출에 덧붙입니다. 같은 쟁점의 납세자 승·패 결정을 나란히 보거나(`compare_outcomes`), 내 사실관계와 비교할 수 있습니다(`compare_with_case`).
 3. **그 해 기준** — 세목별 기준일(사업연도 말일, 양도일 등)의 조문·통칙·해석을 모으고 현행과 바뀐 점을 표시합니다. 손익 귀속·공급시기 같은 시기 규칙은 `timing_rules` 표(90건)로 먼저 봅니다.
 4. **요건 안내** — 과세연도·행위일에 따라 요건이 달라지는 제도는 그 해 시행본과 부칙으로 대조한 요건을 항목별로 돌려줍니다. 연구·인력개발비 세액공제(`rnd_credit_requirements_guide`, 2016~2026), 고용증대·통합고용(`employment_credit_requirements_guide`, 2018~2026), 중소기업 조세지원(`sme_tax_incentives_guide`), 소득 종류별 7개(근로·이자·배당·사업·연금·기타·퇴직 — `wage_income_guide` 등, 2016~2026), 1세대 1주택(`one_house_exemption_guide`), 가업상속(`family_business_succession_guide`), 부가 면세·영세율(`vat_exempt_zero_rate_guide`), 명의신탁(`nominee_trust_guide`), 조세범 처벌(`tax_crime_guide`)·범칙조사 절차(`tax_crime_procedure_guide`)가 있습니다. 세액공제 쪽은 직원·비용 목록을 주면 항목마다 대상 여부를 판정합니다. 확인하지 못한 부분은 결과의 '한계'에 적습니다.
-5. **이전가격** — 국외특수관계인 거래에 어느 규정이 적용되는지와 정상가격 산출방법(`transfer_pricing_guide`), 기능·자산·위험 분석(`transfer_pricing_far`), 개별기업보고서 목차 24개 항목(`transfer_pricing_report`), 쟁점 9개의 결정례(`transfer_pricing_cases`), OECD 이전가격지침 문단(`oecd_tp_guidelines`)을 조회합니다. 정상가격을 산출하거나 거래가격이 정상가격인지 판정하지는 않습니다.
+5. **이전가격** — 국외특수관계인 거래에 어느 규정이 적용되는지와 정상가격 산출방법(`transfer_pricing_guide`), 기능·자산·위험 분석(`transfer_pricing_far`), 개별기업보고서 목차 24개 항목(`transfer_pricing_report`), 쟁점 10개의 결정례(`transfer_pricing_cases` — 비교대상 기능 유사성·독립성 포함), OECD 이전가격지침 문단(`oecd_tp_guidelines`)을 조회합니다. 비교대상 선정 기준값은 성격(법정·통칙·관행)·출처·기준일과 함께 계산 MCP 입력 형식으로 넘겨 줍니다. 정상가격을 산출하거나 거래가격이 정상가격인지 판정하지는 않습니다.
 6. **조약·거주자·국내사업장** — 조세조약 96개국의 조문(국·영문)과 배당·이자·사용료 제한세율을 주고, 거주자·비거주자를 3단계 규칙으로 판정합니다(`residency_check`). 국내사업장(고정사업장)은 `permanent_establishment_guide`로 법인세법 제94조·소득세법 제120조 요소별 판정(2016~2026)을 돌려줍니다.
 7. **대조·검증** — 진술·보기를 원문과 글자 단위로 비교해 다른 숫자·단서를 표시하고(`verify_statement`·`judge_options`), 초안 속 문서번호·조문이 실제로 있는지 확인합니다(`verify_citations`).
 
@@ -179,7 +179,7 @@ flowchart LR
 | 해석·판례 (9) | `search_tax_rulings` | 질의회신·판례·심판례 검색 |
 | | `search_rulings_by_issue` | 쟁점이 여러 개인 질문을 쟁점별로 나눠 검색, 쟁점마다 정확도순 + 최근 문서 |
 | | `get_tax_ruling` | 문서 본문 전문 |
-| | `search_tribunal_decisions` | 조세심판원 재결례(특별행정심판재결례) 검색 — 국세·지방세 |
+| | `search_tribunal_decisions` | 조세심판원 재결례(특별행정심판재결례) 검색 — 국세·지방세, 사건번호('2023서9158')로도 |
 | | `get_tribunal_decision` | 조세심판원 재결례 1건 본문 |
 | | `rulings_by_article` | 특정 조문을 인용한 해석·판례 |
 | | `basic_rules` | 국세 기본통칙 전문 |
@@ -203,10 +203,10 @@ flowchart LR
 | | `nominee_trust_guide` | 명의신탁재산 증여의제(상증법 제45조의2) 안내 — 대상 재산, 조세회피목적 추정·반증, 명의개서 해태, 증여시기·평가기준일, 납세의무자(2019.1.1. 이후 실제소유자·명의자 물적납세의무, 2018 이전 취득 해태분 종전), 합산배제, 제척기간, 반복 과세 제한 판례, 법인 연계, 토지·건물은 부동산실명법 안내(2016.1.1. 이후 의제분) |
 | | `tax_crime_guide` | 조세범 처벌법 요건 안내 — 행위일의 시행본으로 적용 조문, 구성요건, 법정형, 금액 기준(제3조제1항 단서, 특정범죄 가중처벌 제8조·제8조의2, 해외금융계좌 50억원), 고발·공소시효·양벌규정(2016.1.1. 이후 행위) |
 | | `tax_crime_procedure_guide` | 조세범칙조사 절차 안내 — 대상 선정(의무 기준), 조세범칙조사심의위원회, 조사, 통고처분·고발·무혐의의 결정 주체와 근거, 즉시 고발·불이행 고발, 통고 기한, 공소시효 중단·정지(2016.1.1. 이후, 날짜별 시행본) |
-| 이전가격 (5) | `transfer_pricing_guide` | 정상가격 산출방법 안내 — 국외특수관계인 거래의 적용 규정(국조법·법인세법 제52조), 산출방법·선택 기준·거래 유형별 특칙 |
+| 이전가격 (5) | `transfer_pricing_guide` | 정상가격 산출방법 안내 — 국외특수관계인 거래의 적용 규정(국조법·법인세법 제52조), 산출방법·선택 기준·거래 유형별 특칙, 비교대상 선정 기준(거래의 독립성·사분위 통칙, 기준값의 성격·출처와 계산 MCP로 넘길 값) |
 | | `transfer_pricing_far` | 기능·자산·위험 분석 — 위험 부담자 결정(시행규칙 제10조), 분석대상 당사자 후보, 산출방법 적합성·이익 지표(제6조) |
 | | `transfer_pricing_report` | 정상가격 검토 보고서 뼈대 — 개별기업보고서(국조칙 별지 제13호) 목차 24개 항목별 작성방법·준비 자료·근거·OECD 지침 문단·결정례 |
-| | `transfer_pricing_cases` | 이전가격 쟁점별 결정례 — 납세자 승·과세관청 승 사례를 쟁점 9개별로 나란히, 보고서에 반영할 점 |
+| | `transfer_pricing_cases` | 이전가격 쟁점별 결정례 — 납세자 승·과세관청 승·일부 사례를 쟁점 10개별로 나란히(비교대상 선정·독립성 포함), 보고서에 반영할 점 |
 | | `oecd_tp_guidelines` | OECD 이전가격지침 2022 문단 조회·검색·국조법령 대응표(본문 1,391개 문단, 영문 원문) |
 | 대조·판정 (5) | `verify_citations` | 초안 속 문서번호·조문이 실제로 있는지 |
 | | `verify_statement` | 한 문장을 원문과 글자 대조 |
@@ -245,7 +245,7 @@ flowchart LR
 | 국세청 「2025 세법해석 사례집」 | 96건 | 패키지에 내장 | `casebook_search` |
 | OECD 이전가격지침 2022 | 본문 1,391개 문단(영문 원문), 국조법령 대응표 | 패키지에 내장 | `oecd_tp_guidelines` |
 | 시기 규칙표 | 납세의무 성립·손익 귀속·수입시기·공급시기 90건 | 패키지에 내장(시행본 대조) | `timing_rules` |
-| 이전가격 안내표 | 산출방법, 개별기업보고서 목차 24항목, 쟁점 9개 결정례 | 패키지에 내장(시행본·서식 원문·결정례 요지 대조) | `transfer_pricing_guide`·`transfer_pricing_far`·`transfer_pricing_report`·`transfer_pricing_cases` |
+| 이전가격 안내표 | 산출방법, 비교대상 선정 기준, 개별기업보고서 목차 24항목, 쟁점 10개 결정례 | 패키지에 내장(시행본·서식 원문·결정례 요지 대조) | `transfer_pricing_guide`·`transfer_pricing_far`·`transfer_pricing_report`·`transfer_pricing_cases` |
 | 조세범 처벌법 규칙 | 2016.1.1. 이후 행위 — 제3조~제22조, 특정범죄 가중처벌 등에 관한 법률 제8조·제8조의2·제16조 | 패키지에 내장(2015.12.29.·2019.1.1.·2021.1.1. 시행본과 2018.12.31. 부칙 대조) | `tax_crime_guide`·`tax_crime_procedure_guide` |
 | 세액공제·감면 요건 규칙 | 연구·인력개발비 2016~2026, 고용 2018~2026, 중소기업 조세지원 | 패키지에 내장(각 연도 시행본·부칙·해석 대조) | `rnd_credit_requirements_guide`·`employment_credit_requirements_guide`·`sme_tax_incentives_guide` |
 | 세목·소득별 요건 규칙 | 소득세법·상증법·부가가치세법·부동산실명법 2016~2026 시행본·부칙 | 패키지에 내장 | `interest_income_guide`·`dividend_income_guide`·`wage_income_guide`·`business_income_guide`·`pension_income_guide`·`other_income_guide`·`retirement_income_guide`·`one_house_exemption_guide`·`family_business_succession_guide`·`vat_exempt_zero_rate_guide`·`nominee_trust_guide` |

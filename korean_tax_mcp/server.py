@@ -232,12 +232,12 @@ def search_rulings_by_issue(
 @mcp.tool(annotations=RO)
 @bilingual
 def search_tribunal_decisions(
-    query: Annotated[str, Field(description="쟁점 키워드. 예: '대도시 법인 설립 5년 이내 부동산 취득 취득세 중과', '등록세 중과'")],
+    query: Annotated[str, Field(description="쟁점 키워드 또는 사건번호. 예: '대도시 법인 설립 5년 이내 부동산 취득 취득세 중과', '등록세 중과', '2023서9158'·'조심2023서9158'(사건번호면 번호로 찾음)")],
     n: Annotated[int, Field(description="결과 수 1~30", ge=1, le=30)] = 10,
     local_only: Annotated[bool, Field(description="True면 지방세(청구번호에 '지'가 들어간 조심) 결정례만")] = False,
     sort: Annotated[Literal["최신", "정확도"], Field(description="최신=의결일자 내림차순(기본), 정확도=검색 점수순")] = "최신",
 ) -> dict:
-    """Search Tax Tribunal decisions, national and local taxes. 조세심판원 재결례(법제처 특별행정심판재결례) — 국세·지방세. 언제: 취득세·재산세 등 지방세 쟁점의 결정례, 또는 조세심판원 결정만 모아 볼 때. 지방세는 local_only=True. 반환: {결과: [{구분, 문서번호, 제목, 일자, id, 링크, 지방세}], 전체건수, 출처, 주의}. 본문은 get_tribunal_decision(id). 읽기 전용. 법제처 DRF(target=ttSpecialDecc) — LAW_OC 필요.
+    """Search Tax Tribunal decisions, national and local taxes. 조세심판원 재결례(법제처 특별행정심판재결례) — 국세·지방세. 언제: 취득세·재산세 등 지방세 쟁점의 결정례, 또는 조세심판원 결정만 모아 볼 때, 사건번호를 알고 결정을 찾을 때. 지방세는 local_only=True. 반환: {결과: [{구분, 문서번호, 제목, 일자, id, 링크, 지방세}], 전체건수, 검색 방식(사건번호|키워드), 출처, 주의}. 본문은 get_tribunal_decision(id). 읽기 전용. 법제처 DRF(target=ttSpecialDecc) — LAW_OC 필요.
     """
     if n < 1 or n > 30:
         return {"error": "n은 1~30"}
@@ -245,7 +245,7 @@ def search_tribunal_decisions(
         return {"error": "sort: 최신 | 정확도"}
     try:
         t = tribunal.search(query, n, sort=sort, local_only=local_only)
-        return {"결과": t["결과"], "전체건수": t["전체건수"],
+        return {"결과": t["결과"], "전체건수": t["전체건수"], "검색 방식": t["검색 방식"],
                 "출처": "법제처 특별행정심판재결례(ttSpecialDecc) — 재결청 조세심판원",
                 "주의": "재결례는 결정 당시 법 기준 — 적용 연도 조문과 대조. 본문은 get_tribunal_decision(id)"}
     except Exception as e:
@@ -259,7 +259,8 @@ def get_tribunal_decision(
 ) -> dict:
     """Get the full text of one Tax Tribunal decision. 조세심판원 재결례 1건의 본문 전문. 문서번호·주문·재결요지·이유·관련법령·참조결정.
     언제: 검색 결과 중 인용·요약할 재결례를 정한 뒤. 요지만으로 판단하지 말고 본문을 읽을 때 사용.
-    반환: {구분, 문서번호, 제목, 일자, 세목, 주문, 요지, 본문, 관련법령, 참조결정, id, 링크, 출처}.
+    반환: {구분, 문서번호, 제목, 일자, 세목, 주문, 요지, 본문, 관련법령, 참조결정, id, 링크, 출처, 문서번호 확인?}.
+      법제처 상세 응답에는 청구번호가 없어 문서번호는 검색 결과(없으면 사건명 검색)로 채운다 — 못 찾으면 빈 값과 '문서번호 확인'.
     읽기 전용. 법제처 DRF target=ttSpecialDecc — LAW_OC 필요.
     """
     try:
@@ -944,17 +945,18 @@ def transfer_pricing_guide(
     exception: Annotated[Literal["무상이전·채무면제", "무수익자산", "출연금대납", "자본거래"] | None, Field(description="국제거래라도 법인세법 제52조를 적용하는 예외 유형(국조령 제4조)에 해당하면 지정 — 자산 무상 이전·채무 면제 / 수익 없는 자산 매입·현물출자·비용 부담 / 출연금 대신 부담 / 자본거래(증자·감자·합병 등)")] = None,
     facts: Annotated[dict | None, Field(description="사실관계(선택, 값은 true/false) — internal_comparable: 특수관계 없는 자와의 같은·유사 거래 가격이 있음 / buyer_resells: 구매자가 특수관계 없는 자에게 다시 판매(해외 판매법인) / seller_cost_known: 제조·판매·용역 제공 원가를 파악할 수 있음 / joint_profit: 양쪽이 함께 이익을 실현하고 공헌도를 나눌 수 있음")] = None,
     as_of: Annotated[str, Field(description="사안 기준일 YYYYMMDD(선택). 표는 2021.1.1. 이후 시행본 기준 — 그 전이면 '기준일 주의'로 알림")] = "",
+    comparable: Annotated[dict | None, Field(description="비교대상 선정 기준을 분석대상에 맞출 때(선택, 재화·용역·무형자산) — role: '판매'|'제조'|'용역'(분석대상 기능, 생략하면 재화·무형자산은 판매·제조 공통, 용역은 용역) / limited_risk: 제한위험 기능 / tested_loss: 분석대상에 영업손실 연도 있음 / economic_crisis: 특수한 경제위기 상황 고려(시행령 제15조제7항 — crisis_exception을 켬). 값은 true/false")] = None,
 ) -> dict:
     """Transfer pricing guide — which rule applies to a related-party transaction, the arm's length methods with statutory basis, selection criteria and transaction-specific rules. It does not compute an arm's length price.
 
     정상가격 산출방법 안내 — 국외특수관계인 거래에 적용할 규정(국조법 정상가격 조정 / 법인세법 제52조), 쓸 수 있는 산출방법과 조문, 선택 기준, 적용 절차, 거래 유형별 특칙, 조정·소득처분.
     언제: 해외 자회사·모회사와의 공급가, 용역 대가, 대여 이자율, 지급보증 수수료, 사용료를 어떤 방법으로 정하고 무엇을 준비해야 하는지 볼 때.
-    반환: {거래 유형, 적용 규정: {적용, 결론, 근거, 예외 유형?}, 산출방법: [{호, 방법, 정의, 맞는 상황, 필요 자료, 근거, 입력 사실?}], 먼저 볼 방법?, 순서, 비교가능 거래(뜻·분석요소·내부 비교가능 거래·이익률 자료의 한계), 선택 기준, 적용 절차, 거래 유형 특칙, 조정·처분, 한계, 다음 단계, 계산 다음 단계(거래 유형별 계산 MCP 도구 — arm_length_range·tp_comparable_screen·deemed_interest 등), 확인 시행본, 기준일 주의?}.
+    반환: {거래 유형, 적용 규정: {적용, 결론, 근거, 예외 유형?}, 산출방법: [{호, 방법, 정의, 맞는 상황, 필요 자료, 근거, 입력 사실?}], 먼저 볼 방법?, 순서, 비교가능 거래(뜻·분석요소·내부 비교가능 거래·이익률 자료의 한계·거래의 독립성(기본통칙 8-0…1, OECD 지침 3.24-3.26)·실질 지배 기준(시행령 제2조제2항)·사분위(기본통칙 8-15…1)), 비교대상 선정 기준?(재화·용역·무형자산 — 기준값마다 성격(법정·법정(준용)·통칙·관행(근거 약함, 바꿀 수 있음))·출처·기준일·근거 강도, 판례 신호(품목·거래단계·마케팅·연도별 판정 등)는 숫자가 아닌 확인 질문, 넘길 값: 계산 MCP tp_comparable_screen의 screens·quartile_method와 kr_comparable_profile_compare의 rules 입력 형식 그대로), 선택 기준, 적용 절차, 거래 유형 특칙, 조정·처분, 한계, 다음 단계, 계산 다음 단계(거래 유형별 계산 MCP 도구 — arm_length_range, 비교대상 탐색이 필요하면 kr_comparable_candidates → kr_comparable_profile_compare → tp_comparable_screen → arm_length_range, deemed_interest 등), 확인 시행본, 기준일 주의?}.
       exception을 주면 법인세법 제52조 적용과 소득처분(시행령 제106조)만 안내. foreign_related=False면 법인세법 제52조 대상이라고만 안내.
     정상가격을 산출하지 않고, 거래가격이 정상가격인지도 판정하지 않는다. '먼저 볼 방법'은 입력한 사실이 법 제8조제1항 각 호의 정의 문언에 맞는 방법일 뿐 — 가장 합리적인 방법은 시행령 제14조 기준으로 비교가능 거래 자료를 놓고 판단.
     읽기 전용. data/transfer_pricing.json 기반(2021·2026 시행본 대조), 외부 호출 없음. 원문은 law_article, 해석·결정례는 search_tax_rulings(tax='국조').
     """
-    return _transfer_pricing.guide(transaction, foreign_related, exception, facts, as_of)
+    return _transfer_pricing.guide(transaction, foreign_related, exception, facts, as_of, comparable)
 
 
 @mcp.tool(annotations=RO)
@@ -1423,7 +1425,9 @@ def transfer_pricing_far(
 
     기능·자산·위험 분석 — 거래 당사자의 사실관계를 시행규칙 제6조·제10조의 틀로 정리. 위험은 계약상 부담자 → 손익의 실제 귀속 → 관리·통제 기능과 재정적 능력 순으로 부담자를 정함(제10조).
     언제: 본사와 해외법인 중 누가 어떤 기능·위험을 지는지 정리해 분석대상 당사자, 산출방법, 이익 지표의 논거를 세울 때(개별기업보고서 Ⅱ-7·Ⅱ-8·Ⅱ-9).
-    반환: parties 없이 부르면 {질문지(비교가능성 일곱 요소별), 위험 분석 순서, 입력 형식}. parties를 주면 {당사자별 기능·자산·위험, 위험 분석: [{위험, 부담자, 결론, 재배분?, 경로}], 분석대상 당사자: {후보, 이유, 근거, OECD 지침 문단}, 산출방법 적합성: [{방법, 적합성, 이유, 근거}], 거래순이익률 지표?, 쟁점?, 보고서 항목, 한계}.
+    반환: parties 없이 부르면 {질문지(비교가능성 일곱 요소별), 위험 분석 순서, 입력 형식, 비교대상 선정, 계산 다음 단계}. parties를 주면 {당사자별 기능·자산·위험, 위험 분석: [{위험, 부담자, 결론, 재배분?, 경로}], 분석대상 당사자: {후보, 이유, 근거, OECD 지침 문단}, 산출방법 적합성: [{방법, 적합성, 이유, 근거}], 거래순이익률 지표?, 쟁점?, 보고서 항목, 비교대상 선정, 계산 다음 단계, 한계}.
+      비교대상 선정: 거래의 독립성(국조법 기본통칙 8-0…1 — 특수관계기업 간 거래 자료는 비교대상거래로 못 씀, OECD 지침 3.24-3.26), 실질 지배 기준(시행령 제2조제2항: 임원 절반·거래 의존 50%·자금 50%·지식재산 50% 등), 사분위(기본통칙 8-15…1: 위치 (n+2)/4·(3n+2)/4, 소수면 관례상 인접 두 값 평균), 기능 유사성 판례.
+      계산 다음 단계: 계산 MCP kr_comparable_candidates → kr_comparable_profile_compare → tp_comparable_screen → arm_length_range.
     '문언상 맞음'은 시행규칙 제6조제2항의 적합성 평가 문언에 맞는다는 뜻일 뿐 — 가장 합리적인 방법은 시행령 제14조제1항 기준으로 판단. 입력한 사실이 맞는지, 정상가격인지는 판정하지 않는다. 읽기 전용, 외부 호출 없음.
     """
     return _tp_report.far(parties, risks, facts, tested_party)
@@ -1432,16 +1436,17 @@ def transfer_pricing_far(
 @mcp.tool(annotations=RO)
 @bilingual
 def transfer_pricing_cases(
-    issue: Annotated[str, Field(description="쟁점(선택, 일부만 써도 됨) — 입증책임·다년도 자료·비교대상 선정·분석대상 당사자·차이 조정·판매·생산 자회사와의 거래·정상이자율·지급보증 수수료·용역 대가. 생략하면 전부")] = "",
-    outcome: Annotated[Literal["납세자 승", "과세관청 승", "해석"] | None, Field(description="결과로 좁히기(선택)")] = None,
+    issue: Annotated[str, Field(description="쟁점(선택, 일부만 써도 됨) — 입증책임·다년도 자료·비교대상 선정·비교대상 독립성·분석대상 당사자·차이 조정·판매·생산 자회사와의 거래·정상이자율·지급보증 수수료·용역 대가. 생략하면 전부")] = "",
+    outcome: Annotated[Literal["납세자 승", "과세관청 승", "일부", "해석"] | None, Field(description="결과로 좁히기(선택) — '일부'는 쟁점·부문별로 판단이 갈린 사건")] = None,
 ) -> dict:
     """Transfer pricing decisions by issue — cases where the taxpayer prevailed and where the assessment was upheld, side by side, with points to reflect in a report.
 
-    이전가격 쟁점별 결정례 — 쟁점 9개에 대해 납세자 주장이 받아들여진 사례와 과세관청 처분이 유지된 사례를 나란히, 보고서에 반영할 점과 함께.
-    언제: 정상가격 검토 보고서에서 회사 논리를 세울 때 같은 쟁점에서 무엇이 통했고 무엇이 통하지 않았는지 확인할 때.
-    반환: {쟁점: {이름: {설명, 사례: [{문서번호, id, 구분, 일자, 결과, 요지, 읽은 범위}], 보고서에 반영할 점, 납세자 승, 과세관청 승}}, 쟁점 목록, 주의, 다음 단계}.
-    요지는 국세법령정보시스템·조세심판원의 요지와 본문 판단 부분을 옮긴 것으로 20건 모두 본문과 대조했다(2026-11-15) — '읽은 범위'가 '요지와 본문'인 질의회신·사전답변 3건은 본문에 회신문이 따로 없어 결론은 요지 기준. 인용 전에 get_tax_ruling(id)로 본문 확인. 대부분 2020년 이전 구법 사안이라 현행 조문과 대조해야 한다.
-    읽기 전용. data/tp_cases.json 기반(2026-11-12 검색, 2026-11-15 본문 대조), 외부 호출 없음.
+    이전가격 쟁점별 결정례 — 쟁점 10개에 대해 납세자 주장이 받아들여진 사례, 과세관청 처분이 유지된 사례, 쟁점·부문별로 갈린 사례를 나란히, 보고서에 반영할 점과 함께.
+    비교대상 선정(품목·거래단계·마케팅 기능 유사성, 정성 선정의 일관성)과 비교대상 독립성(특수관계기업 간 거래 자료, 거래·자금 의존, 임원 겸임) 사례를 따로 모았다.
+    언제: 정상가격 검토 보고서에서 회사 논리를 세울 때 같은 쟁점에서 무엇이 통했고 무엇이 통하지 않았는지 확인할 때, 비교대상 후보를 넣고 뺄 근거를 찾을 때.
+    반환: {쟁점: {이름: {설명, 사례: [{문서번호, id, 구분, 일자, 결과, 요지, 읽은 범위, 링크, 판단 위치?, 관련 문서?: [{문서번호, 일자, id, 비고, 링크}]}], 보고서에 반영할 점, 납세자 승, 과세관청 승, 일부}}, 쟁점 목록, 주의, 다음 단계, 계산 다음 단계}.
+    요지는 국세법령정보시스템·조세심판원의 요지와 본문 판단 부분을 옮긴 것으로 모두 본문과 대조했다(2026-11-15·16) — '읽은 범위'가 '요지와 본문'인 질의회신·사전답변 3건은 본문에 회신문이 따로 없어 결론은 요지 기준. 심리불속행 판결(대법원 2024두64901)은 판단을 '관련 문서'의 원심·1심에서 읽는다. 인용 전에 get_tax_ruling(id)로 본문 확인. 상당수가 2020년 이전 구법 사안이라 현행 조문과 대조해야 한다.
+    읽기 전용. data/tp_cases.json 기반(2026-11-12 검색, 2026-11-15·16 본문 대조), 외부 호출 없음.
     """
     return _tp_report.cases(issue, outcome or "")
 
