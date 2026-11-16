@@ -330,3 +330,16 @@ def test_treaty_rates_point_interest_to_this_tool(look):
     by = {x["소득"]: x for x in r["제한세율"]}
     assert "interest_withholding_guide" in by["이자"]["다음 단계"] and "royalty_withholding_guide" in by["사용료"]["다음 단계"]
     assert "다음 단계" not in by["배당"]
+
+
+def test_treaty_rate_passed_even_when_equal_to_domestic_rate():
+    """조약 제한세율이 국내 세율과 같은 20%여도 대상조세에 지방소득세가 있으면 합계 20%(법인세 20/1.1) — 계산 인자에 treaty_rate·treaty_includes_local_tax를 넘겨야 22%로 계산되지 않음."""
+    fake = lambda c: {"국가": "가상국", "제한세율": [{"소득": "이자", "조문": "제11조", "세율": [{"세율(%)": 20.0, "항": "(2)", "근거": "made-up"}], "요건·기타": []}],
+                      "지방소득세": {"대상조세 포함": True, "근거": "made-up"}}
+    r = G.guide(**{**BASE, "recipient_country": "가상국", "treaty_lookup": fake})
+    assert r["결정"]["구분"] == "20%" and r["결정"]["합계(%)"] == 20.0 and r["결정"]["법인세율(%)"] == 18.1818
+    args = next(s for s in r["계산 다음 단계"] if s["도구"].endswith("nonresident_withholding"))["인자"]
+    assert args["treaty_rate"] == 0.2 and args["treaty_includes_local_tax"] is True
+    # 신청서가 없어 국내 세율로 결정되면 treaty_rate를 넘기지 않음
+    r2 = G.guide(**{**BASE, "recipient_country": "가상국", "treaty_lookup": fake, "application_date": None, "application_before_payment": False})
+    assert "treaty_rate" not in next(s for s in r2["계산 다음 단계"] if s["도구"].endswith("nonresident_withholding"))["인자"]

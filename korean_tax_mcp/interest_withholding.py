@@ -689,7 +689,7 @@ def _guide(payment_date, recipient_country, recipient_type, payment_kind, payer_
         args = {"income_kind": "이자", "amount": "지급액(원)", "recipient_type": "개인" if ind else "법인", "residence_country": cname, "year": d.year}
         if kind == "채권 이자":
             args["bond_interest"] = True
-        if dec.get("구분", "").endswith("%") and dec["구분"] not in ("0%", "14%", "20%") and T.get("세율"):
+        if dec.get("세율 확신도") == AUTO and dec.get("구분", "").endswith("%"):      # 조약 제한세율로 결정된 경우만(국내 세율과 같은 숫자여도 지방소득세 포함 여부가 금액을 바꿈)
             args["treaty_rate"] = round(float(dec["구분"].rstrip("%")) / 100, 6)
             if covered is not None:
                 args["treaty_includes_local_tax"] = bool(covered)
