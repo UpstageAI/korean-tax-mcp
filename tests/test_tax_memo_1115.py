@@ -295,7 +295,7 @@ def _call(name, args):
 def test_tools_registered_after_verify_citations(tmp_path):
     names = [t.name for t in asyncio.run(mcp.list_tools())]
     i = names.index("verify_citations")
-    assert names[i + 1:i + 3] == ["tax_memo_guide", "build_tax_memo"] and len(names) == 52
+    assert names[i + 1:i + 3] == ["tax_memo_guide", "build_tax_memo"] and len(names) == 53
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
     assert tools["tax_memo_guide"].annotations.read_only_hint and not tools["build_tax_memo"].annotations.read_only_hint
     assert not tools["build_tax_memo"].annotations.destructive_hint

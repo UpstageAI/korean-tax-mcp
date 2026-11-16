@@ -538,6 +538,7 @@ def _conditions(rows, art, en):
 _LOCAL_BASIS = " 지방소득세를 징수하는 근거는 지방세법 제103조의52제1항(외국법인 국내원천소득에 대한 법인세 원천징수액의 100분의 10을 법인지방소득세로 특별징수)."
 ROYALTY_NEXT = ("사용료는 royalty_withholding_guide(payment_date, recipient_country, licensed, …)로 소득 구분·국내원천·제한세율 적용 요건·절차를 요소별로 확인 "
                 "— 어느 세율이 적용되는지는 지급 대상(특허·노하우·상표·저작권·소프트웨어)과 신청서 수령 여부에 따라 달라짐")
+INTEREST_NEXT = ("이자는 interest_withholding_guide(payment_date, recipient_country, payment_kind, …)로 국내원천·제한세율 적용 요건(신청서 지급 전 수령·3년)·지방소득세·지급 시점·순액 약정을 요소별로 확인")
 
 
 def withholding_rates(country, income=None):
@@ -563,6 +564,7 @@ def withholding_rates(country, income=None):
         if len({x["세율(%)"] for x in rates}) > 1:
             item["세율 안내"] = "세율이 둘 이상 — 각 세율의 '근거' 문장이 정한 대상(권리·수취인 요건)에 따라 갈림. 항 전체는 tax_treaty(country, article)로 확인"
         if ko == "사용료": item["다음 단계"] = ROYALTY_NEXT
+        if ko == "이자": item["다음 단계"] = INTEREST_NEXT
         out.append(item)
     local = local_tax_coverage(rows)
     local["안내"] = local.get("안내", "") + _LOCAL_BASIS
