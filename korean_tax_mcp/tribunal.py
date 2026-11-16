@@ -129,8 +129,7 @@ def search(query: str, n: int = 10, sort: str = "최신", local_only: bool = Fal
     total = int((decc.get("totalCnt") if isinstance(decc, dict) else 0) or 0)
     items = parse_search(d, local_only=local_only)
     if cn:
-        exact = [x for x in items if "".join(x["문서번호"].split()).replace("-", "").endswith(cn[1])
-                 and not re.search(r"\d" + re.escape(cn[1]) + "$", "".join(x["문서번호"].split()))]
+        exact = [x for x in items if (case_number("".join(x["문서번호"].split()).replace("-", "")) or ("", ""))[1] == cn[1]]
         if exact:
             items, total = exact, len(exact)
     return {"결과": items, "전체건수": total, "검색 방식": "사건번호" if cn else "키워드"}
@@ -156,12 +155,13 @@ def _number_for(seq: str, title: str) -> str:
     if seq in _BILL:
         return _BILL[seq]
     t = " ".join((title or "").split())
+    tried = set()
     for k in (40, 20):
-        if not t:
-            break
-        parse_search(_search_raw(t[:k], 30, "정확도"))
+        q = t[:k]
+        if not q or q in tried:          # 제목이 20자 이하면 두 번 찾지 않음, 21~40자면 20자로도 다시 찾음
+            continue
+        tried.add(q)
+        parse_search(_search_raw(q, 30, "정확도"))
         if seq in _BILL:
             return _BILL[seq]
-        if len(t) <= k:
-            break
     return ""
