@@ -182,7 +182,7 @@ def test_t18_narrow(lang, phrase):
 
 def test_every_new_rule_is_listed_and_covered():
     for code in NEW: assert sum(r.startswith(code) for r in M.RULES) == 1
-    assert len(M.RULES) == 47
+    assert len(M.RULES) == 48
 
 
 def test_block_without_head_workings_is_still_checked():

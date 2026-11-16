@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.19.0 (2026-11-16)
+
+영문 세무 메모에서 Word 교정 언어를 읽는 쪽 철자(미국식·영국식)에 맞춤. 도구 설명 두 곳의 옛 문장을 실제 동작에 맞게 고침. 새 도구 없음(도구 52개). Claude 작성.
+
+- **왜**: `build_tax_memo`가 만든 영문 메모는 교정 언어가 늘 미국 영어(en-US)였다. 영국식 철자로 쓴 메모(licence, authorised …)를 Word에서 열면 맞는 낱말에 빨간 밑줄이 그어졌다.
+- **새 입력 `english`** (`build_tax_memo` 인자, 또는 구조의 `english` 칸): `"US"` | `"GB"`. Word 교정 언어를 en-US·en-GB로 정한다. 인자가 구조의 값보다 앞선다.
+  - 비우면 메모 글의 철자로 판단: 한쪽에서만 쓰는 꼴(licence·honour·centre·programme·-ise / honor·-ize·traveled 등)을 세어 많은 쪽. 신호가 없거나 같으면 en-US.
+  - 세지 않는 것: 양쪽에서 쓰는 꼴(license·program·practice), 기관·법령의 공식 영문 이름에 들어가는 Labor·Center.
+  - 결과에 `english: {proofing_language, basis(given·detected·default), british_words, american_words}`.
+- **새 점검 M28**(규칙 47 → 48개): 영국식과 미국식 철자가 섞여 있으면(적은 쪽이 3개 이상이고 전체의 4분의 1 이상) 한 가지로 맞추라고 알린다. 한두 낱말이 섞인 것은 알리지 않는다.
+- **국문 메모**: 변화 없음(교정 언어 en-US + 동아시아 ko-KR 그대로).
+- **도구 설명 정정**(동작은 그대로)
+  - `other_income_guide`: "종교인소득 필요경비 표는 원문 대조를 못해 계산하지 않는다"는 0.17.0에서 원문 대조를 마친 뒤에도 남아 있던 문장 → 실제대로 "시행령 제87조제3호 표로 계산"으로. amount를 주면 보여 주는 필요경비·기타소득금액은 과세최저한·분리과세 판정에 쓰는 값이고 세액은 계산 MCP 결과를 쓴다는 문장을 넣음.
+  - `nominee_trust_guide`: "부동산실명법 과징금 부과기준은 원문 대조를 못해 계산·안내하지 않는다" → "기준은 안내하되 금액은 계산하지 않는다"(0.15.1에서 별표 대조를 마침).
+- **테스트**: `tests/test_tax_memo_english_1116.py` 10건 — 주어진 값, 철자 판단(영국식·미국식·신호 없음), 세지 않는 낱말, 섞임 경고와 한 낱말 예외, 잘못된 값, 국문 메모, 문서 XML의 `w:lang`·`w:themeFontLang`.
+
 ## 0.18.2 (2026-11-15)
 
 세무 메모(`build_tax_memo`)의 결론 아래 숫자 표(`key_figures`)가 쪽 사이에서 나뉠 수 있게 함. 새 도구 없음(도구 52개). Claude 작성.

@@ -94,7 +94,7 @@ def test_all_blocks_pass_every_rule(tmp_path, lang):
     assert _codes(FULL[lang]) == []
     assert _codes(_blend(M.example(lang), lang)) == []          # 안내가 돌려주는 예시 + 선택 블록 예시도 그대로 통과
     g = M.guide(lang)
-    assert g["optional_blocks"] == M.optional_blocks(lang) and len(g["checks"]) == len(M.RULES) == 47
+    assert g["optional_blocks"] == M.optional_blocks(lang) and len(g["checks"]) == len(M.RULES) == 48
     assert set(g["optional_blocks"]["example"]) == {"head", "workings_check", "key_figures", "analysis_table", "review", "action_list", "limitations", "authorities"}
     for key in ("key_figures", "review", "action_list", "limitations", "authorities"):
         assert key in g["schema"] and key in g["guide"], key

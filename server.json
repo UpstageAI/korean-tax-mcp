@@ -4,12 +4,12 @@
   "title": "Korea Tax Law",
   "description": "Korean tax law: NTS rulings, court cases, treaties, residency, withholding, transfer pricing, expats",
   "repository": { "url": "https://github.com/UpstageAI/korean-tax-mcp", "source": "github" },
-  "version": "0.18.2",
+  "version": "0.19.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "korean-tax-mcp",
-      "version": "0.18.2",
+      "version": "0.19.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         { "name": "LAW_OC", "description": "law.go.kr Open API OC key, free (optional; statute lookup tools such as law_article)", "isRequired": false, "isSecret": true },
