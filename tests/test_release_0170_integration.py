@@ -71,7 +71,7 @@ def test_new_inputs_are_registered_on_the_tools():
 
 def test_every_guide_tool_goes_through_the_wrapper():
     names = [t.name for t in asyncio.run(mcp.list_tools()) if t.name.endswith("_guide") and t.name != "tax_memo_guide"]
-    assert len(names) == 19
+    assert len(names) == 20
     for n in names:
         assert "lang" in (mcp._tool_manager.get_tool(n).parameters or {}).get("properties", {}), n   # bilingual 래퍼를 지난다는 표시
 

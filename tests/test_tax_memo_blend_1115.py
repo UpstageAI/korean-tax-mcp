@@ -346,7 +346,7 @@ def _call(name, args):
 
 def test_descriptions_say_finished_docx_first():
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
-    assert len(tools) == 52
+    assert len(tools) == 53
     g, b = tools["tax_memo_guide"].description, tools["build_tax_memo"].description
     assert g.startswith("Start here whenever the user wants a tax memo, opinion, review note or report as a Word file")
     assert b.startswith("Produces a finished Word (.docx) tax memo file — use this instead of writing your own docx script")
@@ -364,7 +364,7 @@ def test_descriptions_say_finished_docx_first():
 
 def test_every_requirement_guide_points_to_the_memo_tools():
     names = [t.name for t in asyncio.run(mcp.list_tools()) if t.name.endswith("_guide") and t.name != "tax_memo_guide"]
-    assert len(names) == 19
+    assert len(names) == 20
     offline = [n for n in names if n != "transfer_pricing_guide"]          # 필수 인자가 없는 요건 안내는 인자 없이 불러 본다(외부 호출 없음)
     for n in offline:
         r = _call(n, {})
