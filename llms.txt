@@ -52,7 +52,7 @@ Agent builders: Anthropic's BM25 tool search (`tool_search_tool_bm25`) does not 
 
 ## Companion servers
 
-- [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp) (139 tools): computes the amounts (corporate, income, VAT, withholding incl. non-residents, VAT reverse charge, expat cost recharge, foreign subsidiary dividends, foreign tax credit, CFC) and fills statutory forms. `uvx korean-tax-calc-mcp`
+- [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp) (140 tools): computes the amounts (corporate, income, VAT, withholding incl. non-residents, VAT reverse charge, expat cost recharge, foreign subsidiary dividends, foreign tax credit, CFC) and fills statutory forms. `uvx korean-tax-calc-mcp`
 - [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx): turns findings into a Korean government-format report or press release (HWPX). `uvx korean-report-hwpx`
 
 ## Limits

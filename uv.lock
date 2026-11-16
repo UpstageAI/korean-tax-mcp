@@ -373,7 +373,7 @@ wheels = [
 
 [[package]]
 name = "korean-tax-mcp"
-version = "0.12.17"
+version = "0.18.2"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
