@@ -196,4 +196,12 @@ def guide(founded_on="", region="", youth=False, industry="", oem=None, venture_
         out["선택"] = "감면기간 중에는 창업감면과 특별세액감면 중 하나만 선택(제127조제4항). 감면율이 높은 쪽을 고르되 특별세액감면은 한도 1억원이 있음. 창업 감면기간이 끝난 뒤에는 특별세액감면"
     elif startup["해당"] == "대상 아님":
         out["선택"] = "창업감면 대상이 아니면 특별세액감면만 검토"
+    calc = [{"도구": "계산 MCP startup_tax_reduction", "용도": "창업감면 감면율·기간·감면세액"},
+            {"도구": "계산 MCP sme_special_tax_reduction", "용도": "특별세액감면 감면세액(한도 포함)"},
+            {"도구": "계산 MCP loss_carryback_refund", "용도": "결손금 소급공제 환급세액"},
+            {"도구": "계산 MCP minimum_tax_adjustment", "용도": "감면 뒤 최저한세 조정"},
+            {"도구": "계산 MCP rural_special_tax", "용도": "감면세액에 붙는 농어촌특별세"}]
+    if not size:
+        calc.insert(0, {"도구": "계산 MCP sme_status", "용도": "중소기업·소기업 판정(업종별 매출·자산·관계기업)"})
+    out["계산 다음 단계"] = calc
     return {**out, **base}
