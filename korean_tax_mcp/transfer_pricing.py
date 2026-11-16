@@ -26,11 +26,11 @@ _SEARCH = [(x["도구"].removeprefix("계산 MCP "), f"비교대상 탐색 {i}/3
 _SEARCH[1] = (_SEARCH[1][0], _SEARCH[1][1] + " — rules는 '비교대상 선정 기준'의 넘길 값")
 _SEARCH[2] = (_SEARCH[2][0], _SEARCH[2][1] + " — screens·quartile_method는 '비교대상 선정 기준'의 넘길 값, 남은 비교대상은 arm_length_range로")
 _CALC = {
-    "재화": [("arm_length_range", "비교대상 이익률·가격이 있으면 정상가격 범위(사분위)와 조정액")] + _SEARCH,
-    "용역": [("arm_length_range", "원가가산율 등 비교대상이 있으면 정상가격 범위와 조정액")] + _SEARCH + [("expat_cost_recharge", "해외 파견 인건비 청구액·가산율")],
+    "재화": _SEARCH + [("arm_length_range", "탐색·선별로 남은(또는 이미 가진) 비교대상 이익률·가격으로 정상가격 범위(사분위)와 조정액")],
+    "용역": _SEARCH + [("arm_length_range", "탐색·선별로 남은(또는 이미 가진) 원가가산율 등 비교대상으로 정상가격 범위와 조정액"), ("expat_cost_recharge", "해외 파견 인건비 청구액·가산율")],
     "금전대차": [("deemed_interest", "국외특수관계인 대여 이자의 정상이자율 적용·세무조정")],
     "지급보증": [("arm_length_range", "보증수수료율 비교대상으로 정상가격 범위와 조정액")],
-    "무형자산": [("arm_length_range", "사용료율 비교대상이 있으면 정상가격 범위와 조정액")] + _SEARCH,
+    "무형자산": _SEARCH + [("arm_length_range", "탐색·선별로 남은(또는 이미 가진) 사용료율 비교대상으로 정상가격 범위와 조정액")],
 }
 _USES_COMPANIES = ("재화", "용역", "무형자산")     # 비교대상 '기업' 선정 기준을 보여 줄 거래 유형
 

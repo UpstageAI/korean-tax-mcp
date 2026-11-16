@@ -25,7 +25,9 @@ def test_transfer_pricing_every_transaction():
         names = _names(TP.guide(tx))
         assert ("deemed_interest" in names) == (tx == "금전대차")
         if tx != "금전대차":
-            assert names[0] == "arm_length_range"
+            assert "arm_length_range" in names
+            if "tp_comparable_screen" in names:   # 탐색·선별 뒤에 범위 계산
+                assert names.index("tp_comparable_screen") < names.index("arm_length_range")
 
 
 def test_sme_incentives_points_to_reduction_tools():
