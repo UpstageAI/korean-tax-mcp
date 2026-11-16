@@ -126,7 +126,7 @@ flowchart LR
   C --> H
 ```
 
-[korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)는 여기서 찾은 조문·해석을 근거로 세액·한도·판정을 코드로 계산하고(142개 도구), 요약 시트가 붙은 법정서식 엑셀(법인세 별지 서식, 부가가치세 신고서, 원천징수이행상황신고서 등)까지 만듭니다. [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx)는 결과를 기관 서식의 한글(HWPX) 검토서·보고서로 만듭니다. 같이 두면 **근거 찾기 → 계산 → 서식**이 한 대화에서 이어집니다. 조문·판례만 쓰려면 이 서버 하나만 넣어도 됩니다.
+[korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)는 여기서 찾은 조문·해석을 근거로 세액·한도·판정을 코드로 계산하고(141개 도구), 요약 시트가 붙은 법정서식 엑셀(법인세 별지 서식, 부가가치세 신고서, 원천징수이행상황신고서 등)까지 만듭니다. [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx)는 결과를 기관 서식의 한글(HWPX) 검토서·보고서로 만듭니다. 같이 두면 **근거 찾기 → 계산 → 서식**이 한 대화에서 이어집니다. 조문·판례만 쓰려면 이 서버 하나만 넣어도 됩니다.
 
 </details>
 
