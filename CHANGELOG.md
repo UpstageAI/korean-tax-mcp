@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.19.1 (2026-11-16)
+
+요건 안내 도구 3개가 결과에서 짝이 되는 계산 MCP 도구를 가리키게 함. 판정 결과는 그대로, 새 도구 없음(도구 52개). Claude 작성.
+
+- **왜**: 요건 안내 도구 20개 중 이전가격·중소기업 조세지원·국내사업장 안내는 금액 계산을 어느 계산 도구로 이어 갈지 결과에 적지 않았다(다른 안내 도구는 `계산 다음 단계` 또는 문장으로 적음).
+- **결과에 `계산 다음 단계`**: [{도구, 용도}]
+  - `transfer_pricing_guide`: 거래 유형별 — 재화·무형자산·지급보증은 `arm_length_range`(+ 재화·용역·무형자산은 `tp_comparable_screen`), 용역은 `expat_cost_recharge`도, 금전대차는 `deemed_interest`.
+  - `sme_tax_incentives_guide`: `startup_tax_reduction`·`sme_special_tax_reduction`·`loss_carryback_refund`·`minimum_tax_adjustment`·`rural_special_tax`, 규모(size)를 주지 않으면 맨 앞에 `sme_status`.
+  - `permanent_establishment_guide`: 결론이 '있음'이면 `corporate_tax`(개인은 `income_tax`)·`branch_profits_tax`(외국법인), '없음'이면 `nonresident_withholding`, '확인 필요'면 두 갈래를 함께.
+- **영문 결과**(lang="en"): 키 `계산 다음 단계`·`도구`·`용도`·`인자` → `next_calculation`·`tool`·`purpose`·`arguments`(이미 이 키를 쓰던 `nominee_trust_guide`·`other_income_guide`의 영문 결과도 영어 키로 나옴).
+- 세 도구 설명의 '반환'에 `계산 다음 단계` 한 구절.
+- **테스트**: `tests/test_guide_calc_links_1116.py` 4건 — 가리키는 이름이 계산 MCP에 실제로 있는 도구인지, 거래 유형·결론별 목록, 영문 키.
+
 ## 0.19.0 (2026-11-16)
 
 영문 세무 메모에서 Word 교정 언어를 읽는 쪽 철자(미국식·영국식)에 맞춤. 도구 설명 두 곳의 옛 문장을 실제 동작에 맞게 고침. 새 도구 없음(도구 52개). Claude 작성.

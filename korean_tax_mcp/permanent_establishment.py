@@ -328,7 +328,16 @@ def guide(year=None, taxpayer="외국법인", fixed_place=None, place_types=None
         concl = "국내법상 국내사업장 없음(입력 사실 기준)"
     treaty = {"안내": "조세조약이 있으면 조약의 고정사업장 조항(건설 기간, 종속대리인·독립대리인, 예비적·보조적 활동)을 함께 봐야 함 — 국내법과 기간·요건이 다를 수 있고 조약이 우선할 수 있음",
               "다음 단계": f"tax_treaty(country='{treaty_country or '상대국'}', keyword='고정사업장')"}
-    return {"기준 연도": year, "적용 시행본": f"{year}년 연말 시행본 기준({p})", "적용 기준": APPLICATION[taxpayer], "납세자": taxpayer, "결론": concl, "판정": J,
+    if "국내사업장 있음" in concl:
+        calc = [{"도구": "계산 MCP corporate_tax" if taxpayer == "외국법인" else "계산 MCP income_tax", "용도": "국내사업장에 귀속되는 소득의 신고·납부 세액"}]
+        if taxpayer == "외국법인":
+            calc.append({"도구": "계산 MCP branch_profits_tax", "용도": "지점세(조약이 허용하는 경우)"})
+    elif "국내사업장 없음" in concl:
+        calc = [{"도구": "계산 MCP nonresident_withholding", "용도": "국내사업장이 없으면 국내원천소득을 지급할 때 원천징수(소득 종류·조약 세율)"}]
+    else:
+        calc = [{"도구": "계산 MCP nonresident_withholding", "용도": "국내사업장이 없다고 정해지면 — 국내원천소득 원천징수"},
+                {"도구": "계산 MCP branch_profits_tax" if taxpayer == "외국법인" else "계산 MCP income_tax", "용도": "국내사업장이 있다고 정해지면 — " + ("지점세" if taxpayer == "외국법인" else "종합소득 신고")}]
+    return {"기준 연도": year, "적용 시행본": f"{year}년 연말 시행본 기준({p})", "적용 기준": APPLICATION[taxpayer], "납세자": taxpayer, "결론": concl, "판정": J, "계산 다음 단계": calc,
             "확인 필요": check, "요소": _elements(year, taxpayer), "조세조약": treaty,
             "다음 단계": [f"law_article(law_name='{law}', article='{art}', as_of='{year}1231')로 원문 확인",
                        f"article_addenda(law_name='{law}', article='{art}')로 개정 적용례 확인",

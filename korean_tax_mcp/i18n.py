@@ -34,7 +34,7 @@ KEYS = {
     # law_article · find_article
     "원문(한국어)": "original_korean", "목차": "toc", "개요": "outline", "이 조가 속한 곳": "located_in", "같은 곳 조문": "sibling_articles",
     "연결": "links", "상위": "upper", "하위": "lower", "참고(공식표만)": "reference_official_table_only", "항": "paragraph", "구절": "phrase",
-    "확인": "evidence", "다음 단계": "next_step", "적용 기준일": "as_of_date", "기준일 안내": "as_of_note", "다시 조회": "retry_with",
+    "확인": "evidence", "다음 단계": "next_step", "계산 다음 단계": "next_calculation", "도구": "tool", "용도": "purpose", "인자": "arguments", "적용 기준일": "as_of_date", "기준일 안내": "as_of_note", "다시 조회": "retry_with",
     "설명": "explanation", "최근 개정": "recent_amendment", "요청 항": "requested_paragraph", "요청 위치": "requested_location",
     "요청 호": "requested_item", "반환 범위": "scope", "항 목록": "paragraph_list", "항 번호": "paragraph_no", "첫 문장": "first_sentence",
     "길이": "length", "잘린 항": "truncated_paragraph", "생략된 항": "omitted_paragraphs", "읽기 주의": "reading_notes", "종류": "kind",

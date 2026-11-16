@@ -19,6 +19,15 @@ TRANSACTIONS = ("재화", "용역", "금전대차", "지급보증", "무형자�
 EXCEPTIONS = ("무상이전·채무면제", "무수익자산", "출연금대납", "자본거래")
 _FACT_KEYS = ("internal_comparable", "buyer_resells", "seller_cost_known", "joint_profit")
 _LAW = "국제조세조정에 관한 법률"
+# 금액 계산은 계산 MCP(korean-tax-calc-mcp) — 거래 유형별로 부를 도구
+_CALC = {
+    "재화": [("arm_length_range", "비교대상 이익률·가격으로 정상가격 범위(사분위)와 조정액"), ("tp_comparable_screen", "비교대상 기업 후보 선정·탈락 매트릭스")],
+    "용역": [("arm_length_range", "원가가산율 등 정상가격 범위와 조정액"), ("tp_comparable_screen", "비교대상 기업 후보 선정"), ("expat_cost_recharge", "해외 파견 인건비 청구액·가산율")],
+    "금전대차": [("deemed_interest", "국외특수관계인 대여 이자의 정상이자율 적용·세무조정")],
+    "지급보증": [("arm_length_range", "보증수수료율 비교대상으로 정상가격 범위와 조정액")],
+    "무형자산": [("arm_length_range", "사용료율 비교대상으로 정상가격 범위와 조정액"), ("tp_comparable_screen", "비교대상 기업 후보 선정")],
+}
+
 _NEXT = {
     "재화": [("법 제8조", f"law_article(law_name='{_LAW}', article='제8조')"), ("시행령 제14조", f"law_article(law_name='{_LAW} 시행령', article='제14조')")],
     "용역": [("시행령 제12조", f"law_article(law_name='{_LAW} 시행령', article='제12조')")],
@@ -80,6 +89,7 @@ def guide(transaction, foreign_related=True, exception=None, facts=None, as_of="
     out["한계"] = _DATA["한계"]
     out["다음 단계"] = ([{"확인할 조문": t, "호출": c} for t, c in _NEXT[transaction]]
                     + [{"확인할 것": "관련 해석·결정례", "호출": f"search_tax_rulings(query='정상가격 {transaction} 국외특수관계인', tax='국조')"}])
+    out["계산 다음 단계"] = [{"도구": f"계산 MCP {n}", "용도": u} for n, u in _CALC[transaction]]
     a = "".join(ch for ch in str(as_of or "") if ch.isdigit())
     if a and a < "20210101":
         out["기준일 주의"] = (f"기준일 {a} — 2020.12.31.까지는 구 국제조세조정에 관한 법률(정상가격 제4조·산출방법 제5조, 구 시행령)이 적용되어 조문 번호와 일부 내용이 다르다. "
