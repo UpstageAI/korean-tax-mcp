@@ -26,6 +26,7 @@ from . import timing_rules as _timing_rules_data
 from . import transfer_pricing as _transfer_pricing
 from . import oecd_tpg as _oecd_tpg
 from . import tp_report as _tp_report
+from . import tp_review as _tp_review
 from . import sme_incentives as _sme_incentives
 from . import rnd_requirements as _rnd_requirements
 from . import employment_requirements as _employment_requirements
@@ -1451,6 +1452,27 @@ def transfer_pricing_cases(
     읽기 전용. data/tp_cases.json 기반(2026-11-12 검색, 2026-11-15·16 본문 대조), 외부 호출 없음.
     """
     return _tp_report.cases(issue, outcome or "")
+
+
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=False, open_world_hint=True))
+@bilingual
+def tp_comparability_review(
+    tested: Annotated[dict, Field(description="분석대상 — role: 판매|제조|용역, limited_risk: true/false, products: 취급 품목(예: '침구청소기 단일 품목'), channel: 거래단계·채널(예: '국내 도매상에 1차 도매'), description: 기능·위험 설명, 숫자(선택, 비율은 0~1) advert: 광고선전비/매출, rnd: 연구개발비/매출, sales: 매출액, export: 수출 비중, inv: 재고/매출")],
+    candidates: Annotated[list[dict], Field(description="비교대상 후보(최대 20개) — [{name, description: 사업보고서 '사업의 개요'·감사보고서 회사 개요 원문, sales_lines: 매출 구성 행 이름 목록, 숫자(선택) advert, rnd, related_sales: 특수관계 매출 비중, related_purchase: 특수관계 매입 비중, sales, export, inv}]. 계산 MCP kr_comparable_profile_compare 결과의 비율을 그대로 옮겨도 됨")],
+    judgments: Annotated[dict | None, Field(description="사용자 AI가 채운 문장 신호 판정(host_ai 2단계) — 1단계 결과의 '판정 형식' 그대로 {판정: [{후보, 신호, 판정, 이유, 근거 문장, 확신도}]}. 주면 근거 문장을 원문과 대조하고 권고를 붙임")] = None,
+    rules: Annotated[dict | None, Field(description="숫자 신호 기준값 바꾸기(선택) — advert_abs_tol, rnd_abs_tol, related_review, size_ratio, export_abs_tol, ratio_low, ratio_high. 모두 관행 기본값이며 법령 숫자가 아님")] = None,
+    decisions: Annotated[list[dict] | None, Field(description="사람이 제외로 확정한 후보와 사유(선택) — [{name, reason}]. 같은 사유가 남긴 후보 설명에도 있는지 대조(정성 선정 일관성)")] = None,
+) -> dict:
+    """Comparability review of transfer pricing comparables — AI judges each functional-similarity signal (products, trade level, marketing, R&D, related-party share, size, segments, inventory) with quoted evidence, the tool checks quotes against the source text and recommends include / human review / exclude with the deciding case law. People approve or amend.
+
+    이전가격 비교대상 후보의 기능 유사성 AI 권고 — 후보마다 판례 신호(R1 품목, R2 거래단계·채널, R3 마케팅, R4 연구개발·무형자산, R5 특수관계 거래 비중, R7 규모, R8 수출 비중, R12 사업부문 혼재, R14 재고 비율)를 판정하고, 판정마다 이유·근거 원문 문장·확신도·판례·볼 포인트를 붙여 포함 / 사람 확인 / 제외 후보로 권고한다. 사람은 승인·수정만 한다.
+    언제: 계산 MCP kr_comparable_candidates·kr_comparable_profile_compare로 후보를 모은 뒤, 어느 후보를 남기고 뺄지 판례 근거와 함께 정리할 때. 정상가격 검토 보고서의 정성 선정 단계.
+    판정: 숫자 신호는 양쪽 숫자가 있으면 도구가 기준값(관행 기본값, rules로 바꿈)으로 판정. 문장 신호는 Solar 설정이 있으면 Solar, 없으면 사용자 AI(mode='host_ai' — 1단계에서 판정할 신호·원문·형식을 받고, 판정을 judgments로 넣어 다시 부름).
+    검증: AI가 낸 근거 문장이 입력 원문에 그대로 없으면 그 판정을 '불명'으로 낮춘다. 권고는 규칙 — 핵심 신호(품목·거래단계·마케팅·연구개발) 둘 이상이 다르면 제외 후보(대법원 2012두23341, 수원고법 2023누16871), 하나라도 다르면 사람 확인, 핵심 신호 가운데 불명이 3개 이상(역할상 핵심 신호가 3개 미만이면 모두 불명)이면 사람 확인.
+    반환: {입력, 신호 설명, 기준값, mode, 판정 주체, 집계, 후보별 권고: [{후보, 권고, 이유, 확신도, 신호: [{신호, 이름, 판정, 이유, 근거 문장?, 원문 확인?, 확신도?, 판정 주체, 조정 가능, 판례?, 볼 포인트?}], 사람이 볼 것}], 묶음 검사(표본 수·정성 선정 일관성·연도), 승인 안내, 계산 다음 단계, 주의, AI 생성 표시?}. host_ai 1단계는 {판정할 신호, 숫자 판정(도구), 후보 원문, 판정 형식, 판단 안내}.
+    정상가격이나 비교가능성을 확정하지 않는다. 판례는 transfer_pricing_cases와 같은 본문 대조분. Solar 설정 시 후보 설명이 Solar로 전송된다(온프렘 Solar면 망 밖으로 나가지 않음).
+    """
+    return _tp_review.review(tested, candidates, judgments, rules, decisions)
 
 
 @mcp.tool(annotations=RO)

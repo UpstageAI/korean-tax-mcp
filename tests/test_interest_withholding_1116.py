@@ -310,7 +310,7 @@ def test_beneficial_owner_facts_are_not_judged(look):
 def test_server_tool_and_english_keys(look):
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
     names = list(tools)
-    assert len(names) == 53 and names.index("interest_withholding_guide") == names.index("royalty_withholding_guide") + 1
+    assert len(names) == 54 and names.index("interest_withholding_guide") == names.index("royalty_withholding_guide") + 1
     t = tools["interest_withholding_guide"]
     assert t.annotations.read_only_hint and t.description.startswith("Requirement guide for withholding on interest paid from Korea")
     assert "interest_withholding_guide" in tools["royalty_withholding_guide"].description

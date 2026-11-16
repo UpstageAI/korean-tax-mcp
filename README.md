@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/UpstageAI/korean-tax-mcp/blob/main/LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README-EN.md)
 
-세법 쟁점을 AI에 물으면 **그 시점에 시행 중이던 조문과 국세청 해석·판례·조세심판원 재결례를 문서번호·링크와 함께** 가져오는 MCP 서버입니다(도구 53개 — 52개는 읽기 전용, `build_tax_memo`만 Word 파일 하나를 저장). 기준일 시행본·부칙·별표, 국세 기본통칙·집행기준, 조세조약 96개국과 제한세율, 거주자 3단계 판정과 국내사업장(PE) 판정, 이전가격, 과세연도별 요건 안내 17개(세액공제·감면·소득 종류별·1세대 1주택·가업상속·부가 면세·명의신탁·조세범)를 다룹니다. 모든 도구는 `lang="en"`으로 영어 결과를 돌려줍니다. 금액 계산과 법정서식은 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(도구 142개)가 맡습니다.
+세법 쟁점을 AI에 물으면 **그 시점에 시행 중이던 조문과 국세청 해석·판례·조세심판원 재결례를 문서번호·링크와 함께** 가져오는 MCP 서버입니다(도구 54개 — 53개는 읽기 전용, `build_tax_memo`만 Word 파일 하나를 저장). 기준일 시행본·부칙·별표, 국세 기본통칙·집행기준, 조세조약 96개국과 제한세율, 거주자 3단계 판정과 국내사업장(PE) 판정, 이전가격, 과세연도별 요건 안내 17개(세액공제·감면·소득 종류별·1세대 1주택·가업상속·부가 면세·명의신탁·조세범)를 다룹니다. 모든 도구는 `lang="en"`으로 영어 결과를 돌려줍니다. 금액 계산과 법정서식은 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(도구 141개)가 맡습니다.
 
 ![데모: 사실관계 입력 → 쟁점별 법리(특수관계인·사택 제공 예외·부당행위계산) → 유사 심판례 → 한글(HWPX) 검토서 초안](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
@@ -96,7 +96,7 @@ flowchart LR
 2. **해석·판례** — 국세법령정보시스템에서 질의회신·판례·심판례·기본통칙·집행기준을 문서번호·링크로 찾고 본문 전문을 엽니다. 쟁점이 여러 개인 질문은 쟁점마다 따로 검색합니다(`search_rulings_by_issue`). 조세심판원 재결례는 법제처 특별행정심판재결례에서 가져오며(`search_tribunal_decisions`·`get_tribunal_decision`, `LAW_OC` 필요), 취득세·재산세 같은 지방세 질의면 같은 호출에 덧붙입니다. 같은 쟁점의 납세자 승·패 결정을 나란히 보거나(`compare_outcomes`), 내 사실관계와 비교할 수 있습니다(`compare_with_case`).
 3. **그 해 기준** — 세목별 기준일(사업연도 말일, 양도일 등)의 조문·통칙·해석을 모으고 현행과 바뀐 점을 표시합니다. 손익 귀속·공급시기 같은 시기 규칙은 `timing_rules` 표(90건)로 먼저 봅니다.
 4. **요건 안내** — 과세연도·행위일에 따라 요건이 달라지는 제도는 그 해 시행본과 부칙으로 대조한 요건을 항목별로 돌려줍니다. 연구·인력개발비 세액공제(`rnd_credit_requirements_guide`, 2016~2026), 고용증대·통합고용(`employment_credit_requirements_guide`, 2018~2026), 중소기업 조세지원(`sme_tax_incentives_guide`), 소득 종류별 7개(근로·이자·배당·사업·연금·기타·퇴직 — `wage_income_guide` 등, 2016~2026), 1세대 1주택(`one_house_exemption_guide`), 가업상속(`family_business_succession_guide`), 부가 면세·영세율(`vat_exempt_zero_rate_guide`), 명의신탁(`nominee_trust_guide`), 조세범 처벌(`tax_crime_guide`)·범칙조사 절차(`tax_crime_procedure_guide`)가 있습니다. 세액공제 쪽은 직원·비용 목록을 주면 항목마다 대상 여부를 판정합니다. 확인하지 못한 부분은 결과의 '한계'에 적습니다.
-5. **이전가격** — 국외특수관계인 거래에 어느 규정이 적용되는지와 정상가격 산출방법(`transfer_pricing_guide`), 기능·자산·위험 분석(`transfer_pricing_far`), 개별기업보고서 목차 24개 항목(`transfer_pricing_report`), 쟁점 10개의 결정례(`transfer_pricing_cases` — 비교대상 기능 유사성·독립성 포함), OECD 이전가격지침 문단(`oecd_tp_guidelines`)을 조회합니다. 비교대상 선정 기준값은 성격(법정·통칙·관행)·출처·기준일과 함께 계산 MCP 입력 형식으로 넘겨 줍니다. 정상가격을 산출하거나 거래가격이 정상가격인지 판정하지는 않습니다.
+5. **이전가격** — 국외특수관계인 거래에 어느 규정이 적용되는지와 정상가격 산출방법(`transfer_pricing_guide`), 기능·자산·위험 분석(`transfer_pricing_far`), 개별기업보고서 목차 24개 항목(`transfer_pricing_report`), 쟁점 10개의 결정례(`transfer_pricing_cases` — 비교대상 기능 유사성·독립성 포함), 비교대상 후보별 기능 유사성 AI 권고(`tp_comparability_review` — 품목·거래단계·마케팅 등 판례 신호마다 판정·근거 문장·판례를 붙여 포함·사람 확인·제외 후보로 권고, 사람은 승인·수정), OECD 이전가격지침 문단(`oecd_tp_guidelines`)을 조회합니다. 비교대상 선정 기준값은 성격(법정·통칙·관행)·출처·기준일과 함께 계산 MCP 입력 형식으로 넘겨 줍니다. 정상가격을 산출하거나 거래가격이 정상가격인지 판정하지는 않습니다.
 6. **조약·거주자·국내사업장** — 조세조약 96개국의 조문(국·영문)과 배당·이자·사용료 제한세율을 주고, 거주자·비거주자를 3단계 규칙으로 판정합니다(`residency_check`). 국내사업장(고정사업장)은 `permanent_establishment_guide`로 법인세법 제94조·소득세법 제120조 요소별 판정(2016~2026)을 돌려줍니다.
 7. **대조·검증** — 진술·보기를 원문과 글자 단위로 비교해 다른 숫자·단서를 표시하고(`verify_statement`·`judge_options`), 초안 속 문서번호·조문이 실제로 있는지 확인합니다(`verify_citations`).
 
@@ -143,7 +143,7 @@ flowchart LR
 | X국에 지급하는 배당·이자·사용료의 조약 제한세율, 지방소득세 포함 여부는? | `treaty_withholding_rates` — 세율별 근거 문장, 지분 요건, 고정사업장·특수관계·원천 규칙·혜택 배제 조항 |
 | 외국법인에 지급하는 사용료(특허·노하우·상표·저작권·소프트웨어)를 몇 %로 원천징수하고 어떤 절차를 밟는가? | `royalty_withholding_guide` — 소득 구분 → 국내원천 → 세율 → 절차 → 세금부담 약정 → 이전가격 순서의 요소별 판정과 0·10·15·20% 결정 경로 → 세액은 계산 MCP `nonresident_withholding` |
 | 외국법인에 지급하는 이자를 몇 %로 원천징수하고, 신청서·지급 시점·순액 약정은 어떻게 보는가? | `interest_withholding_guide` — 소득 구분(지급보증수수료는 이자 아님) → 국내원천 → 세율(14·20%) → 조약 제한세율·지방소득세 → 실질귀속자·신청서(지급 전·3년)·지급 시점(미지급·원본 전입) → 세금부담 약정 → 과소자본·정상이자율, 계산 MCP 인자 |
-| 특수관계 거래에 적용되는 이전가격 규정과 산출방법, 개별기업보고서 작성은? | `transfer_pricing_guide`·`transfer_pricing_far`·`transfer_pricing_report`·`transfer_pricing_cases`·`oecd_tp_guidelines` → 국내 비교기업 후보·프로필 비교·정상가격 범위는 계산 MCP `kr_comparable_candidates`·`kr_comparable_profile_compare`·`tp_comparable_screen`·`arm_length_range` |
+| 특수관계 거래에 적용되는 이전가격 규정과 산출방법, 개별기업보고서 작성은? | `transfer_pricing_guide`·`transfer_pricing_far`·`transfer_pricing_report`·`transfer_pricing_cases`·`oecd_tp_guidelines`·`tp_comparability_review` → 국내 비교기업 후보·프로필 비교·정상가격 범위는 계산 MCP `kr_comparable_candidates`·`kr_comparable_profile_compare`·`tp_comparable_screen`·`arm_length_range` |
 | 외국인 근로자 단일세율, 국외근로 비과세, 배당·이자 원천징수, 외국 사업자 대상 용역의 영세율 | `wage_income_guide`·`dividend_income_guide`·`interest_income_guide`·`vat_exempt_zero_rate_guide` |
 | 국세청 책자(해외진출기업 세무 가이드북, 외국법인 및 외국인투자기업 납세안내, 외국인 연말정산)는 뭐라고 하나? | `search_nts_publications` |
 | 이 국제거래 쟁점에 국세청은 어떻게 해석했나? | `search_tax_rulings`(`tax="국조"`) → `get_tax_ruling` |
@@ -168,7 +168,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>도구 전체 (53개)</b></summary>
+<summary><b>도구 전체 (54개)</b></summary>
 
 | 묶음 | 도구 | 하는 일 |
 |---|---|---|
@@ -207,6 +207,7 @@ flowchart LR
 | | `transfer_pricing_far` | 기능·자산·위험 분석 — 위험 부담자 결정(시행규칙 제10조), 분석대상 당사자 후보, 산출방법 적합성·이익 지표(제6조) |
 | | `transfer_pricing_report` | 정상가격 검토 보고서 뼈대 — 개별기업보고서(국조칙 별지 제13호) 목차 24개 항목별 작성방법·준비 자료·근거·OECD 지침 문단·결정례 |
 | | `transfer_pricing_cases` | 이전가격 쟁점별 결정례 — 납세자 승·과세관청 승·일부 사례를 쟁점 10개별로 나란히(비교대상 선정·독립성 포함), 보고서에 반영할 점 |
+| | `tp_comparability_review` | 비교대상 후보 기능 유사성 AI 권고 — 판례 신호(품목·거래단계·마케팅·연구개발·특수관계 비중·규모·재고)별 판정·근거 원문 문장·확신도·판례, 근거 문장이 원문에 없으면 불명으로 낮춤, 포함·사람 확인·제외 후보 권고(Solar 또는 사용자 AI) |
 | | `oecd_tp_guidelines` | OECD 이전가격지침 2022 문단 조회·검색·국조법령 대응표(본문 1,391개 문단, 영문 원문) |
 | 대조·판정 (5) | `verify_citations` | 초안 속 문서번호·조문이 실제로 있는지 |
 | | `verify_statement` | 한 문장을 원문과 글자 대조 |
