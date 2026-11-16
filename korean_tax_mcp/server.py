@@ -2072,7 +2072,7 @@ def permanent_establishment_guide(
     국내사업장(고정사업장) 판정 안내 — 법인세법 제94조(외국법인)·소득세법 제120조(비거주자)의 요소(고정된 장소, 포함 장소, 6개월 초과 건설현장, 용역 PE, 종속대리인, 준비적·보조적 활동 제외, 세분화 방지)에 사실을 대어 요소별로 '국내사업장 있음·해당 없음·확인 필요'를 돌려준다.
     언제: 외국법인이나 비거주자가 국내에 지점·사무소·현장·직원·대리인을 두었을 때 국내사업장이 생기는지, 연도에 따라 종속대리인·예비적 활동 요건이 어떻게 달랐는지 확인할 때.
     입력: year(2016~2026), taxpayer, 장소 사실(fixed_place, place_types, construction_months, service_months_in_12, similar_service_years), 활동 사실(specific_activities, preparatory_or_auxiliary, related_pe_complementary, combined_not_preparatory), 대리인 사실(agent_contract_authority, agent_principal_role, agent_types), treaty_country.
-    반환: {기준 연도, 적용 시행본, 적용 기준(부칙 적용례), 납세자, 결론, 판정: [{항목, 판정, 사유, 근거}], 확인 필요, 요소(연도별 조문 요지), 조세조약, 다음 단계, 계산 다음 단계(결론별 계산 MCP 도구 — 있으면 corporate_tax·branch_profits_tax, 없으면 nonresident_withholding), 해석·판례: [{문서번호, 구분, 일자, id, 쟁점, 요지, 읽은 범위}], 한계, 확인 시행본}.
+    반환: {기준 연도, 적용 시행본, 적용 기준(부칙 적용례), 납세자, 결론, 판정: [{항목, 판정, 사유, 근거}], 확인 필요, 요소(연도별 조문 요지), 조세조약(조약에서 확인할 조항 — 건설 기간·용역 고정사업장 조항 유무, 국내법상 용역·건설로 '있음'이면 주의), 다음 단계, 계산 다음 단계(결론별 계산 MCP 도구 — 있으면 corporate_tax·branch_profits_tax, 없으면 nonresident_withholding), 해석·판례: [{문서번호, 구분, 일자, id, 쟁점, 요지, 읽은 범위}], 한계, 확인 시행본}.
     연도에 따라 다름: 2018년까지 종속대리인은 계약 체결 권한 반복 행사자만·특정 활동 장소는 조건 없이 제외, 2019년 계약 체결 과정의 중요한 역할 추가·'예비적이며 보조적'일 때만 제외·세분화 방지 신설, 2020년부터 '예비적 또는 보조적', 2022년부터 외국법인연락사무소 자료 제출, 2026.2.27.부터 시행령의 독립대리인 요건 변경.
     조세조약의 고정사업장 조항이 국내법과 다르거나 우선할 수 있음 — tax_treaty(country, keyword='고정사업장')로 확인. 사실 판단(고정성, 예비적·보조적 성격, 대리인 독립성)은 하지 않음. 읽기 전용, 외부 호출 없음. 원문은 law_article(as_of).
     """
