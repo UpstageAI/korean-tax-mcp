@@ -72,12 +72,13 @@ def test_selection_criteria_sources_and_handoff_keys():
     rules = c["넘길 값"]["kr_comparable_profile_compare"]["rules"]
     screens = c["넘길 값"]["tp_comparable_screen"]["screens"]
     assert set(rules) == CALC_RULES and set(screens) <= CALC_SCREENS
-    assert c["넘길 값"]["tp_comparable_screen"]["quartile_method"] in ("inclusive", "exclusive")
+    assert c["넘길 값"]["tp_comparable_screen"]["quartile_method"] == "nts"
     rows = c["kr_comparable_profile_compare"] + c["tp_comparable_screen"]
     assert all(r["성격"] in ("법정", "법정(준용)", "통칙", PR) and r["출처"] and r["기준일"] and r["근거 강도"] in ("강", "중", "약") for r in rows)
     kind = {r["키"]: r["성격"] for r in rows}
-    for k in ("mix_max_diff", "ratio_low", "related_sales_review", "independence_pct", "loss_years", "rnd_max", "adv_max", "quartile_method"):
+    for k in ("mix_max_diff", "ratio_low", "related_sales_review", "independence_pct", "loss_years", "rnd_max", "adv_max"):
         assert kind[k] == PR, k
+    assert kind["quartile_method"] == "통칙"  # 국조법 기본통칙 8-15…1, 계산 MCP 0.61.0 기본값 'nts'
     assert {r["근거 강도"] for r in rows if r["성격"] == PR} == {"약"}
     assert kind["independence_legal_pct"] == "법정(준용)" and kind["crisis_exception"] == "법정"
     # 판례 신호는 숫자 기준이 아니라 확인 질문
