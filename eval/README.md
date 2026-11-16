@@ -369,6 +369,14 @@ python eval/compare_runs.py --seeds 42,43,44 --root eval/results A B
 
 이 평가는 **korean-tax-calc-mcp**(계산 MCP)와 함께 측정한다. 세법 MCP 도구뿐 아니라 법인세·소득세·부가가치세 등 계산 도구도 도구 목록에 포함되어, 모델이 계산 문제를 풀 때 계산 도구를 호출할 수 있다.
 
+`eval/`은 계산 MCP 패키지를 직접 불러오므로(`eval/run_eval.py`), 평가 도구와 그 테스트를 돌릴 때는 계산 MCP를 함께 설치한다. 패키지 테스트(`tests/`)와 CI는 계산 MCP 없이 돈다.
+
+```bash
+uv run --with pytest --with korean-tax-calc-mcp python -m pytest -q eval/tests
+```
+
+`eval/tests`의 판정 층 테스트는 가짜 API를 넣어 돌리므로 실제 `UPSTAGE_API_KEY`가 없어도 된다(테스트가 자리표시 키를 넣는다).
+
 ## 고지
 
 - 이 평가 도구는 **세무대리·법률자문이 아니다**. 세법 객관식 문항에 대한 모델 응답 정확도를 측정하는 소프트웨어다.
