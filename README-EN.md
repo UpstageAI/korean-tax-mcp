@@ -118,7 +118,7 @@ flowchart LR
   C --> H
 ```
 
-[korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp) turns the statutes and rulings found here into computed amounts, limits and determinations (142 tools) and fills the statutory Excel forms (corporate tax forms, VAT return, withholding return and more, with a summary sheet). [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx) turns the findings into an agency-format review memo or report in HWPX (Hangul). With all of them installed, "find the basis → compute → fill the form" runs in one conversation. This server alone is enough for statutes and cases.
+[korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp) turns the statutes and rulings found here into computed amounts, limits and determinations (141 tools) and fills the statutory Excel forms (corporate tax forms, VAT return, withholding return and more, with a summary sheet). [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx) turns the findings into an agency-format review memo or report in HWPX (Hangul). With all of them installed, "find the basis → compute → fill the form" runs in one conversation. This server alone is enough for statutes and cases.
 
 </details>
 
