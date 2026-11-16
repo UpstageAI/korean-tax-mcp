@@ -107,7 +107,7 @@ def test_selection_criteria_by_role_and_tested_party():
 def test_calc_chain_order():
     names = [x["도구"].removeprefix("계산 MCP ") for x in T.guide("재화")["계산 다음 단계"]]
     assert names == ["kr_comparable_candidates", "kr_comparable_profile_compare", "tp_comparable_screen", "arm_length_range"]
-    assert names[1:] == [x["도구"].removeprefix("계산 MCP ") for x in R._COMPARABLE_CALC[:3]]
+    assert names[:3] == [x["도구"].removeprefix("계산 MCP ") for x in R._COMPARABLE_CALC[:3]]
     assert "expat_cost_recharge" in [x["도구"].removeprefix("계산 MCP ") for x in T.guide("용역")["계산 다음 단계"]]
 
 
