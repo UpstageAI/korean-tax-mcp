@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/korean-tax-mcp)](https://pypi.org/project/korean-tax-mcp/) [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-korean--tax--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=korean-tax-mcp) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/UpstageAI/korean-tax-mcp/blob/main/LICENSE) [![Built with Upstage Solar Pro 4](https://img.shields.io/badge/Built%20with-Upstage%20Solar%20Pro%204-7A3FF2)](https://www.upstage.ai/) · [English](https://github.com/UpstageAI/korean-tax-mcp/blob/main/README-EN.md)
 
-세법 쟁점을 AI에 물으면 **그 시점에 시행 중이던 조문과 국세청 해석·판례·조세심판원 재결례를 문서번호·링크와 함께** 가져오는 MCP 서버입니다(도구 53개 — 52개는 읽기 전용, `build_tax_memo`만 Word 파일 하나를 저장). 기준일 시행본·부칙·별표, 국세 기본통칙·집행기준, 조세조약 96개국과 제한세율, 거주자 3단계 판정과 국내사업장(PE) 판정, 이전가격, 과세연도별 요건 안내 17개(세액공제·감면·소득 종류별·1세대 1주택·가업상속·부가 면세·명의신탁·조세범)를 다룹니다. 모든 도구는 `lang="en"`으로 영어 결과를 돌려줍니다. 금액 계산과 법정서식은 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(도구 139개)가 맡습니다.
+세법 쟁점을 AI에 물으면 **그 시점에 시행 중이던 조문과 국세청 해석·판례·조세심판원 재결례를 문서번호·링크와 함께** 가져오는 MCP 서버입니다(도구 53개 — 52개는 읽기 전용, `build_tax_memo`만 Word 파일 하나를 저장). 기준일 시행본·부칙·별표, 국세 기본통칙·집행기준, 조세조약 96개국과 제한세율, 거주자 3단계 판정과 국내사업장(PE) 판정, 이전가격, 과세연도별 요건 안내 17개(세액공제·감면·소득 종류별·1세대 1주택·가업상속·부가 면세·명의신탁·조세범)를 다룹니다. 모든 도구는 `lang="en"`으로 영어 결과를 돌려줍니다. 금액 계산과 법정서식은 짝 서버 [korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)(도구 142개)가 맡습니다.
 
 ![데모: 사실관계 입력 → 쟁점별 법리(특수관계인·사택 제공 예외·부당행위계산) → 유사 심판례 → 한글(HWPX) 검토서 초안](https://raw.githubusercontent.com/UpstageAI/korean-tax-mcp/main/docs/demo.gif)
 
@@ -126,7 +126,7 @@ flowchart LR
   C --> H
 ```
 
-[korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)는 여기서 찾은 조문·해석을 근거로 세액·한도·판정을 코드로 계산하고(140개 도구), 요약 시트가 붙은 법정서식 엑셀(법인세 별지 서식, 부가가치세 신고서, 원천징수이행상황신고서 등)까지 만듭니다. [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx)는 결과를 기관 서식의 한글(HWPX) 검토서·보고서로 만듭니다. 같이 두면 **근거 찾기 → 계산 → 서식**이 한 대화에서 이어집니다. 조문·판례만 쓰려면 이 서버 하나만 넣어도 됩니다.
+[korean-tax-calc-mcp](https://github.com/UpstageAI/korean-tax-calc-mcp)는 여기서 찾은 조문·해석을 근거로 세액·한도·판정을 코드로 계산하고(142개 도구), 요약 시트가 붙은 법정서식 엑셀(법인세 별지 서식, 부가가치세 신고서, 원천징수이행상황신고서 등)까지 만듭니다. [korean-report-hwpx](https://github.com/UpstageAI/korean-report-hwpx)는 결과를 기관 서식의 한글(HWPX) 검토서·보고서로 만듭니다. 같이 두면 **근거 찾기 → 계산 → 서식**이 한 대화에서 이어집니다. 조문·판례만 쓰려면 이 서버 하나만 넣어도 됩니다.
 
 </details>
 
@@ -143,7 +143,7 @@ flowchart LR
 | X국에 지급하는 배당·이자·사용료의 조약 제한세율, 지방소득세 포함 여부는? | `treaty_withholding_rates` — 세율별 근거 문장, 지분 요건, 고정사업장·특수관계·원천 규칙·혜택 배제 조항 |
 | 외국법인에 지급하는 사용료(특허·노하우·상표·저작권·소프트웨어)를 몇 %로 원천징수하고 어떤 절차를 밟는가? | `royalty_withholding_guide` — 소득 구분 → 국내원천 → 세율 → 절차 → 세금부담 약정 → 이전가격 순서의 요소별 판정과 0·10·15·20% 결정 경로 → 세액은 계산 MCP `nonresident_withholding` |
 | 외국법인에 지급하는 이자를 몇 %로 원천징수하고, 신청서·지급 시점·순액 약정은 어떻게 보는가? | `interest_withholding_guide` — 소득 구분(지급보증수수료는 이자 아님) → 국내원천 → 세율(14·20%) → 조약 제한세율·지방소득세 → 실질귀속자·신청서(지급 전·3년)·지급 시점(미지급·원본 전입) → 세금부담 약정 → 과소자본·정상이자율, 계산 MCP 인자 |
-| 특수관계 거래에 적용되는 이전가격 규정과 산출방법, 개별기업보고서 작성은? | `transfer_pricing_guide`·`transfer_pricing_far`·`transfer_pricing_report`·`transfer_pricing_cases`·`oecd_tp_guidelines` |
+| 특수관계 거래에 적용되는 이전가격 규정과 산출방법, 개별기업보고서 작성은? | `transfer_pricing_guide`·`transfer_pricing_far`·`transfer_pricing_report`·`transfer_pricing_cases`·`oecd_tp_guidelines` → 국내 비교기업 후보·프로필 비교·정상가격 범위는 계산 MCP `kr_comparable_candidates`·`kr_comparable_profile_compare`·`tp_comparable_screen`·`arm_length_range` |
 | 외국인 근로자 단일세율, 국외근로 비과세, 배당·이자 원천징수, 외국 사업자 대상 용역의 영세율 | `wage_income_guide`·`dividend_income_guide`·`interest_income_guide`·`vat_exempt_zero_rate_guide` |
 | 국세청 책자(해외진출기업 세무 가이드북, 외국법인 및 외국인투자기업 납세안내, 외국인 연말정산)는 뭐라고 하나? | `search_nts_publications` |
 | 이 국제거래 쟁점에 국세청은 어떻게 해석했나? | `search_tax_rulings`(`tax="국조"`) → `get_tax_ruling` |
