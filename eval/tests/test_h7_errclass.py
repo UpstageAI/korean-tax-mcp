@@ -1,7 +1,16 @@
 """오답 원인 분류(하네스 점검 10번) 정답 테스트. 규칙 층: 실행실패·무응답/파싱·도구 미호출·인자 오류는 raw만 보고 결정. 판정 층: 나머지는 API(가짜)로 2·4·5 중 분류."""
 import json, sys, pathlib, subprocess
+
+import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from eval import classify_failures as cf
+
+
+@pytest.fixture(autouse=True)
+def _placeholder_api_key(monkeypatch):
+    """판정 층은 API 설정(UPSTAGE_API_KEY)을 먼저 읽고 없으면 '미판정'으로 끝낸다. 이 파일의 테스트는 가짜 api를 넣으므로
+    실제 키 대신 자리표시 값을 둔다(실제 키가 있는 환경과 없는 환경에서 같은 결과가 나오게)."""
+    monkeypatch.setenv("UPSTAGE_API_KEY", "placeholder-for-tests")
 
 LAW = {"law_article", "article_history", "find_article", "verify_statement", "judge_options", "timing_rules", "search_tax_rulings", "expand_tools"}
 CALC = {"corporate_tax", "depreciation_adjustment", "entertainment_adjustment"}
