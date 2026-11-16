@@ -1,0 +1,131 @@
+"""tp_comparability_review — 비교가능성 AI 권고(2026-11-17).
+
+정답 세트는 tests/fixtures/tp_review_gold.json(판례가 비교대상 적정성을 판단한 후보 12개). 여기서는 모델 없이
+'정답 신호대로 판정했을 때 규칙 권고가 판례 결론과 맞는지'와 근거 대조·입력 검사를 본다. Solar 정확도는 eval/tp_review_eval.py.
+"""
+import json
+import os
+
+import pytest
+
+from korean_tax_mcp import solar
+from korean_tax_mcp import tp_review as T
+
+GOLD = json.load(open(os.path.join(os.path.dirname(__file__), "fixtures", "tp_review_gold.json"), encoding="utf-8"))["문항"]
+
+
+@pytest.fixture(autouse=True)
+def _host_ai(monkeypatch):
+    monkeypatch.setattr(solar, "mode", lambda: "host_ai")
+
+
+def _ideal(item):
+    """정답 신호 중 모델 몫(문장 신호)을 원문 첫 문장 인용으로 채운 판정."""
+    c = item["candidate"]
+    quote = c["description"].split(".")[0]
+    rows = [{"후보": c["name"], "신호": k, "판정": v, "이유": "정답 세트", "근거 문장": quote, "확신도": "높음"}
+            for k, v in item["정답 신호"].items() if k in T.TEXT_SIGNALS]
+    return {"판정": rows}
+
+
+@pytest.mark.parametrize("item", GOLD, ids=[g["id"] for g in GOLD])
+def test_rule_recommendation_matches_case_law(item):
+    r = T.review(item["tested"], [item["candidate"]], judgments=_ideal(item))
+    assert "error" not in r, r
+    rec = r["후보별 권고"][0]
+    assert rec["권고"] in item["허용 권고"], (item["id"], rec["권고"], rec["이유"])
+    assert rec["권고"] == item["정답 권고"], (item["id"], rec["권고"], rec["이유"])
+    got = {s["신호"]: s["판정"] for s in rec["신호"]}
+    for k, v in item["정답 신호"].items():
+        assert got.get(k) == v, (item["id"], k, got)
+
+
+def test_numeric_signals_judged_by_tool_without_model():
+    g = next(x for x in GOLD if x["id"] == "G01")
+    r = T.review(g["tested"], [g["candidate"]], judgments={"판정": []})
+    s = {x["신호"]: x for x in r["후보별 권고"][0]["신호"]}
+    assert s["R3"]["판정"] == "다름" and s["R3"]["판정 주체"] == "도구(숫자)" and "관행 기본값" in s["R3"]["기준"]
+    assert any(c["문서번호"] == "대법원-2024-두-54065" and c.get("링크") for c in s["R3"]["판례"])
+
+
+def test_fabricated_quote_downgraded_to_unknown():
+    g = next(x for x in GOLD if x["id"] == "G02")
+    j = {"판정": [{"후보": g["candidate"]["name"], "신호": "R1", "판정": "다름", "이유": "x",
+                 "근거 문장": "건강보조식품만 취급하는 회사이다", "확신도": "높음"}]}
+    r = T.review(g["tested"], [g["candidate"]], judgments=j)
+    s = {x["신호"]: x for x in r["후보별 권고"][0]["신호"]}
+    assert s["R1"]["판정"] == "불명" and s["R1"]["원문 확인"].startswith("원문에 없음") and s["R1"]["확신도"] == "낮음"
+
+
+def test_quote_from_tested_text_accepted_and_whitespace_ignored():
+    g = next(x for x in GOLD if x["id"] == "G02")
+    j = {"판정": [{"후보": g["candidate"]["name"], "신호": "R2", "판정": "다름", "이유": "x", "근거 문장": "다단계판매원에게  판매하는", "확신도": "보통"}]}
+    s = {x["신호"]: x for x in T.review(g["tested"], [g["candidate"]], judgments=j)["후보별 권고"][0]["신호"]}
+    assert s["R2"]["판정"] == "다름" and s["R2"]["원문 확인"] == "원문 일치"
+
+
+def test_unrequested_signal_or_candidate_ignored():
+    g = next(x for x in GOLD if x["id"] == "G01")
+    j = {"판정": [{"후보": "없는 회사", "신호": "R1", "판정": "다름"}, {"후보": g["candidate"]["name"], "신호": "R3", "판정": "가까움"}]}
+    r = T.review(g["tested"], [g["candidate"]], judgments=j)
+    assert len(r["무시한 판정"]) == 2      # R3는 숫자로 도구가 판정했으므로 모델 판정을 받지 않음
+    s = {x["신호"]: x for x in r["후보별 권고"][0]["신호"]}
+    assert s["R3"]["판정"] == "다름"
+
+
+def test_host_ai_step1_returns_package():
+    g = next(x for x in GOLD if x["id"] == "G05")
+    r = T.review(g["tested"], [g["candidate"]])
+    assert r["mode"] == "host_ai" and r["단계"].startswith("1/2")
+    assert set(r["판정할 신호"][g["candidate"]["name"]]) >= {"R1", "R2", "R3", "R4"}
+    assert "글자 그대로" in r["판단 안내"] and "AI 생성" in r["판단 안내"]
+    assert r["후보 원문"][0]["description"] == g["candidate"]["description"]
+
+
+def test_missing_judgment_becomes_unknown_and_needs_review():
+    g = next(x for x in GOLD if x["id"] == "G12")
+    r = T.review(g["tested"], [g["candidate"]], judgments={"판정": []})
+    rec = r["후보별 권고"][0]
+    assert rec["권고"] == "사람 확인" and rec["확신도"] == "낮음"
+
+
+def test_rules_override_and_validation():
+    g = next(x for x in GOLD if x["id"] == "G10")
+    j = _ideal(g)
+    r = T.review(g["tested"], [g["candidate"]], judgments=j, rules={"ratio_high": 10})
+    assert r["후보별 권고"][0]["권고"] == "포함" and r["기준값"]["ratio_high"]["값"] == 10
+    assert "error" in T.review(g["tested"], [g["candidate"]], rules={"mix_max_diff": 0.1})
+    assert "error" in T.review({"role": "유통"}, [g["candidate"]])
+    assert "error" in T.review(g["tested"], [])
+    assert "error" in T.review(g["tested"], [{"name": "a"}, {"name": "a"}])
+    assert "error" in T.review(g["tested"], [{"name": "a", "advert": "많음"}])
+    assert "error" in T.review(g["tested"], [{"name": f"c{i}"} for i in range(21)])
+
+
+def test_group_checks_consistency_and_sample():
+    t = {"role": "판매", "products": "화학 기초제품", "channel": "1차 도매"}
+    cands = [{"name": "갑", "description": "직영 소매 매장을 운영하는 화학제품 판매업체"}, {"name": "을", "description": "화학 기초제품 1차 도매"}]
+    j = {"판정": [{"후보": n, "신호": k, "판정": "가까움", "근거 문장": "화학", "확신도": "높음"} for n in ("갑", "을") for k in ("R1", "R2", "R3", "R4", "R12")]}
+    r = T.review(t, cands, judgments=j, decisions=[{"name": "병", "reason": "직영 소매 매장 운영"}])
+    checks = {c["검사"]: c["결과"] for c in r["묶음 검사"]}
+    assert "갑" in checks["정성 선정 일관성"] and "표본" in checks["표본 수"] and "2023서9158" in checks["연도"]
+
+
+def test_server_tool_registered():
+    from korean_tax_mcp import server as S
+    tools = {t.name for t in S.mcp._tool_manager.list_tools()} if hasattr(S.mcp, "_tool_manager") else None
+    r = S.tp_comparability_review(GOLD[5]["tested"], [GOLD[5]["candidate"]], judgments=_ideal(GOLD[5]))
+    assert r["후보별 권고"][0]["권고"] == "포함"
+    if tools is not None:
+        assert "tp_comparability_review" in tools
+
+
+def test_labeled_multi_quote_checked_piece_by_piece():
+    g = next(x for x in GOLD if x["id"] == "G05")
+    n = g["candidate"]["name"]
+    ok = {"후보": n, "신호": "R3", "판정": "다름", "근거 문장": "후보: TV 광고 등 마케팅을 직접 기획·집행한다.", "분석대상 근거": "마케팅 전략은 본사가 정함", "확신도": "높음"}
+    note = {"후보": n, "신호": "R4", "판정": "다름", "근거 문장": "분석대상: (자체 브랜드 언급 없음) / 후보: 자체 브랜드를 보유하고", "확신도": "보통"}
+    bad = {"후보": n, "신호": "R1", "판정": "다름", "근거 문장": "후보: 소형가전을 수입해 / 분석대상: 대형가전", "확신도": "높음"}
+    s = {x["신호"]: x for x in T.review(g["tested"], [g["candidate"]], judgments={"판정": [ok, note, bad]})["후보별 권고"][0]["신호"]}
+    assert s["R3"]["원문 확인"] == "원문 일치" and s["R4"]["원문 확인"] == "원문 일치"
+    assert s["R1"]["판정"] == "불명"

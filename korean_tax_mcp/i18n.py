@@ -10,6 +10,8 @@ import ssl
 import urllib.request
 
 KEYS = {
+    # tp_comparability_review(2026-11-17)
+    "후보별 권고": "recommendations", "권고": "recommendation", "신호": "signals", "판정": "verdict", "근거 문장": "quoted_evidence", "원문 확인": "quote_check", "확신도": "confidence", "판례": "cases", "볼 포인트": "what_to_check", "사람이 볼 것": "for_human_review", "묶음 검사": "group_checks", "승인 안내": "approval", "판정 주체": "judged_by", "조정 가능": "adjustable", "신호 설명": "signal_guide", "기준값": "thresholds", "집계": "counts", "판정할 신호": "signals_to_judge", "숫자 판정(도구)": "numeric_verdicts_tool", "후보 원문": "candidate_texts", "판정 형식": "judgment_format", "무시한 판정": "ignored_judgments", "묻는 것": "question", "검사": "check",
     "결과": "results", "주의": "note", "구분": "type", "문서번호": "doc_no", "제목": "title", "요지": "summary", "세목": "tax",
     "일자": "date", "링크": "url", "전체건수": "total", "등록일": "registered", "관련조문": "cited_statutes", "본문": "text",
     "법령": "law", "조": "article", "기준": "edition", "통칙": "rule", "항목": "item", "쪽": "page", "적용 시행일": "effective_date",

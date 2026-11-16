@@ -346,7 +346,7 @@ def _call(name, args):
 
 def test_descriptions_say_finished_docx_first():
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
-    assert len(tools) == 53
+    assert len(tools) == 54
     g, b = tools["tax_memo_guide"].description, tools["build_tax_memo"].description
     assert g.startswith("Start here whenever the user wants a tax memo, opinion, review note or report as a Word file")
     assert b.startswith("Produces a finished Word (.docx) tax memo file — use this instead of writing your own docx script")
