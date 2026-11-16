@@ -60,6 +60,7 @@ LABELS = {
 
 SCHEMA = {
     "lang": "str('en'|'ko') — the user's language / 사용자 언어",
+    "english": "str('US'|'GB', optional, lang='en' only) — spelling of the reader: sets the Word proofing language (en-US | en-GB). Empty = detected from the memo's own spelling, else US / 영문 메모 철자(미국식·영국식) — Word 교정 언어. 비우면 메모 글에 쓰인 철자로 판단",
     "head": {"prepared_by": "str(required)", "date": "str(required)", "re": "str(required, subject)", "scope": "str(required)",
              "to": "str(optional, addressee)", "basis": "str(optional: documents relied on and the as-of date of the law)",
              "workings": "str(optional: file name of the accompanying Excel workings)"},
@@ -133,7 +134,8 @@ Nothing may be asserted that is not in a tool result or in the user's facts; any
 - Conclusions before reasons. One idea per paragraph (under about 120 words).
 - Numbers carry units and currency (KRW 1,000,000; 3 percent).
 - No invented facts, numbers or citations. No hedging filler ("it should be noted that", "generally speaking").
-- Write in the user's language (lang="en" or "ko"); the memo headings follow lang."""
+- Write in the user's language (lang="en" or "ko"); the memo headings follow lang.
+- English memos: keep one spelling (American or British) throughout — follow the reader's documents. Set english="US" or "GB" (or leave it empty: the tool reads the memo's own spelling) so Word proofs in that language."""
 
 GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버가 정하고, 내용은 사용자가 준 사실과 도구 결과로만 채운다. 결과물은 build_tax_memo가 저장하는 완성된 Word(.docx) 파일 — docx를 직접 만들지 않는다.
 [작업 순서]
@@ -171,7 +173,8 @@ GUIDE["ko"] = """[세무 메모 — 따지는 순서] 따지는 순서는 서버
 - 결론을 이유보다 먼저. 한 문단에 한 가지(문단은 400자 안쪽).
 - 숫자에는 단위와 통화를 붙인다(1,000,000원, 3%).
 - 사실·숫자·인용을 지어내지 않는다. 군말을 쓰지 않는다("~것으로 보입니다", "일반적으로 말하면").
-- 사용자의 언어로 쓴다(lang="ko" 또는 "en"). 메모 제목·소제목은 lang을 따른다."""
+- 사용자의 언어로 쓴다(lang="ko" 또는 "en"). 메모 제목·소제목은 lang을 따른다.
+- 영문 메모는 철자를 한 가지(미국식 또는 영국식)로 — 읽는 쪽 자료의 철자를 따른다. english="US" 또는 "GB"를 주면(비우면 메모 글의 철자로 판단) Word 교정 언어가 그에 맞춰진다."""
 
 
 EXAMPLE_NOTE = {"en": "Illustrative shape only — do not reuse its content. The example uses a made-up act, made-up rates and made-up amounts to show the form (3-item summary, rule → application → conclusion, calculation rows, risk priorities, footnote style).",
@@ -199,7 +202,7 @@ MARK = re.compile(r"\[\^([^\]\s]+)\]")
 _HANGUL = re.compile(r"[가-힣]")
 _TOP_KEYS = {"lang", "head", "summary", "background", "question", "short_answer", "facts", "analysis", "decision_table",
              "calculation", "risks", "next_steps", "footnotes", "notice", "prepared_how", "title",
-             "key_figures", "review", "action_list", "limitations", "authorities", "target_pages", "workings_check"}
+             "key_figures", "review", "action_list", "limitations", "authorities", "target_pages", "workings_check", "english"}
 HEAD_KEYS = ("to", "prepared_by", "date", "re", "scope", "basis", "workings")
 # 함께 가는 엑셀의 금액을 계산 도구와 대조한 방법(workings_check.method). 이 서버는 엑셀을 열지 않고 호출자가 적은 결과만 받는다
 WORKINGS_METHODS = ("export_workbook", "verify_workbook", "none")
@@ -225,6 +228,32 @@ def _unbold(v):
 def plain(v):
     """각주 표시와 굵게 표시를 뗀 글."""
     return MARK.sub("", v or "").replace("**", "").strip()
+
+
+# 영문 철자(미국식·영국식). 한쪽에서만 쓰는 꼴만 센다 — license(영국식 동사)·program(영국식 컴퓨터 용어)·practice처럼 양쪽에서 쓰는 꼴은 세지 않는다.
+_GB_WORDS = re.compile(r"\b(licen[c]e[sd]?|honour\w*|favour\w*|colour\w*|labour\w*|behaviour\w*|neighbour\w*|centre[sd]?|programmes?|defence|offences?|cheques?|"
+                       r"fulfil(s|ment)?|enrol(s|ment)?|travell(ed|ing)|cancell(ed|ing)|labell(ed|ing)|modell(ed|ing)|"
+                       r"(organi|recogni|reali|authori|utili|capitali|characteri|summari|finali|minimi|maximi|prioriti|harmoni|penali|emphasi|categori|standardi|speciali)s(e|es|ed|ing|ation|ations)|"
+                       r"analys(e|es|ed|ing))\b", re.I)
+_US_WORDS = re.compile(r"\b(honor(s|ed|ing)?|favor(s|ed|able|ing)?|color(s|ed)?|behavior\w*|neighbor\w*|defense|offenses?|"
+                       r"fulfill(s|ment)?|enroll(s|ment)?|travel(ed|ing)|cancel(ed|ing)|label(ed|ing)|model(ed|ing)|"
+                       r"(organi|recogni|reali|authori|utili|capitali|characteri|summari|finali|minimi|maximi|prioriti|harmoni|penali|emphasi|categori|standardi|speciali)z(e|es|ed|ing|ation|ations)|"
+                       r"analyz(e|es|ed|ing))\b", re.I)
+_ENGLISH = {"us": "en-US", "en-us": "en-US", "american": "en-US", "gb": "en-GB", "uk": "en-GB", "en-gb": "en-GB", "british": "en-GB"}
+
+
+def english_variant(structure, requested=""):
+    """영문 메모에 넣을 Word 교정 언어. (값 'en-US'|'en-GB', 정한 근거 'given'|'detected'|'default', 영국식 낱말 수, 미국식 낱말 수).
+    기관·법령의 공식 영문 이름(Labor Standards Act, …Center)은 미국식이라 Labor·Center는 세지 않는다."""
+    text = json.dumps({k: v for k, v in (structure or {}).items() if k not in ("lang", "english")}, ensure_ascii=False)
+    gb, us = len(_GB_WORDS.findall(text)), len(_US_WORDS.findall(text))
+    v = _s(requested).lower()
+    if v:
+        if v not in _ENGLISH: raise ValueError(f"english must be 'US' or 'GB' / english는 'US' 또는 'GB': {requested}")
+        return _ENGLISH[v], "given", gb, us
+    if gb > us: return "en-GB", "detected", gb, us
+    if us > gb: return "en-US", "detected", gb, us
+    return "en-US", "default", gb, us
 
 
 def resolve_lang(structure, lang=""):
@@ -812,6 +841,12 @@ def check(structure, lang="", target_pages=0):
               + "; ".join(f"{b} {v}쪽({tips[b]})" for b, v in top)
               + (". %d자를 넘는 쟁점: " % ISSUE_BUDGET["ko"] + ", ".join(f"analysis[{k}] {n}자" for k, n in over) if over else "")
               + ". 같은 말은 한 번만 쓴다(tax_memo_guide의 [분량] 참고). 읽는 사람이 더 긴 메모를 원하면 target_pages를 올림")
+    if not ko:
+        s["english"], basis, gb, us = english_variant(structure, structure.get("english"))
+        s["english_basis"] = {"basis": basis, "british_words": gb, "american_words": us}
+        low, high = sorted((gb, us))
+        if low >= 3 and low * 4 >= gb + us:
+            W("M28", f"spelling: British ({gb}) and American ({us}) spellings are mixed — keep one throughout (the reader's own documents decide), then set english to match", "")
     if not s["prepared_how"]: W("T08", "prepared_how: required — name the tools used and the date, and say the original-language text governs", "prepared_how: 필수 — 쓴 도구와 날짜, 원어 조문이 기준임을 적음")
     return lang, s, e, w
 
@@ -836,6 +871,7 @@ RULES = [
     "T13 whatever is marked not verified is collected under limitations (not-verified footnotes cited there)",
     "M26 length: the estimated pages stay within target_pages (default 5); the warning names the longest blocks and the issues over budget",
     "M27 a table is printed once: no calculation scenario that repeats an issue table",
+    "M28 one English spelling (British or American) throughout",
     "T14 a memo with Excel workings (head.workings) states how the workbook amounts were checked against the calculation tools (workings_check: verify_workbook | export_workbook | none)",
     "T15 workbook amounts not checked (unchecked > 0 or method none) are named under limitations, with unchecked_note",
     "T16 no mismatches left open between the workbook and the calculation tools",
@@ -894,13 +930,16 @@ def _target(s, output_dir, filename):
     return d / name
 
 
-def build(structure, output_dir=".", filename=None, lang="", check_only=False, target_pages=0):
+def build(structure, output_dir=".", filename=None, lang="", check_only=False, target_pages=0, english=""):
     """구조를 점검하고 Word 파일을 쓴다. {path, ok, lang, errors, warnings, length?, footnotes?, next}.
     errors가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고, 고쳐서 다시 만들라고 돌려준다."""
-    lang, s, errors, warnings = check(_as_structure(structure), lang, target_pages)
+    structure = _as_structure(structure)
+    if _s(english) and isinstance(structure, dict): structure = {**structure, "english": english}   # 도구 인자가 structure.english보다 앞선다
+    lang, s, errors, warnings = check(structure, lang, target_pages)
     ko = lang == "ko"
     out = {"path": "", "ok": not errors and not warnings, "lang": lang, "errors": errors, "warnings": warnings}
     if s.get("length"): out["length"] = s["length"]
+    if s.get("english"): out["english"] = {"proofing_language": s["english"], **s["english_basis"]}
     if errors:
         out["next"] = "오류를 고쳐 다시 호출 — 파일을 만들지 않았음" if ko else "Fix the errors and call again — no file was written."
         return out

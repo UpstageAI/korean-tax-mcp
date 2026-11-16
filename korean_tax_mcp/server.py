@@ -812,6 +812,7 @@ def build_tax_memo(
     lang: Annotated[Literal["", "en", "ko"], Field(description="Memo language: 'en' | 'ko'. Empty = structure.lang, else detected from the subject. 메모 언어(비우면 structure.lang 또는 제목으로 판단)")] = "",
     check_only: Annotated[bool, Field(description="True = validate only, write no file. True면 점검만 하고 파일을 만들지 않음")] = False,
     target_pages: Annotated[int, Field(ge=0, le=50, description="Length the memo should fit in, in A4 pages. 0 = structure.target_pages, else the recommended 5. A warning names the longest blocks when the estimate is over. 목표 분량(A4 쪽). 0이면 structure.target_pages, 없으면 권고값 5쪽 — 어림 쪽수가 넘으면 가장 긴 블록을 짚어 경고")] = 0,
+    english: Annotated[Literal["", "US", "GB"], Field(description="English memos only — spelling of the reader: 'US' (American) | 'GB' (British). Sets the Word proofing language (en-US | en-GB) so the reader's spelling is not underlined as an error. Empty = structure.english, else detected from the memo's own spelling, else US. 영문 메모 철자(미국식 'US'·영국식 'GB') — Word 교정 언어. 비우면 메모 글에 쓰인 철자로 판단")] = "",
 ) -> dict:
     """Produces a finished Word (.docx) tax memo file — use this instead of writing your own docx script or a generic document skill. It validates the structure from tax_memo_guide against the logic line, saves the file in output_dir (default: the server's working folder, or ~/korean-tax-mcp when that folder is not writable) and returns the full path of the saved file in `path`, plus errors and warnings to fix; rebuild until there are no warnings. For any memo work call tax_memo_guide first.
 
@@ -820,10 +821,10 @@ def build_tax_memo(
     언제: tax_memo_guide의 구조를 도구 결과로 채운 뒤. 경고가 있으면 고쳐서 다시 호출한다(경고 0건이 될 때까지).
     점검: 머리 4칸, 요약 정확히 3개(결론 한 문장 + 근거 + 각주), 쟁점 1~2문장, 결론 = 답 + 조건, 답을 바꾸는 전제는 위험 항목과 연결, 쟁점 3개 이상·정해진 순서(stage), 쟁점마다 근거 규정·적용·결론과 조문·사건 번호 인용, 요약·결론의 금액이 계산 표에 있는지, 합계 = 구성 행의 합, 우선순위 값, 각주 id 일치(쓰인 것·정의된 것), 문단 길이, 군말, 작성 방법 문단. 선택 블록: 이미 한 처리가 맞았는지 묻는 질문이면 검토 결과 절, 결론 아래 숫자 표의 금액이 계산·검토에 있는지, 조치 목록 표의 항목마다 기한, 경우가 둘 이상이면 권고하는 쪽과 조건, 미확인으로 적은 것은 한계 절에도. 엑셀을 함께 내면(head.workings) 그 금액을 계산 도구와 대조한 결과(workings_check)가 있는지, 대조하지 않은 금액이 한계 절에 있는지, 불일치가 남았는지 — 이 도구는 엑셀을 열지 않고 호출자가 적은 결과만 본다. 분량: 어림 쪽수가 target_pages(기본 5쪽)를 넘으면 가장 긴 블록과 기준을 넘은 쟁점을 짚고, 쟁점 안의 표를 계산 표에 되풀이하면 알린다.
     결과물: A4(본문 10pt), 제목·머리 표, 번호 붙은 요약, 표(머리·합계 음영, 우선순위 색, 행이 쪽에서 갈라지지 않고 표가 쪽을 넘으면 머리 행 반복, 쪽의 약 20% 이하 표는 통째로 한 쪽에, 결론 아래 숫자 표는 5행부터 쪽 사이에서 나뉘되 합계 행은 앞뒤 행과 함께), 실제 Word 각주(읽는 순서 번호, 같은 출처는 처음 번호를 위첨자 글자로 다시 씀 — 그 번호는 각주로 이어지는 참조가 아님), 바닥글 안내와 쪽 번호. 한글 글꼴(맑은 고딕) 지정. 선택 블록은 넣었을 때만 찍힌다.
-    반환: {path, ok, lang, errors, warnings, length(estimated_pages·target_pages·blocks — 어림값), footnotes(각주 수), next}. errors(구조가 깨짐)가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고 고칠 점을 돌려준다.
+    반환: {path, ok, lang, errors, warnings, length(estimated_pages·target_pages·blocks — 어림값), english(영문 메모: Word 교정 언어 en-US·en-GB와 정한 근거), footnotes(각주 수), next}. errors(구조가 깨짐)가 있으면 파일을 만들지 않는다. warnings만 있으면 파일을 만들고 고칠 점을 돌려준다.
     이 도구만 파일을 쓴다(지정한 폴더에 .docx 하나, 같은 이름이면 덮어씀). 외부 호출 없음. 엑셀 계산 근거는 직접 짜고 저장한 뒤 korean-tax-calc-mcp의 verify_workbook으로 금액 칸을 대조한다(법정서식 엑셀이 필요하면 export_workbook) — 결과는 workings_check에 적으면 '작성 방법' 문단에 한 줄로 찍힌다.
     """
-    try: return _tax_memo.build(structure, output_dir, filename, lang, check_only, target_pages)
+    try: return _tax_memo.build(structure, output_dir, filename, lang, check_only, target_pages, english)
     except (ValueError, OSError) as e: return {"error": str(e)}
 
 
@@ -1366,7 +1367,7 @@ def nominee_trust_guide(
     입력: trust_type, asset_type, registration_date(타인명의) 또는 acquisition_date(명의개서해태), 선택으로 agreement, exception, origin, nominee_kind, avoided_taxes, non_tax_purposes, filed.
     반환: {증여의제일, 적용 규정, 증여의제: {판정, 사유}, 증여시기, 납세의무, 세액 계산 요소, 부과제척기간, 판정: [{항목, 판정, 사유, 근거?, 판례?}], 실명 환원?, 법인 연계?, 계산 다음 단계?, 한계, 다음 단계, 확인 시행본}. 토지·건물이면 {증여의제, 부동산}.
     날짜에 따라 다름: 2019.1.1. 이후 의제분 납세의무자·연대·물적납세의무·관할·합산배제(2018.12.31. 이전 취득 해태분은 부칙 제6조로 종전), 2016.1.1. 상속세 신고 추정 배제, 2020.1.1. 주주명부 없는 경우 증여일.
-    세액은 계산 MCP의 nominee_gift_tax. 조세회피목적·합의의 실질은 판정하지 않는다. 부동산실명법 과징금 부과기준은 원문 대조를 못해 계산·안내하지 않는다. 읽기 전용, 외부 호출 없음.
+    세액은 계산 MCP의 nominee_gift_tax. 조세회피목적·합의의 실질은 판정하지 않는다. 부동산실명법 과징금·이행강제금은 기준(제5조·제6조, 시행령 별표)을 안내하되 금액은 계산하지 않는다. 읽기 전용, 외부 호출 없음.
     """
     return _nominee_trust.guide(trust_type, asset_type, registration_date, acquisition_date, agreement, exception, origin, nominee_kind,
                                 avoided_taxes, non_tax_purposes, inheritance_return_date, inheritance_return_type, foreknown,
@@ -1388,7 +1389,7 @@ def other_income_guide(
     입력: date(지급일·수입시기), income_item, 선택으로 amount, facts(사실관계 플래그).
     반환: {기준일, 과세기간, 소득, 판정: [{항목(소득 구분·필요경비·과세최저한·분리과세·원천징수세율·비과세 등), 판정, 사유, 근거}], 원천징수세액?, 계산 다음 단계?, 관련 해석, 한계, 다음 단계, 확인 시행본}. date·income_item을 생략하면 날짜별 변화와 입력값 목록.
     날짜에 따라 다름: 의제율 80%(~2018.3.31.)·70%(2018.4.1.~)·60%(2019 과세기간~), 서화 필요경비(2020)·소득 구분(2021.1.1. 양도분), 투표권·슬롯머신 과세최저한(2016.7.1.), 복권 과세최저한 200만원(2023.1.1.), 분리과세 선택 대상 호(2018·2019·2020), 직무발명 비과세 한도(300만·500만·700만원), 가상자산(2027.1.1. 이후 양도분).
-    세액 계산은 계산 MCP의 other_income_aggregate(종교인소득은 religious_income). 일시적·계속적 등 사실 판단은 입력값으로만 쓴다. 종교인소득 필요경비 표는 원문 대조를 못해 계산하지 않는다. 읽기 전용, 외부 호출 없음.
+    세액 계산은 계산 MCP의 other_income_aggregate(종교인소득은 religious_income). 일시적·계속적 등 사실 판단은 입력값으로만 쓴다. amount를 주면 필요경비·기타소득금액을 함께 보여 주는데, 이는 과세최저한·분리과세(300만원) 판정에 쓰는 값이다 — 신고·원천징수할 세액은 계산 MCP 결과를 쓴다. 종교인소득 필요경비는 시행령 제87조제3호 표(받은 금액 구간별)로 계산한다. 읽기 전용, 외부 호출 없음.
     """
     from . import other_income as _other_income
     return _other_income.guide(date, income_item, amount, facts)

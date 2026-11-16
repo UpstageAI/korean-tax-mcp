@@ -467,7 +467,7 @@ class Doc:
     def styles(self):
         body, sans, z = self.f["body"], self.f["sans"], self.z
         def fonts(face): return f'<w:rFonts w:ascii="{face}" w:hAnsi="{face}" w:eastAsia="{EA}" w:cs="{face}"/>'
-        lang = '<w:lang w:val="en-US" w:eastAsia="ko-KR" w:bidi="ar-SA"/>'
+        lang = f'<w:lang w:val="{self.s.get("english") or "en-US"}" w:eastAsia="ko-KR" w:bidi="ar-SA"/>'   # 교정 언어: 영문 메모는 en-US·en-GB
         return (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:styles {NS}>'
                 f'<w:docDefaults><w:rPrDefault><w:rPr>{fonts(body)}<w:color w:val="{INK}"/><w:sz w:val="{z["body"]}"/><w:szCs w:val="{z["body"]}"/>{lang}</w:rPr></w:rPrDefault>'
                 f'<w:pPrDefault><w:pPr><w:spacing w:after="70" w:line="{LINE}" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
@@ -498,7 +498,7 @@ DOC_RELS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relations
             + "</Relationships>")
 SETTINGS = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:settings {NS}><w:footnotePr><w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr>'
             '<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>'
-            '<w:themeFontLang w:val="en-US" w:eastAsia="ko-KR"/></w:settings>')
+            '<w:themeFontLang w:val="__LANG__" w:eastAsia="ko-KR"/></w:settings>')
 FONT_TABLE = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:fonts {NS}>'
               f'<w:font w:name="{EA}"><w:altName w:val="맑은 고딕"/><w:charset w:val="81"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>'
               '<w:font w:name="Georgia"><w:charset w:val="00"/><w:family w:val="roman"/><w:pitch w:val="variable"/></w:font>'
@@ -512,7 +512,7 @@ def build(s, dst):
             f'xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{_t(M.plain(s["head"]["re"]))}</dc:title><dc:creator>korean-tax-mcp</dc:creator></cp:coreProperties>')
     parts = [("[Content_Types].xml", CONTENT_TYPES), ("_rels/.rels", RELS), ("word/document.xml", d.document()),
              ("word/_rels/document.xml.rels", DOC_RELS), ("word/styles.xml", d.styles()), ("word/numbering.xml", d.numbering()),
-             ("word/footnotes.xml", d.footnotes()), ("word/settings.xml", SETTINGS), ("word/footer1.xml", d.footer()),
+             ("word/footnotes.xml", d.footnotes()), ("word/settings.xml", SETTINGS.replace("__LANG__", s.get("english") or "en-US")), ("word/footer1.xml", d.footer()),
              ("word/fontTable.xml", FONT_TABLE), ("docProps/core.xml", core)]
     with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
         for name, data in parts:
