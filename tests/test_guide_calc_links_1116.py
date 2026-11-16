@@ -50,3 +50,14 @@ def test_permanent_establishment_by_conclusion():
 def test_english_keys():
     en = i18n.localize(TP.guide("금전대차"))
     assert en["next_calculation"][0]["tool"] == "계산 MCP deemed_interest" and "purpose" in en["next_calculation"][0]
+
+
+def test_pe_treaty_service_pe_note():
+    """조약 안내: 건설 기간·용역 고정사업장 조항 유무를 확인하라는 목록, 국내법상 용역·건설로 '있음'이면 조약으로 다시 판단하라는 주의."""
+    o = PE.guide(year=2026, taxpayer="외국법인", fixed_place=False, service_months_in_12=8, treaty_country="독일")
+    items = o["조세조약"]["조약에서 확인할 조항"]
+    assert any("용역 고정사업장" in x for x in items) and any("건설" in x for x in items)
+    assert "용역 고정사업장 조항" in o["조세조약"]["주의"]
+    c = PE.guide(year=2026, taxpayer="외국법인", fixed_place=False, construction_months=8, treaty_country="독일")
+    assert "주의" in c["조세조약"]
+    assert "주의" not in PE.guide(year=2026, taxpayer="외국법인", fixed_place=False, service_months_in_12=8)["조세조약"]   # 조약국을 안 주면 없음
