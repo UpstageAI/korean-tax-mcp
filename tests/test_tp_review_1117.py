@@ -45,7 +45,8 @@ def test_numeric_signals_judged_by_tool_without_model():
     r = T.review(g["tested"], [g["candidate"]], judgments={"판정": []})
     s = {x["신호"]: x for x in r["후보별 권고"][0]["신호"]}
     assert s["R3"]["판정"] == "다름" and s["R3"]["판정 주체"] == "도구(숫자)" and "관행 기본값" in s["R3"]["기준"]
-    assert any(c["문서번호"] == "대법원-2024-두-54065" and c.get("링크") for c in s["R3"]["판례"])
+    assert any(c["문서번호"] == "대법원-2024-두-54065" and c.get("링크") for c in s["R3"]["근거"]["판례"])
+    assert any("시행규칙 제6조제1항제2호" in x for x in s["R3"]["근거"]["법령"]) and s["R3"]["근거"]["OECD"] and s["R3"]["근거"]["국세청 실무"]
 
 
 def test_fabricated_quote_downgraded_to_unknown():
@@ -148,7 +149,8 @@ def test_solar_called_in_small_chunks_and_failed_chunk_isolated(monkeypatch):
 
     monkeypatch.setattr(solar, "chat_json", fake)
     r = T.review(t, cands)
-    assert [len(c) for c in calls] == [T.SOLAR_CHUNK] * 3 + [1] and "error" not in r   # 실패한 묶음은 한 번 다시 부름
+    assert [len(c) for c in calls] == ([T.SOLAR_CHUNK] * 3 + [1]) * len(T.SIGNAL_GROUPS) and "error" not in r   # 신호 묶음마다, 실패한 후보 묶음은 한 번 다시
+    assert sorted(k for g in T.SIGNAL_GROUPS for k in g) == sorted(T.TEXT_SIGNALS)
     assert set(r["판정 실패 후보"]["후보"]) == {"c3", "c4", "c5"}
     by = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in r["후보별 권고"]}
     assert by["c0"]["R1"]["판정"] == "가까움" and by["c3"]["R1"]["판정"] == "불명" and "Solar 판정 실패" in by["c3"]["R1"]["이유"]
@@ -171,3 +173,31 @@ def test_stitched_quote_partial_match_keeps_verdict_but_fabrication_still_unknow
     s = {x["신호"]: x for x in T.review(g["tested"], [g["candidate"]], judgments={"판정": [stitched, fake]})["후보별 권고"][0]["신호"]}
     assert s["R1"]["판정"] == "다름" and s["R1"]["원문 확인"].startswith("일부 일치") and s["R1"]["확신도"] == "보통"
     assert s["R2"]["판정"] == "불명"
+
+
+def test_source_layers_cover_all_statutory_factors_and_resolve():
+    """신호 근거 층(2026-11-17): 시행규칙 제6조① 분석요소 7개가 모두 신호로 덮이고, OECD 문단·판례 번호는 실제로 조회된다."""
+    import re
+    from korean_tax_mcp import oecd_tpg
+    from korean_tax_mcp import tp_report
+    m = T._DATA["분석요소 대응"]
+    assert [k for k in m if k[0].isdigit()] == [f"{i}호" + k.split("호", 1)[1] for i, k in zip(range(1, 8), [k for k in m if k[0].isdigit()])]
+    assert all(all(x in T.SIGNALS for x in v) for k, v in m.items() if k != "설명")
+    cases = set(T._case_index())
+    for sid, sig in T.SIGNALS.items():
+        layers = sig.get("근거 층", {})
+        assert layers.get("법령") or layers.get("OECD"), sid
+        assert set(sig["판례"]) <= cases, (sid, set(sig["판례"]) - cases)
+        for ref in layers.get("OECD", []):
+            para = re.match(r"(\d+\.\d+)", ref).group(1)
+            assert oecd_tpg.lookup(para).get("결과"), (sid, para)
+        for ref in layers.get("법령", []):
+            assert re.search(r"시행(령|규칙) 제\d+조", ref), (sid, ref)
+
+
+def test_new_signals_requested_from_model_and_noncore():
+    g = next(x for x in GOLD if x["id"] == "G06")
+    r = T.review(g["tested"], [g["candidate"]])
+    assert {"R15", "R16", "R17"} <= set(r["판정할 신호"][g["candidate"]["name"]])
+    assert not any(T.SIGNALS[k]["핵심"] for k in ("R15", "R16", "R17"))
+    assert "분석요소 대응" in r and "근거 층" in r["신호 설명"]["R16"]
