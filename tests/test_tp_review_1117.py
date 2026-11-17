@@ -201,3 +201,11 @@ def test_new_signals_requested_from_model_and_noncore():
     assert {"R15", "R16", "R17"} <= set(r["판정할 신호"][g["candidate"]["name"]])
     assert not any(T.SIGNALS[k]["핵심"] for k in ("R15", "R16", "R17"))
     assert "분석요소 대응" in r and "근거 층" in r["신호 설명"]["R16"]
+
+
+def test_r12_scope_is_within_candidate_and_sent_to_model():
+    """R12는 후보 자기 안의 부문 혼재만 — 업종 차이(R1)·제조/유통(R2)을 겹쳐 세지 않게 판정 범위로 알림."""
+    scope = T.SIGNALS["R12"]["판정 범위"]
+    assert "R1" in scope and "R2" in scope and "10%" in scope and "한 사업만" in scope
+    g = next(x for x in GOLD if x["id"] == "G06")
+    assert "한 사업만" in T._prompt(g["tested"], [g["candidate"]], {g["candidate"]["name"]: ["R12"]}, group=("R12",))
