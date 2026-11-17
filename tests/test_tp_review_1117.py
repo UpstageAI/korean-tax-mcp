@@ -129,3 +129,45 @@ def test_labeled_multi_quote_checked_piece_by_piece():
     s = {x["신호"]: x for x in T.review(g["tested"], [g["candidate"]], judgments={"판정": [ok, note, bad]})["후보별 권고"][0]["신호"]}
     assert s["R3"]["원문 확인"] == "원문 일치" and s["R4"]["원문 확인"] == "원문 일치"
     assert s["R1"]["판정"] == "불명"
+
+
+def test_solar_called_in_small_chunks_and_failed_chunk_isolated(monkeypatch):
+    """실제 공시 후보 10개를 한 번에 보내면 Solar 답이 잘려 전체가 실패했음(2026-11-17) — 묶음으로 나누고 실패한 묶음만 불명."""
+    monkeypatch.setattr(solar, "mode", lambda: "solar_cloud")
+    monkeypatch.setattr(solar, "where", lambda *a: "Solar(테스트)")
+    t = {"role": "판매", "products": "화장품", "channel": "도매"}
+    cands = [{"name": f"c{i}", "description": f"화장품 도매 {i}"} for i in range(7)]
+    calls = []
+
+    def fake(prompt, max_tokens=0, timeout=0):
+        names = [c["name"] for c in cands if f"[{c['name']}]" in prompt]
+        calls.append(names)
+        if "c3" in names:
+            raise ValueError("Expecting ',' delimiter")
+        return {"판정": [{"후보": n, "신호": "R1", "판정": "가까움", "근거 문장": "화장품 도매", "확신도": "높음"} for n in names]}
+
+    monkeypatch.setattr(solar, "chat_json", fake)
+    r = T.review(t, cands)
+    assert [len(c) for c in calls] == [T.SOLAR_CHUNK] * 3 + [1] and "error" not in r   # 실패한 묶음은 한 번 다시 부름
+    assert set(r["판정 실패 후보"]["후보"]) == {"c3", "c4", "c5"}
+    by = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in r["후보별 권고"]}
+    assert by["c0"]["R1"]["판정"] == "가까움" and by["c3"]["R1"]["판정"] == "불명" and "Solar 판정 실패" in by["c3"]["R1"]["이유"]
+
+
+def test_solar_all_chunks_failed_returns_error(monkeypatch):
+    monkeypatch.setattr(solar, "mode", lambda: "solar_cloud")
+    monkeypatch.setattr(solar, "chat_json", lambda *a, **k: (_ for _ in ()).throw(ValueError("bad json")))
+    r = T.review({"role": "판매"}, [{"name": "a", "description": "x"}])
+    assert "error" in r and "모두" in r["error"]
+
+
+def test_stitched_quote_partial_match_keeps_verdict_but_fabrication_still_unknown():
+    g = next(x for x in GOLD if x["id"] == "G01")
+    n = g["candidate"]["name"]
+    stitched = {"후보": n, "신호": "R1", "판정": "다름", "확신도": "높음",
+                "근거 문장": "생활용품·가전 등 약 50만 개 품목을 취급하는 종합 도매업체이다. 직영점을 운영하며 소매 판매도 한다.",
+                "분석대상 근거": "침구청소기 단일 품목만 판매"}
+    fake = {"후보": n, "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": "백화점 명품관에서 고가 의류를 판다"}
+    s = {x["신호"]: x for x in T.review(g["tested"], [g["candidate"]], judgments={"판정": [stitched, fake]})["후보별 권고"][0]["신호"]}
+    assert s["R1"]["판정"] == "다름" and s["R1"]["원문 확인"].startswith("일부 일치") and s["R1"]["확신도"] == "보통"
+    assert s["R2"]["판정"] == "불명"

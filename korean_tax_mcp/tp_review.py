@@ -23,6 +23,8 @@ CORE = tuple(k for k, s in SIGNALS.items() if s["핵심"])
 VERDICTS = ("가까움", "다름", "불명")
 CONF = ("높음", "보통", "낮음")
 MAX_CANDIDATES = 20
+SOLAR_CHUNK = 3            # Solar 한 번에 판정할 후보 수 — 10개(문장 신호 60개)면 답이 1만 자를 넘어 JSON이 잘렸음(2026-11-17 실제 공시 46개)
+SOLAR_MAX_TOKENS = 6000
 _TESTED_KEYS = ("role", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
 _CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc")
 _RATIO_KEYS = ("advert", "rnd", "related", "related_sales", "related_purchase", "sales", "export", "inv")
@@ -132,12 +134,13 @@ def _schema():
 def _instruction():
     return ("후보마다 '판정할 신호'만 판정한다. 근거 문장은 입력 원문(후보 description·sales_lines, 분석대상 products·channel·description)에서 "
             "글자 그대로 옮긴다(요약·번역 금지) — 후보 원문은 '근거 문장', 분석대상 원문은 '분석대상 근거'에 나눠 적는다. 원문에 근거가 없으면 판정을 '불명'으로 하고 근거 문장은 비운다. 업종 코드가 같다는 것만으로 '가까움'이라 하지 않는다. "
+            "신호마다 '판정 범위'만 본다 — 한 가지 차이를 여러 신호에 겹쳐 '다름'으로 세지 않는다(예: 자체 브랜드는 R4, 제조사인지는 R2이고 R1 품목은 제품군만). "
             "확신이 없으면 '불명' 또는 확신도 '낮음'. 판정 결과를 judgments로 넣어 이 도구를 다시 부르면 근거 대조와 권고가 붙는다. "
             "결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요.")
 
 
 def _prompt(tested, cands, targets):
-    sig_lines = "\n".join(f"- {k} {SIGNALS[k]['이름']}: {SIGNALS[k]['묻는 것']}" for k in TEXT_SIGNALS)
+    sig_lines = "\n".join(f"- {k} {SIGNALS[k]['이름']}: {SIGNALS[k]['묻는 것']} [판정 범위] {SIGNALS[k].get('판정 범위', '')}" for k in TEXT_SIGNALS)
     cand_lines = "\n".join(
         f"[{c['name']}] 판정할 신호: {','.join(targets[c['name']]) or '없음'}\n  description: {str(c.get('description', ''))[:1500]}\n  sales_lines: {c.get('sales_lines', [])}"
         for c in cands)
@@ -155,7 +158,7 @@ JSON: {json.dumps(_schema(), ensure_ascii=False)}"""
 def _pieces(quote):
     """근거 문장을 대조 단위로 — ' / '로 이은 여러 인용, '분석대상:'·'후보:' 같은 머리말, 괄호 속 메모('(언급 없음)')는 떼어 냄."""
     out = []
-    for part in re.split(r"\s/\s|\||\n", str(quote or "")):
+    for part in (x for seg in re.split(r"\s/\s|\||\n", str(quote or "")) for x in re.split(r"(?<=다\.)\s*", seg)):
         part = re.sub(r"^\s*(?:\[[^\]]*\]|분석대상|후보(?:\s*[^:：]{0,20})?)\s*[:：]\s*", "", part.strip())
         if not part or re.fullmatch(r"[(（].*[)）]", part):
             continue
@@ -163,6 +166,16 @@ def _pieces(quote):
         if n:
             out.append(n)
     return out
+
+
+def _bigram_cover(piece, srcs):
+    """원문에 없는 조각이 원문 말을 줄이거나 이어 쓴 것인지 — 글자 2개 묶음이 원문에 있는 비율."""
+    grams = [piece[i:i + 2] for i in range(len(piece) - 1)]
+    return sum(any(g in s_ for s_ in srcs) for g in grams) / len(grams) if grams else 0.0
+
+
+QUOTE_FUZZY_MIN_LEN = 10  # 이보다 짧은 조각은 원문과 글자 그대로 같아야 함(짧으면 우연히 겹침)
+QUOTE_COVER_MIN = 0.7     # 원문에 그대로 없는 조각은 글자 2개 묶음 70% 이상이 원문에 있어야 '일부 일치'(그 밖은 지어낸 근거로 보고 불명)
 
 
 def _verify(j, tested, cand_by, targets):
@@ -182,8 +195,12 @@ def _verify(j, tested, cand_by, targets):
         c = cand_by[name]
         src = _norm(f"{c.get('description', '')} {' '.join(map(str, c.get('sales_lines') or []))}")
         pieces = _pieces(quote)
-        if pieces and all(p in src or p in tested_src for p in pieces):
+        miss = [p for p in pieces if p not in src and p not in tested_src]
+        if pieces and not miss:
             check = "원문 일치"
+        elif pieces and any(p in src for p in pieces) and all(len(p) >= QUOTE_FUZZY_MIN_LEN and _bigram_cover(p, (src, tested_src)) >= QUOTE_COVER_MIN for p in miss):
+            check = f"일부 일치 — 그대로 없는 조각 {len(miss)}개(문장 이어 붙이기·분석대상 요약으로 보임), 확신도 한 단계 낮춤"
+            conf = {"높음": "보통", "보통": "낮음"}.get(conf, "낮음")
         elif quote:
             check = "원문에 없음 — 판정을 불명으로 낮춤"
             v, conf = "불명", "낮음"
@@ -251,7 +268,7 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
     numeric = {c["name"]: _numeric(tested, c, R) for c in candidates}
     targets = {c["name"]: _model_targets(tested, c, numeric[c["name"]], role) for c in candidates}
     base = {"입력": {"역할": role or "판매·제조(지정 안 함)", "후보 수": len(candidates)},
-            "신호 설명": {k: {"이름": SIGNALS[k]["이름"], "묻는 것": SIGNALS[k]["묻는 것"]} for k in _signals_for(role)},
+            "신호 설명": {k: {"이름": SIGNALS[k]["이름"], "묻는 것": SIGNALS[k]["묻는 것"], **({"판정 범위": SIGNALS[k]["판정 범위"]} if SIGNALS[k].get("판정 범위") else {})} for k in _signals_for(role)},
             "기준값": {k: {"값": R[k], "성격": _DATA["숫자 기준"][k]["성격"], "뜻": _DATA["숫자 기준"][k]["뜻"]} for k in DEFAULT_RULES}}
 
     mode = solar.mode()
@@ -261,15 +278,28 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
                 "후보 원문": [{"name": c["name"], "description": str(c.get("description", ""))[:1500], "sales_lines": c.get("sales_lines", [])} for c in candidates],
                 "판정 형식": _schema(), "판단 안내": _instruction(),
                 "주의": "AI 판정과 도구 권고는 검토 보조 — 사람이 승인·수정"}
-    dropped = []
+    dropped, failed = [], {}
     if judgments is not None:
         judged, dropped = _verify(judgments, tested, cand_by, targets)
         who = "사용자 AI"
     elif any(targets.values()):
-        try:
-            judged, dropped = _verify(solar.chat_json(_prompt(tested, candidates, targets), max_tokens=4000), tested, cand_by, targets)
-        except Exception as e:
-            return {"error": f"Solar 판정 실패: {e} — Solar 설정을 빼면 사용자 AI가 판정하는 방식(host_ai)으로 돌아감"}
+        judged, failed = {}, {}
+        todo = [c for c in candidates if targets[c["name"]]]
+        for i in range(0, len(todo), SOLAR_CHUNK):       # 후보가 많으면 답이 길어져 JSON이 잘림 — 묶음을 작게 나눠 부르고, 실패한 묶음만 불명
+            part = todo[i:i + SOLAR_CHUNK]
+            for attempt in range(2):                     # Solar가 가끔 깨진 JSON을 냄 — 한 번 다시 부름
+                try:
+                    j, d = _verify(solar.chat_json(_prompt(tested, part, targets), max_tokens=SOLAR_MAX_TOKENS), tested, cand_by, targets)
+                    judged.update(j)
+                    dropped += d
+                    for c in part:
+                        failed.pop(c["name"], None)
+                    break
+                except Exception as e:
+                    for c in part:
+                        failed[c["name"]] = f"{type(e).__name__}: {str(e)[:120]}"
+        if failed and len(failed) == len(todo):
+            return {"error": f"Solar 판정 실패(후보 {len(failed)}개 모두): {next(iter(failed.values()))} — Solar 설정을 빼면 사용자 AI가 판정하는 방식(host_ai)으로 돌아감"}
         who = solar.where()
     else:
         judged, who = {}, "없음(숫자만)"
@@ -279,7 +309,8 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
         n = c["name"]
         rows = {**numeric[n], **judged.get(n, {})}
         for k in targets[n]:
-            rows.setdefault(k, {"판정": "불명", "이유": "판정이 오지 않음", "근거 문장": "", "원문 확인": "판정 없음", "확신도": "낮음", "판정 주체": "없음"})
+            rows.setdefault(k, {"판정": "불명", "이유": f"Solar 판정 실패 — {failed[n]}" if n in failed else "판정이 오지 않음",
+                                "근거 문장": "", "원문 확인": "판정 없음", "확신도": "낮음", "판정 주체": "없음"})
         rec, why = _recommend(rows)
         sig_rows = []
         for k in sorted(rows, key=lambda x: int(x[1:])):
@@ -298,6 +329,8 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
            "주의": "AI 판정과 도구 권고는 검토 보조 — 정상가격이나 비교가능성을 확정하지 않는다. 판례는 tp_cases.json 본문 대조분, 인용 전에 get_tax_ruling으로 본문 확인"}
     if dropped:
         out["무시한 판정"] = dropped[:20]
+    if failed:
+        out["판정 실패 후보"] = {"후보": list(failed), "안내": "이 후보들은 문장 신호가 불명으로 남음 — 같은 후보만 다시 부르거나 사용자 AI로 판정(judgments)"}
     if judged:
         out["AI 생성 표시"] = (f"이 결과의 문장 판정은 생성형 AI({who})가 작성했습니다. 근거 문장은 원문과 대조했고, 원문에 없으면 불명으로 낮췄습니다."
                             if judgments is None else "문장 판정은 사용자 AI가 작성했습니다. 근거 문장은 원문과 대조했고, 원문에 없으면 불명으로 낮췄습니다. 사용자에게 보여 줄 때 AI 생성임을 표시하세요.")
