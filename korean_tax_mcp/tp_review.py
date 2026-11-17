@@ -18,20 +18,28 @@ with open(_DATA_PATH, encoding="utf-8") as _f:
     _DATA = json.load(_f)
 SIGNALS = {s["id"]: s for s in _DATA["신호"]}
 DEFAULT_RULES = {k: v["값"] for k, v in _DATA["숫자 기준"].items() if isinstance(v, dict)}
-TEXT_SIGNALS = ("R1", "R2", "R3", "R4", "R8", "R12")       # 모델이 문장으로 판정할 수 있는 신호
+TEXT_SIGNALS = ("R1", "R2", "R3", "R4", "R8", "R12", "R15", "R16", "R17")       # 모델이 문장으로 판정할 수 있는 신호
 CORE = tuple(k for k, s in SIGNALS.items() if s["핵심"])
 VERDICTS = ("가까움", "다름", "불명")
 CONF = ("높음", "보통", "낮음")
 MAX_CANDIDATES = 20
 SOLAR_CHUNK = 3            # Solar 한 번에 판정할 후보 수 — 10개(문장 신호 60개)면 답이 1만 자를 넘어 JSON이 잘렸음(2026-11-17 실제 공시 46개)
 SOLAR_MAX_TOKENS = 6000
+SIGNAL_GROUPS = (("R1", "R2", "R3", "R4"), ("R8", "R12", "R15", "R16", "R17"))   # Solar에 따로 물을 신호 묶음(핵심 / 나머지)
 _TESTED_KEYS = ("role", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
 _CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc")
 _RATIO_KEYS = ("advert", "rnd", "related", "related_sales", "related_purchase", "sales", "export", "inv")
 
 
 def _case_index():
-    return {c["문서번호"]: c for v in _tp.cases()["쟁점"].values() for c in v["사례"]}
+    """판례 번호 → 사례(심급이 있는 사건의 원심·앞 단계 심판은 '관련 문서'에서, 결과는 본 사건 것)."""
+    idx = {}
+    for v in _tp.cases()["쟁점"].values():
+        for c in v["사례"]:
+            idx.setdefault(c["문서번호"], c)
+            for r in c.get("관련 문서", []):
+                idx.setdefault(r["문서번호"], {"문서번호": r["문서번호"], "결과": f"{c['결과']}({c['문서번호']}의 관련 심급)", "링크": r.get("링크", "")})
+    return idx
 
 
 def _cases_for(sig, idx):
@@ -139,8 +147,8 @@ def _instruction():
             "결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요.")
 
 
-def _prompt(tested, cands, targets):
-    sig_lines = "\n".join(f"- {k} {SIGNALS[k]['이름']}: {SIGNALS[k]['묻는 것']} [판정 범위] {SIGNALS[k].get('판정 범위', '')}" for k in TEXT_SIGNALS)
+def _prompt(tested, cands, targets, group=TEXT_SIGNALS):
+    sig_lines = "\n".join(f"- {k} {SIGNALS[k]['이름']}: {SIGNALS[k]['묻는 것']} [판정 범위] {SIGNALS[k].get('판정 범위', '')}" for k in group)
     cand_lines = "\n".join(
         f"[{c['name']}] 판정할 신호: {','.join(targets[c['name']]) or '없음'}\n  description: {str(c.get('description', ''))[:1500]}\n  sales_lines: {c.get('sales_lines', [])}"
         for c in cands)
@@ -268,7 +276,9 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
     numeric = {c["name"]: _numeric(tested, c, R) for c in candidates}
     targets = {c["name"]: _model_targets(tested, c, numeric[c["name"]], role) for c in candidates}
     base = {"입력": {"역할": role or "판매·제조(지정 안 함)", "후보 수": len(candidates)},
-            "신호 설명": {k: {"이름": SIGNALS[k]["이름"], "묻는 것": SIGNALS[k]["묻는 것"], **({"판정 범위": SIGNALS[k]["판정 범위"]} if SIGNALS[k].get("판정 범위") else {})} for k in _signals_for(role)},
+            "신호 설명": {k: {"이름": SIGNALS[k]["이름"], "묻는 것": SIGNALS[k]["묻는 것"], **({"판정 범위": SIGNALS[k]["판정 범위"]} if SIGNALS[k].get("판정 범위") else {}),
+                         "근거 층": {**SIGNALS[k].get("근거 층", {}), "판례": SIGNALS[k]["판례"]}} for k in _signals_for(role)},
+            "분석요소 대응": _DATA["분석요소 대응"], "근거 확인": _DATA["근거 확인"],
             "기준값": {k: {"값": R[k], "성격": _DATA["숫자 기준"][k]["성격"], "뜻": _DATA["숫자 기준"][k]["뜻"]} for k in DEFAULT_RULES}}
 
     mode = solar.mode()
@@ -285,19 +295,24 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
     elif any(targets.values()):
         judged, failed = {}, {}
         todo = [c for c in candidates if targets[c["name"]]]
-        for i in range(0, len(todo), SOLAR_CHUNK):       # 후보가 많으면 답이 길어져 JSON이 잘림 — 묶음을 작게 나눠 부르고, 실패한 묶음만 불명
-            part = todo[i:i + SOLAR_CHUNK]
-            for attempt in range(2):                     # Solar가 가끔 깨진 JSON을 냄 — 한 번 다시 부름
-                try:
-                    j, d = _verify(solar.chat_json(_prompt(tested, part, targets), max_tokens=SOLAR_MAX_TOKENS), tested, cand_by, targets)
-                    judged.update(j)
-                    dropped += d
-                    for c in part:
-                        failed.pop(c["name"], None)
-                    break
-                except Exception as e:
-                    for c in part:
-                        failed[c["name"]] = f"{type(e).__name__}: {str(e)[:120]}"
+        for group in SIGNAL_GROUPS:                       # 신호를 한 번에 다 물으면 판정 범위가 섞임(품목에 브랜드·제조를 겹쳐 셈) — 핵심 신호와 나머지를 따로 물음
+            tg = {n: [k for k in v if k in group] for n, v in targets.items()}
+            gtodo = [c for c in todo if tg[c["name"]]]
+            for i in range(0, len(gtodo), SOLAR_CHUNK):   # 후보가 많으면 답이 길어져 JSON이 잘림 — 묶음을 작게 나눠 부르고, 실패한 묶음만 불명
+                part = gtodo[i:i + SOLAR_CHUNK]
+                for attempt in range(2):                  # Solar가 가끔 깨진 JSON을 냄 — 한 번 다시 부름
+                    try:
+                        j, d = _verify(solar.chat_json(_prompt(tested, part, tg, group), max_tokens=SOLAR_MAX_TOKENS), tested, cand_by, tg)
+                        for n, rows_ in j.items():
+                            judged.setdefault(n, {}).update(rows_)
+                        dropped += d
+                        for c in part:
+                            failed.pop((c["name"], group), None)
+                        break
+                    except Exception as e:
+                        for c in part:
+                            failed[(c["name"], group)] = f"{type(e).__name__}: {str(e)[:120]}"
+        failed = {n: msg for (n, _g), msg in failed.items()}
         if failed and len(failed) == len(todo):
             return {"error": f"Solar 판정 실패(후보 {len(failed)}개 모두): {next(iter(failed.values()))} — Solar 설정을 빼면 사용자 AI가 판정하는 방식(host_ai)으로 돌아감"}
         who = solar.where()
@@ -316,7 +331,7 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
         for k in sorted(rows, key=lambda x: int(x[1:])):
             r = rows[k]
             sig_rows.append({"신호": k, "이름": SIGNALS[k]["이름"], **r, "조정 가능": SIGNALS[k]["조정 가능"],
-                             **({"판례": _cases_for(k, idx), "볼 포인트": SIGNALS[k]["볼 포인트"]} if r["판정"] != "가까움" else {})})
+                             **({"근거": {**SIGNALS[k].get("근거 층", {}), "판례": _cases_for(k, idx)}, "볼 포인트": SIGNALS[k]["볼 포인트"]} if r["판정"] != "가까움" else {})})
         results.append({"후보": n, "권고": rec, "이유": why, "확신도": _confidence(rows), "신호": sig_rows,
                         "사람이 볼 것": [f"{s['신호']} {s['이름']}: {s['볼 포인트']}" for s in sig_rows if s["판정"] != "가까움"][:5]})
     order = {"제외 후보": 0, "사람 확인": 1, "포함": 2}
