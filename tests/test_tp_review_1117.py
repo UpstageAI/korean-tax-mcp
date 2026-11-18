@@ -341,3 +341,21 @@ def test_keyword_scope_paren_subitem_is_not_ho():
             "② 둘째 항")
     hit = law._keyword_scope(body, "디지털서비스", "제26조")
     assert hit and hit[1] == ["제1항 제5호"]
+
+
+def test_cite_court_abbreviation_is_read_and_expanded():
+    """'수원고법 2023누16871'을 인용으로 읽고 국세청 DB 문서번호 형식(정식 법원명)으로 바꾼다."""
+    from korean_tax_mcp import cite
+    docs, _ = cite._docs("근거(수원고법 2023누16871, 서울지법 2001구123, 대법원 2012두23341)")
+    assert docs == ["수원고등법원 2023누16871", "서울지방법원 2001구123", "대법원 2012두23341"]
+
+
+def test_cite_tribunal_falls_back_to_moleg(monkeypatch):
+    """조심 번호가 국세청 DB에 없으면 법제처 재결례로 한 번 더 찾는다."""
+    from korean_tax_mcp import cite
+    monkeypatch.setattr(cite.ntis, "_search", lambda *a, **k: [])
+    monkeypatch.setattr(cite.tribunal, "search", lambda q, n=5, sort="": {"결과": [{"문서번호": "조심 2023서9158", "제목": "t", "일자": "2025.04.09.", "링크": "u"}]})
+    r = cite._check_doc("조심 2023서9158")
+    assert r["결과"] == "확인" and "법제처" in r["출처"]
+    monkeypatch.setattr(cite.tribunal, "search", lambda q, n=5, sort="": {"결과": []})
+    assert cite._check_doc("조심 2030서1234")["결과"] == "국세청 DB 미확인"
