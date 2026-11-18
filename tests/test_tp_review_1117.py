@@ -228,8 +228,8 @@ def test_quote_of_tested_input_fields_accepted():
     cand = {"name": "가", "description": "주요사업 내용 : 화장품 판매"}
     tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 도매", "description": "제조·연구개발 없음, 자체 브랜드 없음"}
     def run(q):
-        j = {"판정": [{"후보": "가", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": q}]}
-        return next(x for x in T.review(tested, [cand], judgments=j)["후보별 권고"][0]["신호"] if x["신호"] == "R15")
+        j = {"판정": [{"후보": "가", "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": q}]}
+        return next(x for x in T.review(tested, [cand], judgments=j)["후보별 권고"][0]["신호"] if x["신호"] == "R2")
     for q in ("limited_risk: true", "주요사업 내용 : 화장품 판매 / role: 판매, limited_risk: true, 제조·연구개발 없음, 자체 브랜드 없음", "분석대상 description: 제조·연구개발 없음, 자체 브랜드 없음"):
         r = run(q)
         assert r["판정"] == "다름" and r["원문 확인"] == "원문 일치", (q, r)
@@ -253,3 +253,28 @@ def test_quote_with_ellipsis_checked_piece_by_piece():
     j = {"판정": [{"후보": "가", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서... 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}]}
     s = {x["신호"]: x for x in T.review({"role": "판매", "products": "화장품"}, [cand], judgments=j)["후보별 권고"][0]["신호"]}
     assert s["R1"]["판정"] == "가까움" and s["R1"]["원문 확인"] == "원문 일치"
+
+
+def test_r15_without_risk_statement_is_unknown():
+    """R15 위험: 후보 근거에 위험 서술(재고·반품·가격변동·채권)이 없으면 '제조사라 위험을 질 것'처럼 미룬 판정은 불명(2026-11-18 결정) — 위험 서술이 있으면 그대로."""
+    a = {"name": "가", "description": "당사는 색조화장품 OEM/ODM 제조 및 판매를 주요 사업으로 영위하고 있습니다."}
+    b = {"name": "나", "description": "당사는 완제품 재고를 자기 책임으로 보유하며 반품 위험을 부담합니다."}
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품"}
+    j = {"판정": [{"후보": "가", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 색조화장품 OEM/ODM 제조 및 판매를 주요 사업으로 영위하고 있습니다. / limited_risk: true"},
+                 {"후보": "나", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 완제품 재고를 자기 책임으로 보유하며 반품 위험을 부담합니다."}]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review(tested, [a, b], judgments=j)["후보별 권고"]}
+    ra, rb = rec["가"]["R15"], rec["나"]["R15"]
+    assert ra["판정"] == "불명" and ra["AI 원래 판정"] == "다름" and "위험 서술" in ra["원문 확인"]
+    assert rb["판정"] == "다름" and "AI 원래 판정" not in rb
+
+
+def test_r12_single_business_unknown_becomes_close():
+    """R12 사업부문: 원문에 다른 사업·부문 서술이 없으면 한 사업만 하는 회사로 보고 가까움(2026-11-18 결정) — 부문 서술이 있거나 원문이 비면 모델 판정 그대로."""
+    one = {"name": "가", "description": "당사는 화장품 제조 및 판매를 주된 사업으로 영위하고 있습니다."}
+    seg = {"name": "나", "description": "당사의 사업부문은 화장품 부문과 부동산 임대 부문으로 구성됩니다."}
+    empty = {"name": "다", "description": ""}
+    j = {"판정": [{"후보": n, "신호": "R12", "판정": "불명", "확신도": "낮음", "근거 문장": ""} for n in ("가", "나", "다")]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review({"role": "판매", "products": "화장품"}, [one, seg, empty], judgments=j)["후보별 권고"]}
+    assert rec["가"]["R12"]["판정"] == "가까움" and rec["가"]["R12"]["AI 원래 판정"] == "불명" and "한 사업" in rec["가"]["R12"]["원문 확인"]
+    assert rec["나"]["R12"]["판정"] == "불명"
+    assert rec["다"]["R12"]["판정"] == "불명"

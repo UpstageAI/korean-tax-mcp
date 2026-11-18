@@ -219,8 +219,16 @@ QUOTE_COVER_MIN = 0.7     # 분석대상 입력을 줄여 쓴 조각은 글자 2
 QUOTE_NEAR_MIN = 0.8      # 원문에 그대로 없는 조각은 글자의 80% 이상이 원문과 같은 순서로 이어 겹쳐야 '일부 일치' — 2026-11-18 화장품 74곳 측정: 주어만 붙인 인용은 0.88 이상, 새로 쓴 문장은 0.68 이하, 다른 회사 문장이 통과한 비율 0.16%(54/33,763)
 
 
+def _cand_text(c):
+    return f"{c.get('description', '')} {' '.join(map(str, c.get('sales_lines') or []))}"
+
+
 def _cand_src(c):
-    return _norm(f"{c.get('description', '')} {' '.join(map(str, c.get('sales_lines') or []))}")
+    return _norm(_cand_text(c))
+
+
+RISK_WORDS = re.compile(r"재고|반품|가격\s*변동|채권|대손|위험|리스크|보증|위탁|손실|클레임")    # R15 '다름·가까움'은 후보 근거에 이런 위험 서술이 있을 때만(2026-11-18 결정)
+SEGMENT_WORDS = re.compile(r"부문|임대업|임대\s*사업|지주|[가-힣]+사업\s*(?:과|및|,|·)\s*[가-힣]+사업")  # R12 — 다른 사업·부문 서술이 보이면 모델 판정을 그대로 둠
 
 
 def _ask_src():
@@ -246,12 +254,17 @@ def _verify(j, tested, cand_by, targets):
         src = _cand_src(cand_by[name])
         exact = near = 0
         bad = []                                         # 원문에서 온 것이 아닌 조각과 그 까닭
+        cand_parts = []                                  # 후보 원문에서 온 조각(R15 위험 서술 검사용)
         for part in _parts(quote):
             p = _norm(part)
             if p in src or p in tested_src or _from_tested(part, tested_vals):
                 exact += 1
+                if p in src:
+                    cand_parts.append(part)
             elif len(p) >= QUOTE_FUZZY_MIN_LEN and (_ordered_cover(p, src) >= QUOTE_NEAR_MIN or _bigram_cover(p, (tested_src,)) >= QUOTE_COVER_MIN):
                 near += 1                                # 원문 문장 앞에 '당사는'을 붙이거나 줄여 옮김 — 판정은 그대로, 확신도만 낮춤(2026-11-17 측정: 낮춘 89건 중 58건이 이 경우였음)
+                if _ordered_cover(p, src) >= QUOTE_NEAR_MIN:
+                    cand_parts.append(part)
             elif any(len(p) >= QUOTE_FUZZY_MIN_LEN and p in _cand_src(o) for n_, o in cand_by.items() if n_ != name):
                 bad.append("다른 후보의 문장")
             elif len(p) >= QUOTE_FUZZY_MIN_LEN and _bigram_cover(p, (_ask_src(),)) >= QUOTE_COVER_MIN:
@@ -278,6 +291,14 @@ def _verify(j, tested, cand_by, targets):
             check = "근거 문장 없음"
             if v != "불명":
                 conf = "낮음"
+        if sig == "R15" and v != "불명" and not RISK_WORDS.search(" ".join(cand_parts)):
+            row_extra.setdefault("AI 원래 판정", model_v)    # 위험 서술 없이 '제조사라 위험을 질 것'처럼 미룬 판정 — 실행마다 갈렸음(2026-11-18 측정: R15 갈린 후보 17곳 → 1곳)
+            check += " · 후보 근거에 위험 서술(재고·반품·가격변동·채권) 없음 — R15는 불명(제조·유통 차이는 R2 몫)"
+            v, conf = "불명", "낮음"
+        elif sig == "R12" and model_v == "불명" and _cand_text(cand_by[name]).strip() and not SEGMENT_WORDS.search(_cand_text(cand_by[name])):
+            row_extra["AI 원래 판정"] = model_v              # 다른 사업 서술이 없으면 한 사업만 하는 회사(판정 범위 규칙) — 모델이 실행마다 가까움·불명을 오갔음(R12 갈린 후보 15곳 → 7곳)
+            check += " · 다른 사업·부문 서술 없음 — 한 사업만 하는 회사로 봄(가까움)"
+            v, conf = "가까움", "보통"
         out.setdefault(name, {})[sig] = {"판정": v, "이유": str(r.get("이유", ""))[:400], "근거 문장": quote[:400], "원문 확인": check,
                                          "확신도": conf, "판정 주체": "AI(문장)", **row_extra}
     return out, dropped
