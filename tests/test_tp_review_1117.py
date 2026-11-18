@@ -378,3 +378,4 @@ def test_addenda_for_event_splits_by_promulgation(monkeypatch):
     assert [u["부칙"] for u in r["사건 전 공포 부칙(이 조 언급)"]] == ["A"]
     assert [u["부칙"] for u in r["사건 뒤 공포 부칙(이 조 언급)"]] == ["B", "C"]
     assert r["사건 일자 시행본"] == "20200818"
+    assert r["이 조 본문이 바뀐 시행일(최근 시행본 비교)"] == {"사건 전": [], "사건 뒤": ["20210101", "20270909"]}
