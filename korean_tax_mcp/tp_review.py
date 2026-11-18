@@ -136,49 +136,46 @@ def _model_targets(tested, cand, numeric, role):
 def _schema():
     return {"판정": [{"후보": "후보 name 그대로", "신호": "R1 등", "판정": "가까움|다름|불명", "이유": "1~2문장",
                     "근거 문장": "후보 description·sales_lines에서 글자 그대로 옮긴 한 문장 — 없으면 빈 값",
-                    "분석대상 근거": "분석대상 products·channel·description에서 글자 그대로 옮긴 말(선택)", "확신도": "높음|보통|낮음",
-                    "사실": "R2에만 — {\"제조\": \"직접 제조|안 함|불명\", \"판매 상대\": \"소매·직판|도매|불명\", \"분석대상 제조\": \"직접 제조|안 함|불명\", \"분석대상 판매 상대\": \"소매·직판|도매|불명\"}"}]}
+                    "분석대상 근거": "분석대상 products·channel·description에서 글자 그대로 옮긴 말(선택)", "확신도": "높음|보통|낮음"}]}
 
 
-R2_MFG = ("직접 제조", "안 함")
-R2_SALE = ("소매·직판", "도매")
 
 
-def _r2_fact(x, allowed):
-    x = str(x or "").strip()
-    return x if x in allowed else "불명"
+_R2_NOT_MFG = re.compile(r"외주|위탁\s*생산|무공장|시설\s*없이|공장[^.。]{0,15}(?:보유하고\s*있지\s*(?:않|아니)|보유하지\s*(?:않|아니)|없)|(?:OEM|ODM)[\s/·]*(?:OEM|ODM)?\s*업체(?:를|에|와)|협력\s*업체를\s*통해|아웃소싱")
+_R2_MFG = re.compile(r"(?:OEM|ODM)\s*제조|공장|생산\s*설비|생산\s*시설|생산\s*능력|CGMP|제조소|생산\s*라인|자체\s*생산|(?:OEM|ODM)[\s/·]*(?:OEM|ODM)?\s*(?:기업|전문|사업|방식으로\s*제조)")
 
 
-def _tested_r2_facts(tested):
-    """분석대상 입력 글에서 R2 사실을 읽음 — 모델이 못 채웠을 때만 씀."""
-    t = " ".join(str(tested.get(k) or "") for k in ("role", "channel", "description"))
-    mfg = "안 함" if re.search(r"제조[^,.]{0,10}(없|않)|수입", t) else ("직접 제조" if re.search(r"제조|생산", t) else "불명")
-    sale = "소매·직판" if re.search(r"소매|직판|직영|온라인|매장", t) else ("도매" if "도매" in t else "불명")
-    return mfg, sale
+def _snip(t, m):
+    return t[max(0, m.start() - 20):m.end() + 20].strip()
 
 
-def _r2_verdict(facts, tested):
-    """R2 거래단계(2026-11-18 결정): ① 직접 제조(자기 공장·남의 물건 OEM·ODM 수탁) 여부 ② 판매 상대(소매·직판 / 도매)만 비교.
-    외주생산하는 무공장 브랜드사는 '제조 안 함'. 브랜드·기획·마케팅·위험 차이는 R4·R3·R15 몫이라 여기서 세지 않음."""
-    tm, ts = _tested_r2_facts(tested)
-    cm, cs = _r2_fact(facts.get("제조"), R2_MFG), _r2_fact(facts.get("판매 상대"), R2_SALE)
-    tm = _r2_fact(facts.get("분석대상 제조"), R2_MFG) if facts.get("분석대상 제조") in R2_MFG else tm
-    ts = _r2_fact(facts.get("분석대상 판매 상대"), R2_SALE) if facts.get("분석대상 판매 상대") in R2_SALE else ts
-    if "불명" not in (cm, tm) and cm != tm:
-        return "다름", f"제조 {cm} vs 분석대상 {tm}"
-    if "불명" not in (cs, ts) and cs != ts:
-        return "다름", f"판매 상대 {cs} vs 분석대상 {ts}"
-    if "불명" not in (cm, tm, cs, ts):
-        return "가까움", f"제조 {cm}·판매 상대 {cs}로 분석대상과 같음"
-    return "불명", f"원문에 {'판매 상대' if '불명' in (cs, ts) else '제조 여부'}가 없음"
+_R2_PURPOSE = re.compile(r"제조\s*(?:및|와|·|ㆍ|,)\s*(?:판매|도소매|도매|유통|공급|수출입)|제조\s*판매|제조업(?!체에)|제조를\s*(?:주된|주요)")
+
+
+def _cand_mfg(c):
+    """후보가 직접 제조하는지 원문 낱말로(2026-11-18 결정) — 반환 (직접 제조|안 함|불명|언급 없음, 근거).
+    외주·무공장·생산시설 없음 → 안 함, 공장·생산설비·CGMP·OEM·ODM 수탁 → 직접 제조, 둘 다면 불명,
+    '제조 및 판매업 영위' 같은 사업 목적 문구만 있으면 불명(실제 제조인지 원문으로 알 수 없음 — 2차 자료로 확인), 제조 말이 없으면 언급 없음."""
+    t = _cand_text(c)
+    out_m = _R2_NOT_MFG.search(t)
+    rest = _R2_NOT_MFG.sub(" ", t)
+    in_m = _R2_MFG.search(rest)
+    if out_m and in_m:
+        return "불명", _snip(t, out_m) + " / " + _snip(rest, in_m)
+    if out_m:
+        return "안 함", _snip(t, out_m)
+    if in_m:
+        return "직접 제조", _snip(rest, in_m)
+    pm = _R2_PURPOSE.search(t)
+    if pm:
+        return "불명", _snip(t, pm)
+    return "언급 없음", ""
 
 
 def _instruction():
     return ("후보마다 '판정할 신호'만 판정한다. 근거 문장은 입력 원문(후보 description·sales_lines, 분석대상 products·channel·description)에서 "
             "글자 그대로 옮긴다(요약·번역 금지) — 후보 원문은 '근거 문장', 분석대상 원문은 '분석대상 근거'에 나눠 적는다. 원문에 근거가 없으면 판정을 '불명'으로 하고 근거 문장은 비운다. 업종 코드가 같다는 것만으로 '가까움'이라 하지 않는다. "
             "신호마다 '판정 범위'만 본다 — 한 가지 차이를 여러 신호에 겹쳐 '다름'으로 세지 않는다(예: 자체 브랜드는 R4, 제조사인지는 R2이고 R1 품목은 제품군만). "
-            "R2는 '사실'도 채운다 — 제조: 후보가 자기 공장에서 만들거나 남의 제품을 OEM·ODM으로 만들어 주면 '직접 제조', 외주생산(OEM·ODM 업체에 맡김)·수입·매입해 팔면 '안 함'. "
-            "판매 상대: 소매점·직영점·온라인 쇼핑몰·홈쇼핑·다단계 등 소비자 쪽에 직접 팔면(도매를 함께 해도) '소매·직판', 유통업체·대리점·면세점 등에 도매만 하면 '도매'. 원문에 없으면 '불명'. 분석대상도 같은 방식으로. "
             "확신이 없으면 '불명' 또는 확신도 '낮음'. 판정 결과를 judgments로 넣어 이 도구를 다시 부르면 근거 대조와 권고가 붙는다. "
             "결과를 사용자에게 보여 줄 때 AI 생성임을 표시하세요.")
 
@@ -335,15 +332,6 @@ def _verify(j, tested, cand_by, targets):
             row_extra["AI 원래 판정"] = model_v              # 다른 사업 서술이 없으면 한 사업만 하는 회사(판정 범위 규칙) — 모델이 실행마다 가까움·불명을 오갔음(R12 갈린 후보 15곳 → 7곳)
             check += " · 다른 사업·부문 서술 없음 — 한 사업만 하는 회사로 봄(가까움)"
             v, conf = "가까움", "보통"
-        elif sig == "R2" and isinstance(r.get("사실"), dict) and not bad:
-            code_v, why = _r2_verdict(r["사실"], tested)  # 모델은 사실만, 판정은 규칙 — '외주생산 브랜드사'를 실행마다 다르게 보던 것 차단(R2 갈린 후보 2026-11-17 측정 19곳)
-            row_extra["사실"] = {k: r["사실"].get(k, "불명") for k in ("제조", "판매 상대", "분석대상 제조", "분석대상 판매 상대")}
-            if code_v != v:
-                row_extra.setdefault("AI 원래 판정", model_v)
-            check += f" · R2 규칙 판정: {why}"
-            v = code_v
-            if v == "불명":
-                conf = "낮음"
         out.setdefault(name, {})[sig] = {"판정": v, "이유": str(r.get("이유", ""))[:400], "근거 문장": quote[:400], "원문 확인": check,
                                          "확신도": conf, "판정 주체": "AI(문장)", **row_extra}
     return out, dropped
@@ -454,6 +442,20 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
         for k in targets[n]:
             rows.setdefault(k, {"판정": "불명", "이유": f"Solar 판정 실패 — {failed[n]}" if n in failed else "판정이 오지 않음",
                                 "근거 문장": "", "원문 확인": "판정 없음", "확신도": "낮음", "판정 주체": "없음"})
+        if "R2" in targets[n]:                            # R2 제조 여부만 원문 낱말로 도구가 정함(2026-11-18) — 같은 '제조 및 판매업 영위' 한 줄을 모델이 실행마다 다르게 읽었음(R2 갈린 17곳 중 13곳)
+            cm, ev = _cand_mfg(c)
+            tm = {"판매": "안 함", "제조": "직접 제조"}.get(role, "불명")
+            ai = rows.get("R2", {}).get("판정")
+            tool = None
+            if "불명" not in (tm,) and cm in ("직접 제조", "안 함") and cm != tm:
+                tool = ("다름", f"제조 {cm} vs 분석대상 {tm}")
+            elif cm == "불명" and tm != "불명":
+                tool = ("불명", "후보가 실제로 제조하는지 원문으로 알 수 없음(사업 목적 문구만 있거나 외주·자체 생산이 섞여 있음) — 생산설비·판매경로 자료로 2차 확인")
+            if tool:
+                rows["R2"] = {"판정": tool[0], "이유": tool[1], "근거 문장": ev, "원문 확인": "원문 낱말로 도구가 판정", "확신도": "보통" if tool[0] != "불명" else "낮음",
+                              "판정 주체": "도구(원문 낱말)", "사실": {"후보 제조": cm, "분석대상 제조": tm}, **({"AI 판정": ai} if ai else {})}
+            elif "R2" in rows:
+                rows["R2"] = {**rows["R2"], "사실": {"후보 제조": cm, "분석대상 제조": tm}}
         rec, why = _recommend(rows)
         sig_rows = []
         for k in sorted(rows, key=lambda x: int(x[1:])):
