@@ -340,7 +340,7 @@ def test_keyword_scope_paren_subitem_is_not_ho():
             "나. 재외공관 물품\n아. 디지털서비스에 관한 계약을 하는 경우\n"
             "② 둘째 항")
     hit = law._keyword_scope(body, "디지털서비스", "제26조")
-    assert hit and hit[1] == ["제1항 제5호"]
+    assert hit and hit[1] == ["제1항 제5호 아목"]
 
 
 def test_cite_court_abbreviation_is_read_and_expanded():
@@ -379,3 +379,11 @@ def test_addenda_for_event_splits_by_promulgation(monkeypatch):
     assert [u["부칙"] for u in r["사건 뒤 공포 부칙(이 조 언급)"]] == ["B", "C"]
     assert r["사건 일자 시행본"] == "20200818"
     assert r["이 조 본문이 바뀐 시행일(최근 시행본 비교)"] == {"사건 전": [], "사건 뒤": ["20210101", "20270909"]}
+
+
+def test_mok_suffix_only_when_keyword_in_mok_lines():
+    from korean_tax_mcp import law
+    kw = law._kw_norm("청년")
+    assert law._mok_suffix("5. 경우\n가. 계약\n7) 청년 기업\n아. 디지털", kw) == " 가목"
+    assert law._mok_suffix("5. 청년 경우\n가. 청년 계약", kw) == ""          # 호 머리 줄에도 있으면 호까지만
+    assert law._mok_suffix("5. 경우\n가. 청년\n나. 청년", kw) == " 가목·나목"
