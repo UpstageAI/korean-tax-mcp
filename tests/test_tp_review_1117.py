@@ -316,3 +316,15 @@ def test_r2_manufacturing_uses_production_clue_first():
     assert rec["생산"]["R2"]["판정"] == "다름" and "원재료 및 생산설비" in rec["생산"]["R2"]["근거 문장"]
     assert rec["혼재"]["R2"]["판정"] == "불명"
     assert rec["없음"]["R2"]["판정"] == "불명" and "2차" in rec["없음"]["R2"]["이유"]
+
+
+def test_r2_unlisted_machinery_account_absent_means_no_manufacturing():
+    """비상장(2026-11-18): 감사보고서 유형자산 주석에 기계장치 계정이 없으면 직접 제조 안 함 — 있으면 금액을 아직 안 읽어 사업 목적 문구 규칙(불명)으로."""
+    tested = {"role": "판매", "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 유통업체에 도매"}
+    base = "회사는 화장품 제조 및 판매업을 영위하고 있습니다."
+    cands = [{"name": "없음", "description": base, "production": {"machinery_account": "없음", "machinery_evidence": "유형자산 주석에 기계장치·기계설비·생산설비 계정 없음"}},
+             {"name": "있음", "description": base, "production": {"machinery_account": "있음", "machinery_evidence": "기계장치 6년"}}]
+    j = {"판정": [{"후보": c["name"], "신호": "R2", "판정": "가까움", "확신도": "높음", "근거 문장": base} for c in cands]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review(tested, cands, judgments=j)["후보별 권고"]}
+    assert rec["없음"]["R2"]["사실"]["후보 제조"] == "안 함" and rec["없음"]["R2"]["판정"] == "가까움"
+    assert rec["있음"]["R2"]["판정"] == "불명"
