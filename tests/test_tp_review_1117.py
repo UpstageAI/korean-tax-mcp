@@ -209,3 +209,94 @@ def test_r12_scope_is_within_candidate_and_sent_to_model():
     assert "R1" in scope and "R2" in scope and "10%" in scope and "한 사업만" in scope
     g = next(x for x in GOLD if x["id"] == "G06")
     assert "한 사업만" in T._prompt(g["tested"], [g["candidate"]], {g["candidate"]["name"]: ["R12"]}, group=("R12",))
+
+
+def test_quote_with_added_subject_keeps_verdict_but_rewritten_sentence_unknown():
+    """근거 대조(2026-11-18): 원문 문장 앞에 '당사는'을 붙여 옮긴 인용은 판정을 지키고 확신도만 낮춘다. 새로 쓴 문장은 불명, 모델의 원래 판정을 남긴다.
+    화장품 74곳 3번 측정에서 '원문에 없음'으로 낮춘 89건 중 44건이 앞의 경우, 12건이 뒤의 경우였다."""
+    cand = {"name": "가", "description": "화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다. 주식회사 가(이하 당사)는 2011년 설립되어 화장품 제조 및 판매를 주된 사업으로 영위하고 있는 중소기업으로서"}
+    tested = {"role": "판매", "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 도매"}
+    added = {"후보": "가", "신호": "R4", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다."}
+    rewritten = {"후보": "가", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": "당사의 주된 사업은 화장품 제조 및 판매입니다."}
+    s = {x["신호"]: x for x in T.review(tested, [cand], judgments={"판정": [added, rewritten]})["후보별 권고"][0]["신호"]}
+    assert s["R4"]["판정"] == "다름" and s["R4"]["원문 확인"].startswith("일부 일치") and s["R4"]["확신도"] == "보통" and "AI 원래 판정" not in s["R4"]
+    assert s["R1"]["판정"] == "불명" and "새로 쓴 문장" in s["R1"]["원문 확인"] and s["R1"]["AI 원래 판정"] == "가까움"
+
+
+def test_quote_of_tested_input_fields_accepted():
+    """모델이 분석대상 입력 칸을 이름째 근거로 인용('limited_risk: true')해도 입력에 있는 값이면 원문 일치 — 없는 값이면 불명."""
+    cand = {"name": "가", "description": "주요사업 내용 : 화장품 판매"}
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 도매", "description": "제조·연구개발 없음, 자체 브랜드 없음"}
+    def run(q):
+        j = {"판정": [{"후보": "가", "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": q}]}
+        return next(x for x in T.review(tested, [cand], judgments=j)["후보별 권고"][0]["신호"] if x["신호"] == "R2")
+    for q in ("limited_risk: true", "주요사업 내용 : 화장품 판매 / role: 판매, limited_risk: true, 제조·연구개발 없음, 자체 브랜드 없음", "분석대상 description: 제조·연구개발 없음, 자체 브랜드 없음"):
+        r = run(q)
+        assert r["판정"] == "다름" and r["원문 확인"] == "원문 일치", (q, r)
+    r = run("limited_risk: false")
+    assert r["판정"] == "불명" and r["AI 원래 판정"] == "다름"
+
+
+def test_quote_of_question_or_other_candidate_is_unknown_with_reason():
+    a = {"name": "가", "description": "주요사업 내용 : 화장품 판매"}
+    b = {"name": "나", "description": "당사는 제조, 브랜드, 유통이라는 Total-Value Chain을 보유하고 있습니다."}
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품"}
+    j = {"판정": [{"후보": "가", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": T.SIGNALS["R15"]["묻는 것"]},
+                 {"후보": "가", "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 제조, 브랜드, 유통이라는 Total-Value Chain을 보유하고 있습니다."}]}
+    s = {x["신호"]: x for x in T.review(tested, [a, b], judgments=j)["후보별 권고"][0]["신호"]}
+    assert s["R15"]["판정"] == "불명" and "질문 문장" in s["R15"]["원문 확인"]
+    assert s["R2"]["판정"] == "불명" and "다른 후보의 문장" in s["R2"]["원문 확인"]
+
+
+def test_quote_with_ellipsis_checked_piece_by_piece():
+    cand = {"name": "가", "description": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서 1993년 설립되었으며 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}
+    j = {"판정": [{"후보": "가", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서... 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}]}
+    s = {x["신호"]: x for x in T.review({"role": "판매", "products": "화장품"}, [cand], judgments=j)["후보별 권고"][0]["신호"]}
+    assert s["R1"]["판정"] == "가까움" and s["R1"]["원문 확인"] == "원문 일치"
+
+
+def test_r15_without_risk_statement_is_unknown():
+    """R15 위험: 후보 근거에 위험 서술(재고·반품·가격변동·채권)이 없으면 '제조사라 위험을 질 것'처럼 미룬 판정은 불명(2026-11-18 결정) — 위험 서술이 있으면 그대로."""
+    a = {"name": "가", "description": "당사는 색조화장품 OEM/ODM 제조 및 판매를 주요 사업으로 영위하고 있습니다."}
+    b = {"name": "나", "description": "당사는 완제품 재고를 자기 책임으로 보유하며 반품 위험을 부담합니다."}
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품"}
+    j = {"판정": [{"후보": "가", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 색조화장품 OEM/ODM 제조 및 판매를 주요 사업으로 영위하고 있습니다. / limited_risk: true"},
+                 {"후보": "나", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 완제품 재고를 자기 책임으로 보유하며 반품 위험을 부담합니다."}]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review(tested, [a, b], judgments=j)["후보별 권고"]}
+    ra, rb = rec["가"]["R15"], rec["나"]["R15"]
+    assert ra["판정"] == "불명" and ra["AI 원래 판정"] == "다름" and "위험 서술" in ra["원문 확인"]
+    assert rb["판정"] == "다름" and "AI 원래 판정" not in rb
+
+
+def test_r12_single_business_unknown_becomes_close():
+    """R12 사업부문: 원문에 다른 사업·부문 서술이 없으면 한 사업만 하는 회사로 보고 가까움(2026-11-18 결정) — 부문 서술이 있거나 원문이 비면 모델 판정 그대로."""
+    one = {"name": "가", "description": "당사는 화장품 제조 및 판매를 주된 사업으로 영위하고 있습니다."}
+    seg = {"name": "나", "description": "당사의 사업부문은 화장품 부문과 부동산 임대 부문으로 구성됩니다."}
+    empty = {"name": "다", "description": ""}
+    j = {"판정": [{"후보": n, "신호": "R12", "판정": "불명", "확신도": "낮음", "근거 문장": ""} for n in ("가", "나", "다")]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review({"role": "판매", "products": "화장품"}, [one, seg, empty], judgments=j)["후보별 권고"]}
+    assert rec["가"]["R12"]["판정"] == "가까움" and rec["가"]["R12"]["AI 원래 판정"] == "불명" and "한 사업" in rec["가"]["R12"]["원문 확인"]
+    assert rec["나"]["R12"]["판정"] == "불명"
+    assert rec["다"]["R12"]["판정"] == "불명"
+
+
+def test_r2_manufacturing_decided_by_source_words():
+    """R2(2026-11-18 결정): 제조 여부만 원문 낱말로 도구가 정함 — 공장·CGMP 서술이면 다름, '제조 및 판매업 영위' 같은 사업 목적 문구만 있으면 불명(2차 자료로 확인).
+    외주생산 브랜드사·제조 말이 없는 유통사는 판매 상대 비교라 모델 판정을 그대로 씀."""
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품", "channel": "해외 본사 완제품을 수입해 국내 유통업체·면세점에 도매", "description": "제조·연구개발 없음, 자체 브랜드 없음"}
+    cands = [{"name": n, "description": d} for n, d in (
+        ("공장", "당사는 CGMP 인증 공장에서 화장품을 생산하여 고객사에 공급합니다."),
+        ("목적", "당사는 화장품 제조 및 판매업을 영위하고 있습니다."),
+        ("외주", "당사는 별도의 공장시설을 보유하고 있지 아니한 무공장 제조업체로서 외주생산한 제품을 국내 유통업체에 공급합니다."),
+        ("유통", "해외 브랜드 화장품을 수입해 국내 유통업체에 판매합니다."))]
+    model = {"공장": "가까움", "목적": "다름", "외주": "가까움", "유통": "가까움"}
+    j = {"판정": [{"후보": c["name"], "신호": "R2", "판정": model[c["name"]], "확신도": "높음", "근거 문장": c["description"]} for c in cands]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review(tested, cands, judgments=j)["후보별 권고"]}
+    assert rec["공장"]["R2"]["판정"] == "다름" and rec["공장"]["R2"]["판정 주체"] == "도구(원문 낱말)" and rec["공장"]["R2"]["AI 판정"] == "가까움"
+    assert rec["목적"]["R2"]["판정"] == "불명" and rec["목적"]["R2"]["사실"]["후보 제조"] == "불명" and "2차" in rec["목적"]["R2"]["이유"]
+    assert rec["외주"]["R2"]["판정"] == "가까움" and rec["외주"]["R2"]["사실"]["후보 제조"] == "안 함" and rec["외주"]["R2"]["판정 주체"] == "AI(문장)"
+    assert rec["유통"]["R2"]["판정"] == "가까움" and rec["유통"]["R2"]["사실"]["후보 제조"] == "언급 없음"
+
+
+def test_r2_range_text_says_outsourced_brand_is_not_manufacturer():
+    assert "무공장 브랜드사" in T.SIGNALS["R2"]["판정 범위"]
