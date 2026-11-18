@@ -359,3 +359,22 @@ def test_cite_tribunal_falls_back_to_moleg(monkeypatch):
     assert r["결과"] == "확인" and "법제처" in r["출처"]
     monkeypatch.setattr(cite.tribunal, "search", lambda q, n=5, sort="": {"결과": []})
     assert cite._check_doc("조심 2030서1234")["결과"] == "국세청 DB 미확인"
+
+
+def test_addenda_for_event_splits_by_promulgation(monkeypatch):
+    """사건 일자 전·후 공포 부칙으로 나누고, 시행 예정 부칙까지 보려고 가장 늦은 시행본으로 부칙을 받는다."""
+    from korean_tax_mcp import law
+    rows = [{"시행일": "20210101", "공포일": "20200818", "이 조 변경": "바뀜"},
+            {"시행일": "20270909", "공포일": "20260908", "이 조 변경": "바뀜"}]
+    monkeypatch.setattr(law, "history", lambda *a, **k: {"연혁": rows})
+    seen = {}
+    def fake_addenda(name, art, prom, since, n, as_of=None):
+        seen["as_of"] = as_of
+        return {"부칙": [{"공포일": "20260908", "부칙": "C"}, {"공포일": "20211208", "부칙": "B"}, {"공포일": "20200818", "부칙": "A"}]}
+    monkeypatch.setattr(law, "addenda", fake_addenda)
+    monkeypatch.setattr(law, "version", lambda name, ef: ("mst", "20200818"))
+    r = law.addenda_for_event("소득세법", "제89조", "20201215")
+    assert seen["as_of"] == "20270909"
+    assert [u["부칙"] for u in r["사건 전 공포 부칙(이 조 언급)"]] == ["A"]
+    assert [u["부칙"] for u in r["사건 뒤 공포 부칙(이 조 언급)"]] == ["B", "C"]
+    assert r["사건 일자 시행본"] == "20200818"

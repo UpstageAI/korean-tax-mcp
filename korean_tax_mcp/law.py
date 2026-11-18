@@ -785,6 +785,39 @@ def addenda(law, article_no=None, promulgated=None, since=None, n=8, as_of=None)
             "읽는 법": "개정 조문이 언제부터 적용되는지는 ① 이 조를 직접 언급한 적용례·경과조치 ② 없으면 일반 적용례(예: '시행일이 속하는 과세기간에 발생하는 소득분부터') 순으로 본다. "
                      "소득세 납세의무는 과세기간이 끝나는 때 성립(국세기본법 제21조)하므로, 연중 개정이라도 일반 적용례가 '과세기간' 기준이면 그해 전체에 적용된다.",
             "주의": "부칙 문언 대조 결과 — 법적 판단은 원문으로 확인"}
+_ADD_KEEP = re.compile(r"시행일|적용례|경과조치|종전의\s*규정|이후\s*(?:개시|발생|신고|양도|지급|취득|결정)|부터\s*적용")
+
+
+def addenda_for_event(law, article_no, event_date, last=20):
+    """사건 일자 기준 부칙 고르기(2026-11-18). 판단하지 않고 부칙 줄을 원문 그대로 낸다.
+    - 근거: 이 조를 직접 언급한 부칙(적용례·경과조치)을 사건 일자 전·후 공포로 나눔(시행 예정 개정 부칙 포함).
+    - 참고: 이 조 본문이 바뀐 시행일(연혁). 연혁의 공포일은 같은 시행일에 다른 개정이 겹치면 다른 법 공포일이 붙어 있을 수 있어 근거로 쓰지 않음."""
+    ev = as_of_or_today(event_date)
+    norm = normalize_article(article_no)[0]
+    h = history(law, norm, last=last)
+    if h.get("error"): return h
+    rows = h["연혁"]
+    latest = max([r["시행일"] for r in rows] + [today()])
+    got = addenda(law, norm, None, None, 20, as_of=latest)   # 시행 예정 개정의 부칙까지 보려고 가장 늦은 시행본 기준
+    if got.get("error"): return got
+    units = got["부칙"]
+    before = [u for u in units if u["공포일"] and u["공포일"] <= ev][:3]
+    after = sorted([u for u in units if u["공포일"] > ev], key=lambda u: u["공포일"])[:3]
+    try: in_force = version(law, ev)[1]
+    except Exception: in_force = None
+    return {"법령": law, "조": norm, "사건 일자": ev,
+            "사건 일자 시행본": in_force or "찾지 못함 — law_article(as_of)로 확인",
+            "사건 전 공포 부칙(이 조 언급)": before or "없음 — 일반 적용례는 그 개정 부칙 전문(article_addenda promulgated)으로",
+            "사건 뒤 공포 부칙(이 조 언급)": after or "없음",
+            "이 조 본문이 바뀐 시행일(최근 시행본 비교)": {"사건 전": [r["시행일"] for r in rows if r["이 조 변경"] == "바뀜" and r["시행일"] <= ev][-3:],
+                                         "사건 뒤": [r["시행일"] for r in rows if r["이 조 변경"] == "바뀜" and r["시행일"] > ev][:3]},
+            "읽는 법": ("① 사건 전 공포 부칙의 적용례가 사건을 덮는지(예: '…이후 취득한 분부터 적용') → "
+                      "② 이 조를 언급한 적용례가 없으면 그 개정의 일반 적용례(시행일이 속하는 과세기간 등) → "
+                      "③ 사건 뒤 공포 부칙에 소급·특례 적용례나 '종전의 규정에 따른다'는 경과조치가 있는지. "
+                      "소득세·법인세는 납세의무 성립(과세기간 종료, 국세기본법 제21조)이 기준인 경우가 많아 거래일과 과세기간 종료일이 다르면 둘 다 넣어 본다."),
+            "주의": "부칙 문언을 고른 것 — 어느 규정이 적용되는지는 원문으로 판단. 이 조를 언급하지 않는 일반 적용례는 위 목록에 없음"}
+
+
 # ── 조문 위치 찾기 (find_article) ────────────────────────────────────────────
 
 _DEFAULT_LAWS = (
