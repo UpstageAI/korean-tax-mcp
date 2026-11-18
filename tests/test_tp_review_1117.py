@@ -300,3 +300,19 @@ def test_r2_manufacturing_decided_by_source_words():
 
 def test_r2_range_text_says_outsourced_brand_is_not_manufacturer():
     assert "무공장 브랜드사" in T.SIGNALS["R2"]["판정 범위"]
+
+
+def test_r2_manufacturing_uses_production_clue_first():
+    """2차 자료(2026-11-18): 사업보고서 '원재료 및 생산설비'의 단서가 있으면 사업 목적 문구보다 먼저 — 외주 문장만 안 함, 생산능력만 직접 제조, 둘 다면 불명."""
+    tested = {"role": "판매", "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 유통업체에 도매"}
+    base = "당사는 화장품 제조 및 판매업을 영위하고 있습니다."
+    cands = [{"name": "외주", "description": base, "production": {"no_own_facility": ["자체 생산설비 없이 OEM방식으로 제품을 생산하고 있습니다"], "own_production": []}},
+             {"name": "생산", "description": base, "production": {"no_own_facility": [], "own_production": ["생산능력 (단위 : 천개) 시트마스크 44,120"]}},
+             {"name": "혼재", "description": base, "production": {"no_own_facility": ["화장품은 외주 생산을 하고 있어"], "own_production": ["생산능력 (단위 : 백만원) 판넬 67,816"]}},
+             {"name": "없음", "description": base}]
+    j = {"판정": [{"후보": c["name"], "신호": "R2", "판정": "가까움", "확신도": "높음", "근거 문장": base} for c in cands]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review(tested, cands, judgments=j)["후보별 권고"]}
+    assert rec["외주"]["R2"]["판정"] == "가까움" and rec["외주"]["R2"]["사실"]["후보 제조"] == "안 함"
+    assert rec["생산"]["R2"]["판정"] == "다름" and "원재료 및 생산설비" in rec["생산"]["R2"]["근거 문장"]
+    assert rec["혼재"]["R2"]["판정"] == "불명"
+    assert rec["없음"]["R2"]["판정"] == "불명" and "2차" in rec["없음"]["R2"]["이유"]
