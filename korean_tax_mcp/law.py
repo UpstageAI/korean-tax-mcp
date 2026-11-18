@@ -1951,6 +1951,23 @@ def _ho_runs(labels, all_labels):
     return [r[0] if len(r) == 1 else f"{r[0]}~{r[-1]}" for r in runs]
 
 
+_MOK_LINE = re.compile(r"^\s*([가-하])\.\s")
+
+
+def _mok_suffix(ho_body, kwn):
+    """호 본문에서 keyword가 목(가.·나.) 줄에만 있으면 ' 아목'·' 가목·아목'을 돌려준다(2026-11-18).
+    호 머리 줄에 있거나 줄 단위로 못 찾으면 ''(호까지만 표시). 목 아래 세목('1)')은 그 목에 속한다."""
+    cur, moks, head_hit = None, [], False
+    for ln in ho_body.split("\n"):
+        m = _MOK_LINE.match(ln)
+        if m: cur = m.group(1)
+        if kwn in _kw_norm(ln):
+            if cur is None: head_hit = True
+            elif cur not in moks: moks.append(cur)
+    if head_hit or not moks: return ""
+    return " " + "·".join(m + "목" for m in moks)
+
+
 def _keyword_scope(body, keyword, jo_label=""):
     """keyword가 든 항 머리말(각 호 외의 부분)·호·호 없는 항을 찾아 (본문, 일치_위치, 맥락_위치)를 돌려준다. 없으면 None.
 
@@ -1986,7 +2003,7 @@ def _keyword_scope(body, keyword, jo_label=""):
                 n, b = _ho_tuple(h["호"])
                 lines.append(f"{n}{'의' + str(b) if b else ''}. {hb}")
                 if hit:
-                    match_locs.append(f"{disp} {h['호']}".strip())
+                    match_locs.append(f"{disp} {h['호']}{_mok_suffix(hb, kwn)}".strip())
                 else:
                     ctx.append(h["호"])
         if not (head_hit or lines):
