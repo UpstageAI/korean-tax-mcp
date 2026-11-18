@@ -152,11 +152,17 @@ def _snip(t, m):
 _R2_PURPOSE = re.compile(r"제조\s*(?:및|와|·|ㆍ|,)\s*(?:판매|도소매|도매|유통|공급|수출입)|제조\s*판매|제조업(?!체에)|제조를\s*(?:주된|주요)")
 
 
+# 비상장 후보 직접 제조 기준: 기계장치 취득원가(상각 전)가 매출의 3% 이상(2026-11-18 결정).
+# 근거: 화장품 업종 비상장 33곳 실측에서 제조사·ODM은 4.1% 이상, 브랜드·유통사는 1.9% 이하로 2~4% 사이에 회사가 없었음.
+# 장부가액(상각 후)은 쓰지 않음 — 상각은 원가 배분일 뿐 설비는 처분 전까지 남아 오래된 공장일수록 작게 읽힘.
+MACHINERY_COST_TO_SALES = 0.03
+
+
 def _cand_mfg(c):
     """후보가 직접 제조하는지 원문 낱말로(2026-11-18 결정) — 반환 (직접 제조|안 함|불명|언급 없음, 근거).
     외주·무공장·생산시설 없음 → 안 함, 공장·생산설비·CGMP·OEM·ODM 수탁 → 직접 제조, 둘 다면 불명,
     '제조 및 판매업 영위' 같은 사업 목적 문구만 있으면 불명(실제 제조인지 원문으로 알 수 없음 — 2차 자료로 확인), 제조 말이 없으면 언급 없음.
-    2차 자료(후보 production: 사업보고서 '원재료 및 생산설비'의 외주 문장·생산능력 원문)가 있으면 먼저 쓴다 — 외주만 안 함, 생산능력만 직접 제조, 둘 다면 불명(2026-11-18). 비상장 감사보고서는 기계장치 계정이 없으면 안 함(계정이 있으면 금액을 아직 안 읽어 글 규칙으로)."""
+    2차 자료(후보 production: 사업보고서 '원재료 및 생산설비'의 외주 문장·생산능력 원문)가 있으면 먼저 쓴다 — 외주만 안 함, 생산능력만 직접 제조, 둘 다면 불명(2026-11-18). 비상장 감사보고서는 기계장치 계정이 없으면 안 함, 있으면 취득원가가 매출의 3% 이상 직접 제조·미만 또는 0원 안 함, 취득원가를 못 읽었으면 글 규칙으로."""
     pr = c.get("production")                            # 2차 자료: 사업보고서 '원재료 및 생산설비' 절의 단서(계산 MCP kr_comparable_candidates의 production) — 있으면 먼저 씀
     if isinstance(pr, dict):
         no_own = [str(x) for x in (pr.get("no_own_facility") or []) if str(x).strip()]
@@ -167,8 +173,15 @@ def _cand_mfg(c):
             return "안 함", "[사업보고서 원재료 및 생산설비] " + no_own[0][:160]
         if own:
             return "직접 제조", "[사업보고서 원재료 및 생산설비] " + own[0][:160]
-        if pr.get("machinery_account") == "없음":          # 비상장 감사보고서: 유형자산 주석에 기계장치·생산설비 계정이 없음(2026-11-18) — 있으면 금액을 아직 안 읽어 아래 글 규칙으로
+        if pr.get("machinery_account") == "없음":          # 비상장 감사보고서: 유형자산 주석에 기계장치·생산설비 계정이 없음(2026-11-18)
             return "안 함", "[감사보고서 유형자산 주석] " + str(pr.get("machinery_evidence") or "기계장치 계정 없음")[:160]
+        mc, ratio = pr.get("machinery_cost"), pr.get("machinery_cost_to_sales")
+        if pr.get("machinery_account") == "있음" and mc is not None:   # 기계장치 취득원가(상각 전)의 매출 대비 — 3% 기준(2026-11-18 결정)
+            ev = f"[감사보고서] 기계장치 취득원가 {mc / 1e8:.2f}억 원" + (f", 매출 대비 {ratio * 100:.1f}%" if ratio is not None else "") + f" ({str(pr.get('machinery_cost_evidence') or '')[:80]})"
+            if mc == 0:
+                return "안 함", ev + " — 기계장치 없음(취득원가 표에 없음·처분)"
+            if ratio is not None:
+                return ("직접 제조", ev + f" — {MACHINERY_COST_TO_SALES:.0%} 이상") if ratio >= MACHINERY_COST_TO_SALES else ("안 함", ev + f" — {MACHINERY_COST_TO_SALES:.0%} 미만(소형 장비 수준)")
     t = _cand_text(c)
     out_m = _R2_NOT_MFG.search(t)
     rest = _R2_NOT_MFG.sub(" ", t)

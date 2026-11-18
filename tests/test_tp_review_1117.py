@@ -387,3 +387,15 @@ def test_mok_suffix_only_when_keyword_in_mok_lines():
     assert law._mok_suffix("5. 경우\n가. 계약\n7) 청년 기업\n아. 디지털", kw) == " 가목"
     assert law._mok_suffix("5. 청년 경우\n가. 청년 계약", kw) == ""          # 호 머리 줄에도 있으면 호까지만
     assert law._mok_suffix("5. 경우\n가. 청년\n나. 청년", kw) == " 가목·나목"
+
+
+def test_r2_unlisted_machinery_cost_ratio_three_percent():
+    """비상장: 기계장치 취득원가가 매출의 3% 이상이면 직접 제조, 미만·0원이면 안 함, 못 읽었으면 글 규칙(사업 목적 문구 → 불명)."""
+    from korean_tax_mcp import tp_review as T
+    base = {"name": "X", "description": "화장품 제조 및 판매업을 영위"}
+    pr = lambda **k: {**base, "production": {"machinery_account": "있음", "machinery_evidence": "기계장치", **k}}
+    assert T._cand_mfg(pr(machinery_cost=4_964_000_000, machinery_cost_to_sales=0.357))[0] == "직접 제조"
+    assert T._cand_mfg(pr(machinery_cost=1_736_000_000, machinery_cost_to_sales=0.016))[0] == "안 함"   # 금액은 커도 매출 대비 작음
+    assert T._cand_mfg(pr(machinery_cost=0, machinery_cost_to_sales=0.0))[0] == "안 함"
+    assert T._cand_mfg(pr(machinery_cost=None, machinery_cost_to_sales=None))[0] == "불명"
+    assert T._cand_mfg(pr(machinery_cost=300_000_000, machinery_cost_to_sales=0.03))[0] == "직접 제조"
