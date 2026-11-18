@@ -286,6 +286,37 @@ def _cand_src(c):
     return _norm(_cand_text(c))
 
 
+# R1 취급 품목 — 제품군을 원문 낱말로 도구가 먼저 정함(2026-11-18 결정). 6번 판정에서 R1이 갈린 28곳 중 약 25곳은
+# 모델이 제조·ODM·자체 브랜드를 품목에 끌어들이거나('다름') '화장품'이라고만 적혀 세부를 몰라 '불명'으로 흔들렸음 — 판정 범위 밖.
+PRODUCT_GROUPS = {"화장품": r"화장품|코스메틱|스킨\s*케어|기초\s*화장|색조|메이크업|마스크\s*팩|선\s*케어|클렌징|향수"}
+_R1_OTHER = re.compile(r"의약품|제약|건강\s*기능\s*식품|건강\s*식품|초콜[릿렛]|사료|바이오\s*소재|화학\s*소재|화학\s*제품|미용\s*기기|미용\s*장비|의료\s*기기|의료\s*장비|"
+                       r"엔터테인먼트|라미네이팅|일용\s*잡화|생활\s*용품|식음료|화장품\s*원료|원료\s*의약|소재(?!지)|첨가제|석유\s*화학")
+_R1_HOLDING = re.compile(r"순수\s*지주\s*회사|지주\s*사업을\s*중점")
+
+
+def _cand_product(c, tested):
+    """후보 제품군을 원문 낱말로 — 반환 (가까움|다름, 근거) 또는 None(모델에 맡김).
+    순수 지주회사 → 다름. 분석대상 제품군 낱말만 있고 다른 제품군 낱말이 없음 → 가까움. 같은 제품군 사업부문의 매출 비중 50% 이상 → 가까움.
+    제조·ODM·자체 브랜드·수입 여부는 보지 않는다(R2·R4 몫). 다른 제품군이 섞이고 비중을 모르면 None."""
+    tt = f"{tested.get('products', '')} {tested.get('description', '')}"
+    grp = next((g for g, pat in PRODUCT_GROUPS.items() if re.search(pat, tt)), None)
+    if not grp:
+        return None
+    t = _cand_text(c)
+    hm = _R1_HOLDING.search(t)
+    if hm:
+        return "다름", "순수 지주회사 — 직접 파는 물건이 없음: " + _snip(t, hm)
+    pat = PRODUCT_GROUPS[grp]
+    for m in re.finditer(r"(?:" + pat + r")\s*(?:사업\s*부문|사업부|사업|부문)[^%]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%", t):
+        if 50 <= float(m.group(1)) <= 100:
+            return "가까움", f"{grp} 사업부문 매출 비중 {m.group(1)}%: " + _snip(t, m)
+    gm = re.search(pat, t)
+    om = _R1_OTHER.search(t)
+    if gm and not om:
+        return "가까움", f"후보 원문의 제품군이 {grp}뿐(다른 제품군 낱말 없음): " + _snip(t, gm)
+    return None
+
+
 RISK_WORDS = re.compile(r"재고|반품|가격\s*변동|채권|대손|위험|리스크|보증|위탁|손실|클레임")    # R15 '다름·가까움'은 후보 근거에 이런 위험 서술이 있을 때만(2026-11-18 결정)
 SEGMENT_WORDS = re.compile(r"부문|임대업|임대\s*사업|지주|[가-힣]+사업\s*(?:과|및|,|·)\s*[가-힣]+사업")  # R12 — 다른 사업·부문 서술이 보이면 모델 판정을 그대로 둠
 
@@ -468,6 +499,12 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
         for k in targets[n]:
             rows.setdefault(k, {"판정": "불명", "이유": f"Solar 판정 실패 — {failed[n]}" if n in failed else "판정이 오지 않음",
                                 "근거 문장": "", "원문 확인": "판정 없음", "확신도": "낮음", "판정 주체": "없음"})
+        if "R1" in targets[n]:                            # R1 제품군은 원문 낱말로 도구가 먼저 정함(2026-11-18) — 못 정하면 모델 판정 그대로
+            tool = _cand_product(c, tested)
+            if tool:
+                ai = rows.get("R1", {}).get("판정")
+                rows["R1"] = {"판정": tool[0], "이유": tool[1], "근거 문장": tool[1].split(": ", 1)[-1], "원문 확인": "원문 낱말로 도구가 판정",
+                              "확신도": "보통", "판정 주체": "도구(원문 낱말)", **({"AI 판정": ai} if ai else {})}
         if "R2" in targets[n]:                            # R2 제조 여부만 원문 낱말로 도구가 정함(2026-11-18) — 같은 '제조 및 판매업 영위' 한 줄을 모델이 실행마다 다르게 읽었음(R2 갈린 17곳 중 13곳)
             cm, ev = _cand_mfg(c)
             tm = {"판매": "안 함", "제조": "직접 제조"}.get(role, "불명")
