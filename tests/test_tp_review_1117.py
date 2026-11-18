@@ -145,7 +145,7 @@ def test_solar_called_in_small_chunks_and_failed_chunk_isolated(monkeypatch):
         calls.append(names)
         if "c3" in names:
             raise ValueError("Expecting ',' delimiter")
-        return {"판정": [{"후보": n, "신호": "R1", "판정": "가까움", "근거 문장": "화장품 도매", "확신도": "높음"} for n in names]}
+        return {"판정": [{"후보": n, "신호": "R3", "판정": "가까움", "근거 문장": "화장품 도매", "확신도": "높음"} for n in names]}
 
     monkeypatch.setattr(solar, "chat_json", fake)
     r = T.review(t, cands)
@@ -153,7 +153,9 @@ def test_solar_called_in_small_chunks_and_failed_chunk_isolated(monkeypatch):
     assert sorted(k for g in T.SIGNAL_GROUPS for k in g) == sorted(T.TEXT_SIGNALS)
     assert set(r["판정 실패 후보"]["후보"]) == {"c3", "c4", "c5"}
     by = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in r["후보별 권고"]}
-    assert by["c0"]["R1"]["판정"] == "가까움" and by["c3"]["R1"]["판정"] == "불명" and "Solar 판정 실패" in by["c3"]["R1"]["이유"]
+    # 실패 묶음 격리는 모델만 판정하는 R3로 본다 — R1은 원문 낱말 규칙(2026-11-19)이 '화장품 도매'로 먼저 정하므로 실패 묶음이어도 도구 판정
+    assert by["c0"]["R3"]["판정"] == "가까움" and by["c3"]["R3"]["판정"] == "불명" and "Solar 판정 실패" in by["c3"]["R3"]["이유"]
+    assert by["c3"]["R1"]["판정"] == "가까움" and by["c3"]["R1"]["판정 주체"] == "도구(원문 낱말)"
 
 
 def test_solar_all_chunks_failed_returns_error(monkeypatch):
@@ -217,10 +219,10 @@ def test_quote_with_added_subject_keeps_verdict_but_rewritten_sentence_unknown()
     cand = {"name": "가", "description": "화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다. 주식회사 가(이하 당사)는 2011년 설립되어 화장품 제조 및 판매를 주된 사업으로 영위하고 있는 중소기업으로서"}
     tested = {"role": "판매", "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 도매"}
     added = {"후보": "가", "신호": "R4", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다."}
-    rewritten = {"후보": "가", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": "당사의 주된 사업은 화장품 제조 및 판매입니다."}
+    rewritten = {"후보": "가", "신호": "R3", "판정": "가까움", "확신도": "높음", "근거 문장": "당사의 주된 사업은 화장품 제조 및 판매입니다."}   # R1은 원문 낱말 규칙이 먼저 정하므로 모델 판정 신호 R3로 대조
     s = {x["신호"]: x for x in T.review(tested, [cand], judgments={"판정": [added, rewritten]})["후보별 권고"][0]["신호"]}
     assert s["R4"]["판정"] == "다름" and s["R4"]["원문 확인"].startswith("일부 일치") and s["R4"]["확신도"] == "보통" and "AI 원래 판정" not in s["R4"]
-    assert s["R1"]["판정"] == "불명" and "새로 쓴 문장" in s["R1"]["원문 확인"] and s["R1"]["AI 원래 판정"] == "가까움"
+    assert s["R3"]["판정"] == "불명" and "새로 쓴 문장" in s["R3"]["원문 확인"] and s["R3"]["AI 원래 판정"] == "가까움"
 
 
 def test_quote_of_tested_input_fields_accepted():
@@ -250,9 +252,9 @@ def test_quote_of_question_or_other_candidate_is_unknown_with_reason():
 
 def test_quote_with_ellipsis_checked_piece_by_piece():
     cand = {"name": "가", "description": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서 1993년 설립되었으며 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}
-    j = {"판정": [{"후보": "가", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서... 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}]}
+    j = {"판정": [{"후보": "가", "신호": "R3", "판정": "가까움", "확신도": "높음", "근거 문장": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서... 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}]}
     s = {x["신호"]: x for x in T.review({"role": "판매", "products": "화장품"}, [cand], judgments=j)["후보별 권고"][0]["신호"]}
-    assert s["R1"]["판정"] == "가까움" and s["R1"]["원문 확인"] == "원문 일치"
+    assert s["R3"]["판정"] == "가까움" and s["R3"]["원문 확인"] == "원문 일치"   # R1은 원문 낱말 규칙이 먼저 정하므로 인용 대조는 R3로
 
 
 def test_r15_without_risk_statement_is_unknown():
@@ -399,3 +401,18 @@ def test_r2_unlisted_machinery_cost_ratio_three_percent():
     assert T._cand_mfg(pr(machinery_cost=0, machinery_cost_to_sales=0.0))[0] == "안 함"
     assert T._cand_mfg(pr(machinery_cost=None, machinery_cost_to_sales=None))[0] == "불명"
     assert T._cand_mfg(pr(machinery_cost=300_000_000, machinery_cost_to_sales=0.03))[0] == "직접 제조"
+
+
+def test_r1_product_group_by_source_words():
+    """R1 제품군은 원문 낱말로 — 제조·ODM·브랜드는 보지 않음, 다른 제품군이 섞이면 모델에 맡김, 지주회사는 다름, 사업부문 비중 50% 이상은 가까움."""
+    from korean_tax_mcp import tp_review as T
+    t = {"products": "해외 브랜드 기초·색조 화장품 완제품"}
+    c = lambda d: {"name": "X", "description": d}
+    assert T._cand_product(c("화장품 ODM 전문기업으로 자체 브랜드도 보유"), t)[0] == "가까움"
+    assert T._cand_product(c("화장품 제조 및 판매를 주영업목적으로 함"), t)[0] == "가까움"
+    assert T._cand_product(c("당사는 순수지주회사로서 자회사의 지분 소유"), t)[0] == "다름"
+    assert T._cand_product(c("화장품사업부문의 당기 매출비율은 79.80%입니다. 엔터테인먼트 사업도 영위"), t)[0] == "가까움"
+    assert T._cand_product(c("화장품 및 건강기능식품 판매"), t) is None
+    assert T._cand_product(c("합성수지 첨가제 제조"), t) is None
+    assert T._cand_product(c("본사 소재지는 서울, 화장품 도매"), t)[0] == "가까움"      # '소재지'는 다른 제품군 아님
+    assert T._cand_product(c("화장품"), {"products": "배터리 소재"}) is None          # 분석대상 제품군을 모르면 모델에
