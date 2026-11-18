@@ -27,7 +27,7 @@ SOLAR_CHUNK = 3            # Solar 한 번에 판정할 후보 수 — 10개(문
 SOLAR_MAX_TOKENS = 6000
 SIGNAL_GROUPS = (("R1", "R2", "R3", "R4"), ("R8", "R12", "R15", "R16", "R17"))   # Solar에 따로 물을 신호 묶음(핵심 / 나머지)
 _TESTED_KEYS = ("role", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
-_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc")
+_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production")
 _RATIO_KEYS = ("advert", "rnd", "related", "related_sales", "related_purchase", "sales", "export", "inv")
 
 
@@ -155,7 +155,18 @@ _R2_PURPOSE = re.compile(r"제조\s*(?:및|와|·|ㆍ|,)\s*(?:판매|도소매|�
 def _cand_mfg(c):
     """후보가 직접 제조하는지 원문 낱말로(2026-11-18 결정) — 반환 (직접 제조|안 함|불명|언급 없음, 근거).
     외주·무공장·생산시설 없음 → 안 함, 공장·생산설비·CGMP·OEM·ODM 수탁 → 직접 제조, 둘 다면 불명,
-    '제조 및 판매업 영위' 같은 사업 목적 문구만 있으면 불명(실제 제조인지 원문으로 알 수 없음 — 2차 자료로 확인), 제조 말이 없으면 언급 없음."""
+    '제조 및 판매업 영위' 같은 사업 목적 문구만 있으면 불명(실제 제조인지 원문으로 알 수 없음 — 2차 자료로 확인), 제조 말이 없으면 언급 없음.
+    2차 자료(후보 production: 사업보고서 '원재료 및 생산설비'의 외주 문장·생산능력 원문)가 있으면 먼저 쓴다 — 외주만 안 함, 생산능력만 직접 제조, 둘 다면 불명(2026-11-18)."""
+    pr = c.get("production")                            # 2차 자료: 사업보고서 '원재료 및 생산설비' 절의 단서(계산 MCP kr_comparable_candidates의 production) — 있으면 먼저 씀
+    if isinstance(pr, dict):
+        no_own = [str(x) for x in (pr.get("no_own_facility") or []) if str(x).strip()]
+        own = [str(x) for x in (pr.get("own_production") or []) if str(x).strip()]
+        if no_own and own:
+            return "불명", f"[사업보고서 원재료 및 생산설비] 외주 문장과 생산능력·설비가 함께 있음(사업부문·자회사마다 다를 수 있음): {no_own[0][:80]} / {own[0][:80]}"
+        if no_own:
+            return "안 함", "[사업보고서 원재료 및 생산설비] " + no_own[0][:160]
+        if own:
+            return "직접 제조", "[사업보고서 원재료 및 생산설비] " + own[0][:160]
     t = _cand_text(c)
     out_m = _R2_NOT_MFG.search(t)
     rest = _R2_NOT_MFG.sub(" ", t)
