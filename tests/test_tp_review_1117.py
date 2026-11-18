@@ -328,3 +328,34 @@ def test_r2_unlisted_machinery_account_absent_means_no_manufacturing():
     rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review(tested, cands, judgments=j)["후보별 권고"]}
     assert rec["없음"]["R2"]["사실"]["후보 제조"] == "안 함" and rec["없음"]["R2"]["판정"] == "가까움"
     assert rec["있음"]["R2"]["판정"] == "불명"
+
+
+def test_keyword_scope_paren_subitem_is_not_ho():
+    """목 아래 세목 '7)'을 호 '제7호'로 읽지 않는다 — 국가계약법 시행령 제26조 디지털서비스는 제1항 제5호 아목."""
+    from korean_tax_mcp import law
+    body = ("제26조(수의계약에 의할 수 있는 경우)\n① 다음 각 호와 같다.\n"
+            "1. 첫째 경우\n가. 첫 목\n"
+            "5. 비효율적인 경우로서 다음 각 목의 경우\n가. 다음의 어느 하나에 해당하는 계약\n"
+            "1) 추정가격 2천만원 이하\n7) 청년창업기업과 체결하는 계약\n"
+            "나. 재외공관 물품\n아. 디지털서비스에 관한 계약을 하는 경우\n"
+            "② 둘째 항")
+    hit = law._keyword_scope(body, "디지털서비스", "제26조")
+    assert hit and hit[1] == ["제1항 제5호"]
+
+
+def test_cite_court_abbreviation_is_read_and_expanded():
+    """'수원고법 2023누16871'을 인용으로 읽고 국세청 DB 문서번호 형식(정식 법원명)으로 바꾼다."""
+    from korean_tax_mcp import cite
+    docs, _ = cite._docs("근거(수원고법 2023누16871, 서울지법 2001구123, 대법원 2012두23341)")
+    assert docs == ["수원고등법원 2023누16871", "서울지방법원 2001구123", "대법원 2012두23341"]
+
+
+def test_cite_tribunal_falls_back_to_moleg(monkeypatch):
+    """조심 번호가 국세청 DB에 없으면 법제처 재결례로 한 번 더 찾는다."""
+    from korean_tax_mcp import cite
+    monkeypatch.setattr(cite.ntis, "_search", lambda *a, **k: [])
+    monkeypatch.setattr(cite.tribunal, "search", lambda q, n=5, sort="": {"결과": [{"문서번호": "조심 2023서9158", "제목": "t", "일자": "2025.04.09.", "링크": "u"}]})
+    r = cite._check_doc("조심 2023서9158")
+    assert r["결과"] == "확인" and "법제처" in r["출처"]
+    monkeypatch.setattr(cite.tribunal, "search", lambda q, n=5, sort="": {"결과": []})
+    assert cite._check_doc("조심 2030서1234")["결과"] == "국세청 DB 미확인"

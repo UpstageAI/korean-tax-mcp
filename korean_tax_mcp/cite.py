@@ -8,12 +8,12 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-from . import _mask_oc, law, net, ntis
+from . import _mask_oc, law, net, ntis, tribunal
 
 MAX = 30   # 종류별 조회 상한 — 넘으면 '생략'으로 알림
 
 # 판결: 법원 [선고일] [선고] 사건번호 [판결]. 연도는 네 자리 또는 두 자리(1990년대 이전 '88누3123')
-COURT = re.compile(r"(?<![가-힣])((?:대법원|[가-힣]{1,10}법원)(?:\s*\([가-힣]+\))?)\s*"
+COURT = re.compile(r"(?<![가-힣])((?:대법원|[가-힣]{1,10}법원|[가-힣]{1,6}(?:고법|지법|행법))(?:\s*\([가-힣]+\))?)\s*"
                    r"(?:(?:19|20)\d{2}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2}\s*\.?\s*)?(?:선고\s*)?"
                    r"((?:19|20)?\d{2})\s*-?\s*([가-힣]{1,3})\s*-?\s*(\d{1,6})(?!\d)")
 # 조세심판·옛 국세심판·감사원 심사: '조심 2015전1925', '조심2015-서-1234', '국심 98서164'
@@ -27,7 +27,17 @@ JO = re.compile(r"(제\d+조(?:의\d+)?)(?:\s*(제\d+항|[①-⑳]))?(?:\s*(제\
 # 법령명 뒤에 '및'·'·'·'부터' 등으로 이어진 조문은 앞 법령명을 이어받는다('소득세법 제45조 및 제46조')
 CHAIN = re.compile(r"^(?:\s*(?:제\d+항|[①-⑳]|제\d+호(?:의\d+)?|[가-힣]목))*\s*(?:및|또는|와|과|,|·|ㆍ|~|부터|내지)\s*$")
 # 판결·결정을 가리키는데 번호를 못 읽은 곳: 법원·심판 이름 뒤 40자 안에 숫자가 있으면 인용으로 본다
-CUE = re.compile(r"(?<![가-힣])(?:대법원|[가-힣]{2,10}법원|조세심판원|조심|국심|감심)")
+CUE = re.compile(r"(?<![가-힣])(?:대법원|[가-힣]{2,10}법원|[가-힣]{1,6}(?:고법|지법|행법)|조세심판원|조심|국심|감심)")
+
+
+_ABBR = (("고법", "고등법원"), ("지법", "지방법원"), ("행법", "행정법원"))
+
+
+def _court_full(c):
+    """'수원고법'→'수원고등법원' — 국세청 DB 문서번호는 정식 법원명이라 줄임말로는 같은 번호를 못 찾는다."""
+    for a, b in _ABBR:
+        if c.endswith(a): return c[: -len(a)] + b
+    return c
 
 
 def _year4(y):
@@ -48,6 +58,11 @@ def _check_doc(raw):
     k = _key(raw)
     m = next((h for h in hits if _key(h["문서번호"]) == k), None)
     if m: return {"인용": raw, "결과": "확인", "문서번호": m["문서번호"], "제목": m.get("제목", ""), "일자": m.get("일자", ""), "링크": m.get("링크", "")}
+    if re.match(r"(조심|국심)", raw):   # 조세심판원 결정은 국세청 DB에 늦게 오르기도 함 — 법제처 재결례로 한 번 더
+        try:
+            t = next((x for x in tribunal.search(raw, 5, sort="정확도")["결과"] if _key(x["문서번호"]) == k), None)
+        except Exception: t = None
+        if t: return {"인용": raw, "결과": "확인", "문서번호": t["문서번호"], "제목": t.get("제목", ""), "일자": t.get("일자", ""), "링크": t.get("링크", ""), "출처": "법제처 재결례(국세청 DB 미수록)"}
     kind = "형사·민사 판결 등은 국세청 DB에 없을 수 있음" if re.search(r"\d{2}[도노고]\d", raw) else "번호 오기 또는 존재하지 않는 문서 가능성"
     return {"인용": raw, "결과": "국세청 DB 미확인", "이유": kind, "비슷한 번호": [h["문서번호"] for h in hits[:3]]}
 
@@ -56,7 +71,7 @@ def _docs(text):
     """→ (조회할 문서번호 목록, 읽은 구간 목록)."""
     found, spans = [], []
     for m in COURT.finditer(text):
-        court = re.sub(r"\s+", "", m.group(1))
+        court = _court_full(re.sub(r"\s+", "", m.group(1)))
         found.append((m.start(), f"{court} {m.group(2)}{m.group(3)}{m.group(4)}")); spans.append(m.span())
     for m in TRIB.finditer(text):
         if any(a < m.end() and m.start() < b for a, b in spans): continue
