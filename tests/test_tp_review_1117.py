@@ -209,3 +209,47 @@ def test_r12_scope_is_within_candidate_and_sent_to_model():
     assert "R1" in scope and "R2" in scope and "10%" in scope and "한 사업만" in scope
     g = next(x for x in GOLD if x["id"] == "G06")
     assert "한 사업만" in T._prompt(g["tested"], [g["candidate"]], {g["candidate"]["name"]: ["R12"]}, group=("R12",))
+
+
+def test_quote_with_added_subject_keeps_verdict_but_rewritten_sentence_unknown():
+    """근거 대조(2026-11-18): 원문 문장 앞에 '당사는'을 붙여 옮긴 인용은 판정을 지키고 확신도만 낮춘다. 새로 쓴 문장은 불명, 모델의 원래 판정을 남긴다.
+    화장품 74곳 3번 측정에서 '원문에 없음'으로 낮춘 89건 중 44건이 앞의 경우, 12건이 뒤의 경우였다."""
+    cand = {"name": "가", "description": "화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다. 주식회사 가(이하 당사)는 2011년 설립되어 화장품 제조 및 판매를 주된 사업으로 영위하고 있는 중소기업으로서"}
+    tested = {"role": "판매", "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 도매"}
+    added = {"후보": "가", "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다."}
+    rewritten = {"후보": "가", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": "당사의 주된 사업은 화장품 제조 및 판매입니다."}
+    s = {x["신호"]: x for x in T.review(tested, [cand], judgments={"판정": [added, rewritten]})["후보별 권고"][0]["신호"]}
+    assert s["R2"]["판정"] == "다름" and s["R2"]["원문 확인"].startswith("일부 일치") and s["R2"]["확신도"] == "보통" and "AI 원래 판정" not in s["R2"]
+    assert s["R1"]["판정"] == "불명" and "새로 쓴 문장" in s["R1"]["원문 확인"] and s["R1"]["AI 원래 판정"] == "가까움"
+
+
+def test_quote_of_tested_input_fields_accepted():
+    """모델이 분석대상 입력 칸을 이름째 근거로 인용('limited_risk: true')해도 입력에 있는 값이면 원문 일치 — 없는 값이면 불명."""
+    cand = {"name": "가", "description": "주요사업 내용 : 화장품 판매"}
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 도매", "description": "제조·연구개발 없음, 자체 브랜드 없음"}
+    def run(q):
+        j = {"판정": [{"후보": "가", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": q}]}
+        return next(x for x in T.review(tested, [cand], judgments=j)["후보별 권고"][0]["신호"] if x["신호"] == "R15")
+    for q in ("limited_risk: true", "주요사업 내용 : 화장품 판매 / role: 판매, limited_risk: true, 제조·연구개발 없음, 자체 브랜드 없음", "분석대상 description: 제조·연구개발 없음, 자체 브랜드 없음"):
+        r = run(q)
+        assert r["판정"] == "다름" and r["원문 확인"] == "원문 일치", (q, r)
+    r = run("limited_risk: false")
+    assert r["판정"] == "불명" and r["AI 원래 판정"] == "다름"
+
+
+def test_quote_of_question_or_other_candidate_is_unknown_with_reason():
+    a = {"name": "가", "description": "주요사업 내용 : 화장품 판매"}
+    b = {"name": "나", "description": "당사는 제조, 브랜드, 유통이라는 Total-Value Chain을 보유하고 있습니다."}
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품"}
+    j = {"판정": [{"후보": "가", "신호": "R15", "판정": "다름", "확신도": "높음", "근거 문장": T.SIGNALS["R15"]["묻는 것"]},
+                 {"후보": "가", "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 제조, 브랜드, 유통이라는 Total-Value Chain을 보유하고 있습니다."}]}
+    s = {x["신호"]: x for x in T.review(tested, [a, b], judgments=j)["후보별 권고"][0]["신호"]}
+    assert s["R15"]["판정"] == "불명" and "질문 문장" in s["R15"]["원문 확인"]
+    assert s["R2"]["판정"] == "불명" and "다른 후보의 문장" in s["R2"]["원문 확인"]
+
+
+def test_quote_with_ellipsis_checked_piece_by_piece():
+    cand = {"name": "가", "description": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서 1993년 설립되었으며 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}
+    j = {"판정": [{"후보": "가", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": "가는 화장품 판매사업을 전개하고 있는 화장품 전문기업으로서... 색조 브랜드 중심으로 다양한 브랜드를 전개하고 있습니다."}]}
+    s = {x["신호"]: x for x in T.review({"role": "판매", "products": "화장품"}, [cand], judgments=j)["후보별 권고"][0]["신호"]}
+    assert s["R1"]["판정"] == "가까움" and s["R1"]["원문 확인"] == "원문 일치"
