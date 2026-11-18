@@ -278,3 +278,28 @@ def test_r12_single_business_unknown_becomes_close():
     assert rec["가"]["R12"]["판정"] == "가까움" and rec["가"]["R12"]["AI 원래 판정"] == "불명" and "한 사업" in rec["가"]["R12"]["원문 확인"]
     assert rec["나"]["R12"]["판정"] == "불명"
     assert rec["다"]["R12"]["판정"] == "불명"
+
+
+def test_r2_judged_from_facts_by_rule():
+    """R2(2026-11-18 결정): 모델은 사실(직접 제조·판매 상대)만, 판정은 규칙 — 외주생산 브랜드사는 판매 상대로 정함. 사실이 없으면 모델 판정 그대로."""
+    tested = {"role": "판매", "limited_risk": True, "products": "해외 브랜드 화장품 완제품", "channel": "해외 본사 완제품을 수입해 국내 유통업체·면세점에 도매", "description": "제조·연구개발 없음, 자체 브랜드 없음"}
+    cands = [{"name": n, "description": d} for n, d in (
+        ("소매", "당사는 외주생산한 자체 브랜드 제품을 올리브영과 온라인 쇼핑몰을 통해 판매합니다."),
+        ("도매", "당사는 외주생산한 자체 브랜드 제품을 국내 유통업체에 도매로 공급합니다."),
+        ("제조", "당사는 자체 공장에서 화장품을 OEM 방식으로 제조하여 고객사에 공급합니다."),
+        ("모름", "당사는 화장품 판매업을 영위합니다."))]
+    facts = {"소매": ("안 함", "소매·직판"), "도매": ("안 함", "도매"), "제조": ("직접 제조", "도매"), "모름": ("안 함", "불명")}
+    j = {"판정": [{"후보": n, "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": c["description"],
+                  "사실": {"제조": facts[n][0], "판매 상대": facts[n][1]}} for n, c in ((c["name"], c) for c in cands)]
+         + [{"후보": "소매", "신호": "R1", "판정": "가까움", "확신도": "높음", "근거 문장": cands[0]["description"]}]}
+    rec = {x["후보"]: {s["신호"]: s for s in x["신호"]} for x in T.review(tested, cands, judgments=j)["후보별 권고"]}
+    assert rec["소매"]["R2"]["판정"] == "다름" and "판매 상대" in rec["소매"]["R2"]["원문 확인"]
+    assert rec["도매"]["R2"]["판정"] == "가까움" and rec["도매"]["R2"]["AI 원래 판정"] == "다름"
+    assert rec["제조"]["R2"]["판정"] == "다름" and "제조" in rec["제조"]["R2"]["원문 확인"]
+    assert rec["모름"]["R2"]["판정"] == "불명" and rec["모름"]["R2"]["확신도"] == "낮음"
+    assert rec["소매"]["R2"]["사실"]["제조"] == "안 함"
+
+
+def test_r2_instruction_and_schema_ask_for_facts():
+    assert "사실" in json.dumps(T._schema(), ensure_ascii=False) and "외주생산" in T._instruction()
+    assert "무공장 브랜드사" in T.SIGNALS["R2"]["판정 범위"]
