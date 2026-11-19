@@ -27,7 +27,7 @@ SOLAR_CHUNK = 3            # Solar 한 번에 판정할 후보 수 — 10개(문
 SOLAR_MAX_TOKENS = 6000
 SIGNAL_GROUPS = (("R1", "R2", "R3", "R4"), ("R8", "R12", "R15", "R16", "R17"))   # Solar에 따로 물을 신호 묶음(핵심 / 나머지)
 _TESTED_KEYS = ("role", "function", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
-_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production", "mix", "goods_merch_ratio", "industry_code")
+_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production", "mix", "goods_merch_ratio", "industry_code", "sales_channel")
 _RATIO_KEYS = ("advert", "rnd", "related", "related_sales", "related_purchase", "sales", "export", "inv")
 
 
@@ -135,7 +135,7 @@ def _model_targets(tested, cand, numeric, role):
 
 def _schema():
     return {"판정": [{"후보": "후보 name 그대로", "신호": "R1 등", "판정": "가까움|다름|불명", "이유": "1~2문장",
-                    "근거 문장": "후보 description·sales_lines에서 글자 그대로 옮긴 한 문장 — 없으면 빈 값",
+                    "근거 문장": "후보 description·sales_lines·sales_channel에서 글자 그대로 옮긴 한 문장 — 없으면 빈 값",
                     "분석대상 근거": "분석대상 products·channel·description에서 글자 그대로 옮긴 말(선택)", "확신도": "높음|보통|낮음"}]}
 
 
@@ -288,7 +288,7 @@ def _funnel_pre(tested, c, numeric):
     return {"층": 2, "결과": "통과", "사유": "", **info}
 
 def _instruction():
-    return ("후보마다 '판정할 신호'만 판정한다. 근거 문장은 입력 원문(후보 description·sales_lines, 분석대상 products·channel·description)에서 "
+    return ("후보마다 '판정할 신호'만 판정한다. 근거 문장은 입력 원문(후보 description·sales_lines·sales_channel, 분석대상 products·channel·description)에서 "
             "글자 그대로 옮긴다(요약·번역 금지) — 후보 원문은 '근거 문장', 분석대상 원문은 '분석대상 근거'에 나눠 적는다. 원문에 근거가 없으면 판정을 '불명'으로 하고 근거 문장은 비운다. 업종 코드가 같다는 것만으로 '가까움'이라 하지 않는다. "
             "신호마다 '판정 범위'만 본다 — 한 가지 차이를 여러 신호에 겹쳐 '다름'으로 세지 않는다(예: 자체 브랜드는 R4, 제조사인지는 R2이고 R1 품목은 제품군만). "
             "확신이 없으면 '불명' 또는 확신도 '낮음'. 판정 결과를 judgments로 넣어 이 도구를 다시 부르면 근거 대조와 권고가 붙는다. "
@@ -298,7 +298,7 @@ def _instruction():
 def _prompt(tested, cands, targets, group=TEXT_SIGNALS):
     sig_lines = "\n".join(f"- {k} {SIGNALS[k]['이름']}: {SIGNALS[k]['묻는 것']} [판정 범위] {SIGNALS[k].get('판정 범위', '')}" for k in group)
     cand_lines = "\n".join(
-        f"[{c['name']}] 판정할 신호: {','.join(targets[c['name']]) or '없음'}\n  description: {str(c.get('description', ''))[:1500]}\n  sales_lines: {c.get('sales_lines', [])}"
+        f"[{c['name']}] 판정할 신호: {','.join(targets[c['name']]) or '없음'}\n  description: {str(c.get('description', ''))[:1500]}\n  sales_lines: {c.get('sales_lines', [])}" + (f"\n  sales_channel(사업보고서 판매경로 원문): {_channel_text(c)}" if _channel_text(c) else "")
         for c in cands)
     tested_txt = json.dumps({k: tested.get(k) for k in ("role", "limited_risk", "products", "channel", "description") if tested.get(k) is not None}, ensure_ascii=False)
     return f"""이전가격 비교대상 후보의 기능 유사성을 신호별로 판정한다. {_DATA['종합 법리']}
@@ -367,8 +367,23 @@ QUOTE_COVER_MIN = 0.7     # 분석대상 입력을 줄여 쓴 조각은 글자 2
 QUOTE_NEAR_MIN = 0.8      # 원문에 그대로 없는 조각은 글자의 80% 이상이 원문과 같은 순서로 이어 겹쳐야 '일부 일치' — 2026-11-18 화장품 74곳 측정: 주어만 붙인 인용은 0.88 이상, 새로 쓴 문장은 0.68 이하, 다른 회사 문장이 통과한 비율 0.16%(54/33,763)
 
 
+def _channel_text(c):
+    """후보 sales_channel(계산 MCP가 사업보고서 '매출 및 수주상황'에서 뽑은 판매조직·판매경로·판매방법·주요 매출처 원문) — 원문 글로(2026-11-19)."""
+    sc = c.get("sales_channel")
+    if isinstance(sc, dict):
+        sc = sc.get("value", sc)
+        if isinstance(sc, dict):
+            tp = sc.get("topics") or {}
+            parts = [f"[{k}] {str(v)[:600]}" for k, v in tp.items() if str(v).strip()] if isinstance(tp, dict) else []
+            sh = sc.get("shares") or []
+            if sh:
+                parts.append("[판매경로 비중] " + "; ".join(f"{x.get('경로', x.get('name', ''))} {x.get('비중', x.get('share', ''))}" if isinstance(x, dict) else str(x) for x in sh)[:300])
+            return " ".join(parts)
+    return str(sc or "")[:1500]
+
+
 def _cand_text(c):
-    return f"{c.get('description', '')} {' '.join(map(str, c.get('sales_lines') or []))}"
+    return f"{c.get('description', '')} {' '.join(map(str, c.get('sales_lines') or []))} {_channel_text(c)}".strip()
 
 
 def _cand_src(c):
@@ -560,6 +575,23 @@ def _recommend(rows, pre=None):
     return "포함", "다른 신호가 없음(핵심 신호 불명 2개 이하)" + tail + " — 거래단계·시장·계약 조건은 사람이 최종 확인"
 
 
+MORE_INFO = {"R1": "취급 품목·제품군", "R2": "판매채널(도매·소매·온라인·면세·수출)과 판매 상대", "R3": "광고·마케팅을 누가 하는지(자체 광고비·브랜드 마케팅)",
+             "R4": "연구개발 조직·자체 브랜드 보유"}
+
+
+def _more_info(rows, pre, rec):
+    """불명인 핵심 신호(R1~R4) 가운데 알게 되면 권고가 바뀔 수 있는 것만 — '추가 정보 확인 필요'(2026-11-19 결정: 모든 불명을 찾지 않음).
+    그 신호를 가까움·다름으로 바꿔 권고를 다시 내 보고 하나라도 지금 권고와 다르면 넣는다."""
+    out = []
+    for k in ("R1", "R2", "R3", "R4"):
+        if rows.get(k, {}).get("판정") != "불명":
+            continue
+        alt = {_recommend({**rows, k: {**rows[k], "판정": v}}, pre)[0] for v in ("가까움", "다름")}
+        if alt - {rec}:
+            out.append({"신호": k, "확인할 것": MORE_INFO[k], "알면 바뀔 수 있는 권고": sorted(alt - {rec})})
+    return out
+
+
 def _confidence(rows):
     if not rows:
         return "낮음"
@@ -607,7 +639,7 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
     if judgments is None and mode == "host_ai" and any(targets.values()):
         return {**base, "mode": "host_ai", "단계": "1/2 — 사용자 AI가 문장 신호를 판정해 judgments로 다시 부르기",
                 "판정할 신호": targets, "숫자 판정(도구)": {n: v for n, v in numeric.items() if v},
-                "후보 원문": [{"name": c["name"], "description": str(c.get("description", ""))[:1500], "sales_lines": c.get("sales_lines", [])} for c in candidates],
+                "후보 원문": [{"name": c["name"], "description": str(c.get("description", ""))[:1500], "sales_lines": c.get("sales_lines", []), **({"sales_channel": _channel_text(c)} if _channel_text(c) else {})} for c in candidates],
                 "판정 형식": _schema(), "판단 안내": _instruction(),
                 "주의": "AI 판정과 도구 권고는 검토 보조 — 사람이 승인·수정"}
     dropped, failed = [], {}
@@ -682,12 +714,14 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
                               "이유": "후보 원문에 연구개발·자체 브랜드 서술이 없음(제조·판매업 영위나 남의 브랜드 상품 판매만으로 추정하지 않음) — AI 이유: " + str(r4.get("이유", ""))[:120],
                               "원문 확인": "후보 원문에 연구개발·브랜드 서술 없음 — 불명으로 낮춤"}
         rec, why = _recommend(rows, pre[n])
+        more = _more_info(rows, pre[n], rec)
         sig_rows = []
         for k in sorted(rows, key=lambda x: int(x[1:])):
             r = rows[k]
             sig_rows.append({"신호": k, "이름": SIGNALS[k]["이름"], **r, "조정 가능": SIGNALS[k]["조정 가능"],
                              **({"근거": {**SIGNALS[k].get("근거 층", {}), "판례": _cases_for(k, idx)}, "볼 포인트": SIGNALS[k]["볼 포인트"]} if r["판정"] != "가까움" else {})})
         results.append({"후보": n, "권고": rec, "이유": why, "확신도": _confidence(rows), "깔때기": pre[n], "신호": sig_rows,
+                        **({"추가 정보 확인 필요": more} if more else {}),
                         "사람이 볼 것": [f"{s['신호']} {s['이름']}: {s['볼 포인트']}" for s in sig_rows if s["판정"] != "가까움"][:5]})
     order = {"제외 후보": 0, "사람 확인": 1, "포함": 2}
     results.sort(key=lambda r: order[r["권고"]])

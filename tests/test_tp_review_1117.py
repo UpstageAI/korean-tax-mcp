@@ -473,6 +473,26 @@ def test_r4_r2_need_text_in_candidate():
     assert run("당사는 화장품을 온라인 자사몰에서 소비자에게 직접 판매합니다.", "R2", nofac)["판정"] == "다름"
 
 
+def test_sales_channel_input_and_more_info():
+    """사업보고서 판매경로(sales_channel, 2026-11-19): 후보 원문에 더해 R2 서술 조건과 근거 대조에 씀.
+    '추가 정보 확인 필요'는 불명인 R1~R4 가운데 알면 권고가 바뀔 수 있는 신호만."""
+    tested = {"role": "판매", "products": "해외 브랜드 기초·색조 화장품 완제품", "description": "제조·연구개발 없음, 자체 브랜드 없음"}
+    nofac = {"no_own_facility": ["당사는 자체 생산설비 없이 외주가공 형태로 생산합니다."], "own_production": []}
+    sc = {"value": {"topics": {"판매경로": "국내 면세점과 대형 유통업체에 도매로 공급하고 있습니다."}, "shares": []}, "status": "확보"}
+    c = {"name": "가", "description": "당사는 화장품 판매를 주요 사업으로 합니다.", "production": nofac, "sales_channel": sc}
+    assert "면세점" in T._channel_text(c) and "면세점" in T._cand_text(c)
+    j = {"판정": [{"후보": "가", "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": "국내 면세점과 대형 유통업체에 도매로 공급하고 있습니다."}]}
+    r = T.review(tested, [c], judgments=j)["후보별 권고"][0]
+    s2 = next(x for x in r["신호"] if x["신호"] == "R2")
+    assert s2["판정"] == "다름" and s2["원문 확인"] == "원문 일치"          # 판매경로 문장이 원문으로 인정됨
+    c2 = {"name": "나", "description": "당사는 화장품 판매를 주요 사업으로 합니다.", "production": nofac}
+    r = T.review(tested, [c2], judgments={"판정": [{"후보": "나", "신호": "R2", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 화장품 판매를 주요 사업으로 합니다."}]})["후보별 권고"][0]
+    assert next(x for x in r["신호"] if x["신호"] == "R2")["판정"] == "불명"
+    for m in r.get("추가 정보 확인 필요", []):                              # 넣었다면 그 신호를 알면 권고가 실제로 바뀌어야 함
+        assert m["신호"] in ("R1", "R2", "R3", "R4") and m["알면 바뀔 수 있는 권고"]
+    assert T.MORE_INFO["R2"].startswith("판매채널")
+
+
 def test_funnel_layer1_function_type(monkeypatch):
     """깔때기 1층(2026-11-19 결정): 기능 대분류가 분석대상과 다르면 제외하고 문장 판정을 묻지 않는다.
     매출 구성을 못 읽으면 재화 원가·재고의 상품 비율로 가르고, 둘 다 없으면 사람 확인. 숫자 자료를 넘기지 않은 호출은 1층을 건너뜀."""
