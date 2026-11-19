@@ -456,3 +456,12 @@ def test_funnel_related_ratio_is_human_check_and_layer5_not_exclusion():
     by = {x["후보"]: x for x in T.review(tested, [a, b], judgments=j)["후보별 권고"]}
     assert by["가"]["권고"] == "사람 확인" and "특수관계" in by["가"]["이유"]
     assert by["나"]["권고"] == "포함" and "R12 차이는 제외 사유가 아님" in by["나"]["이유"]
+
+
+def test_recommend_not_include_when_product_and_trade_level_both_unknown():
+    """품목·거래단계를 둘 다 모르면 '포함'이 아니라 사람 확인(2026-11-19 측정에서 둘 다 불명인 후보가 포함으로 나옴)."""
+    rows = {"R1": {"판정": "불명"}, "R2": {"판정": "불명"}, "R3": {"판정": "가까움"}, "R4": {"판정": "가까움"}}
+    rec, why = T._recommend(rows)
+    assert rec == "사람 확인" and "모두 불명" in why
+    rec, _ = T._recommend({**rows, "R2": {"판정": "가까움"}})
+    assert rec == "포함"

@@ -474,6 +474,8 @@ def _recommend(rows, pre=None):
     core_here = [k for k in CORE if k in rows]
     if not why and core_here and len(unk) >= min(3, len(core_here)):
         why.append(f"핵심 신호 {len(core_here)}개 중 불명 {len(unk)}개({', '.join(unk)}) — 자료를 더 확보해 판정")
+    elif not why and "R1" in unk and "R2" in unk:            # 품목·거래단계를 둘 다 모르면 포함하지 않음(2026-11-19 측정: 둘 다 불명인 후보가 '포함'으로 나옴)
+        why.append("품목(R1)과 거래단계(R2)가 모두 불명 — 자료를 더 확보해 판정")
     d5 = [k for k in LAYER5 if rows.get(k, {}).get("판정") == "다름"]
     tail = f" · {', '.join(d5)} 차이는 제외 사유가 아님 — 보고서에 차이와 조정 여부를 적음" if d5 else ""
     if why:
