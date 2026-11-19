@@ -218,10 +218,10 @@ def test_quote_with_added_subject_keeps_verdict_but_rewritten_sentence_unknown()
     화장품 74곳 3번 측정에서 '원문에 없음'으로 낮춘 89건 중 44건이 앞의 경우, 12건이 뒤의 경우였다."""
     cand = {"name": "가", "description": "화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다. 주식회사 가(이하 당사)는 2011년 설립되어 화장품 제조 및 판매를 주된 사업으로 영위하고 있는 중소기업으로서"}
     tested = {"role": "판매", "products": "해외 브랜드 화장품 완제품", "channel": "수입해 국내 도매"}
-    added = {"후보": "가", "신호": "R4", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다."}
+    added = {"후보": "가", "신호": "R16", "판정": "다름", "확신도": "높음", "근거 문장": "당사는 화장품 제조 및 도소매업을 주요 사업으로 영위하고 있습니다."}   # R4·R2는 원문 서술 규칙(2026-11-19)이 따로 있어 대조만 보는 신호로
     rewritten = {"후보": "가", "신호": "R3", "판정": "가까움", "확신도": "높음", "근거 문장": "당사의 주된 사업은 화장품 제조 및 판매입니다."}   # R1은 원문 낱말 규칙이 먼저 정하므로 모델 판정 신호 R3로 대조
     s = {x["신호"]: x for x in T.review(tested, [cand], judgments={"판정": [added, rewritten]})["후보별 권고"][0]["신호"]}
-    assert s["R4"]["판정"] == "다름" and s["R4"]["원문 확인"].startswith("일부 일치") and s["R4"]["확신도"] == "보통" and "AI 원래 판정" not in s["R4"]
+    assert s["R16"]["판정"] == "다름" and s["R16"]["원문 확인"].startswith("일부 일치") and s["R16"]["확신도"] == "보통" and "AI 원래 판정" not in s["R16"]
     assert s["R3"]["판정"] == "불명" and "새로 쓴 문장" in s["R3"]["원문 확인"] and s["R3"]["AI 원래 판정"] == "가까움"
 
 
@@ -453,6 +453,24 @@ def test_r1_industry_code_cross_check():
     assert T._cand_product(c("회사는 2001년에 설립되었습니다.", "465"), t) is None
     assert T._cand_product(c("회사는 2001년에 설립되었습니다.", None), t) is None
     assert T._pack_for({"products": "전문의약품 완제품"})["id"] == "pharma"
+
+
+def test_r4_r2_need_text_in_candidate():
+    """R4·R2 '다름'은 후보 원문에 서술이 있을 때만(2026-11-19): 연구개발·자체 브랜드 서술 없이 '제조·판매업 영위'로 추정한 R4 다름은 불명,
+    제조 여부가 같다고 도구가 정했는데 거래단계·판매채널 서술 없이 낸 R2 다름은 불명. 남의 브랜드 상품 판매는 자체 브랜드가 아님."""
+    tested = {"role": "판매", "products": "해외 브랜드 기초·색조 화장품 완제품", "description": "제조·연구개발 없음, 자체 브랜드 없음"}
+    def run(desc, sig, prod=None):
+        c = {"name": "가", "description": desc, **({"production": prod} if prod else {})}
+        j = {"판정": [{"후보": "가", "신호": sig, "판정": "다름", "확신도": "높음", "근거 문장": desc.split(". ")[0]}]}
+        return next(x for x in T.review(tested, [c], judgments=j)["후보별 권고"][0]["신호"] if x["신호"] == sig)
+    r = run("당사는 화장품 제조ㆍ판매업등의 사업을 영위하고 있습니다.", "R4")
+    assert r["판정"] == "불명" and r["AI 판정"] == "다름"
+    assert run("250여 개의 화장품 브랜드 상품을 판매하는 온라인 쇼핑몰을 운영합니다.", "R4")["판정"] == "불명"
+    assert run("대표 브랜드인 '가나다'와 2021년 런칭한 비건 브랜드가 있습니다.", "R4")["판정"] == "다름"
+    nofac = {"no_own_facility": ["당사는 자체 생산설비 없이 외주가공 형태로 생산합니다."], "own_production": []}
+    r = run("당사는 화장품, 건강기능식품 판매를 주요 사업으로 운영하고 있습니다.", "R2", nofac)
+    assert r["판정"] == "불명" and r["AI 판정"] == "다름"
+    assert run("당사는 화장품을 온라인 자사몰에서 소비자에게 직접 판매합니다.", "R2", nofac)["판정"] == "다름"
 
 
 def test_funnel_layer1_function_type(monkeypatch):
