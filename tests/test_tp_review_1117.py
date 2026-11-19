@@ -416,3 +416,43 @@ def test_r1_product_group_by_source_words():
     assert T._cand_product(c("합성수지 첨가제 제조"), t) is None
     assert T._cand_product(c("본사 소재지는 서울, 화장품 도매"), t)[0] == "가까움"      # '소재지'는 다른 제품군 아님
     assert T._cand_product(c("화장품"), {"products": "배터리 소재"}) is None          # 분석대상 제품군을 모르면 모델에
+
+
+def test_funnel_layer1_function_type(monkeypatch):
+    """깔때기 1층(2026-11-19 결정): 기능 대분류가 분석대상과 다르면 제외하고 문장 판정을 묻지 않는다.
+    매출 구성을 못 읽으면 재화 원가·재고의 상품 비율로 가르고, 둘 다 없으면 사람 확인. 숫자 자료를 넘기지 않은 호출은 1층을 건너뜀."""
+    tested = {"role": "판매", "products": "화장품"}
+    mfg = {"name": "제조", "description": "화장품을 직접 생산합니다.", "mix": {"product": 0.95, "merchandise": 0.05, "coverage": 1.0},
+           "production": {"own_production": ["생산능력 1,000만 개"]}}
+    brand = {"name": "브랜드", "description": "화장품 브랜드사입니다.", "goods_merch_ratio": 0.1, "production": {"machinery_account": "없음", "machinery_evidence": "기계장치 계정 없음"}}
+    dist = {"name": "유통", "description": "화장품 도매업을 영위합니다.", "mix": {"product": 0.0, "merchandise": 0.98, "coverage": 1.0}}
+    unknown = {"name": "모름", "description": "화장품 도매업을 영위합니다.", "mix": {"coverage": 2.5}}
+    plain = {"name": "숫자없음", "description": "화장품 도매업을 영위합니다."}
+    calls = []
+    monkeypatch.setattr(solar, "mode", lambda: "solar_cloud")
+    monkeypatch.setattr(solar, "where", lambda *a: "Solar(테스트)")
+    def fake(prompt, max_tokens=0, timeout=0):
+        calls.append(prompt)
+        return {"판정": []}
+    monkeypatch.setattr(solar, "chat_json", fake)
+    r = T.review(tested, [mfg, brand, dist, unknown, plain])
+    by = {x["후보"]: x for x in r["후보별 권고"]}
+    assert by["제조"]["권고"] == "제외 후보" and by["제조"]["깔때기"]["층"] == 1 and "직접" in by["제조"]["깔때기"]["세부"]
+    assert by["브랜드"]["권고"] == "제외 후보" and "위탁 브랜드" in by["브랜드"]["깔때기"]["세부"] and "상품 비율 10%" in by["브랜드"]["깔때기"]["대분류 근거"]
+    assert by["유통"]["깔때기"]["대분류"] == "B" and by["유통"]["권고"] != "제외 후보"
+    assert by["모름"]["권고"] == "사람 확인" and "판단불가" in by["모름"]["이유"]
+    assert by["숫자없음"]["깔때기"]["대분류"] == "자료 없음"
+    assert not any("[제조]" in p or "[브랜드]" in p for p in calls) and any("[유통]" in p for p in calls)   # 1층 제외 후보는 모델에 묻지 않음
+
+
+def test_funnel_related_ratio_is_human_check_and_layer5_not_exclusion():
+    """판례 보정(2026-11-19): 특수관계 거래 비중만 높으면 사람 확인(의존도만으로 특수관계 아님, 2009두24122).
+    사업부문(R12)·수출(R8) 차이는 제외도 사람 확인도 아니고 보고서에 차이만 적는다."""
+    tested = {"role": "판매", "products": "화장품"}
+    a = {"name": "가", "description": "화장품 도매업", "related_purchase": 0.6}
+    b = {"name": "나", "description": "화장품 도매업과 부동산 임대업"}
+    j = {"판정": [{"후보": n, "신호": k, "판정": "가까움", "근거 문장": "화장품 도매업", "확신도": "높음"} for n in ("가", "나") for k in ("R1", "R2", "R3", "R4")]
+         + [{"후보": "나", "신호": "R12", "판정": "다름", "근거 문장": "화장품 도매업과 부동산 임대업", "확신도": "높음"}]}
+    by = {x["후보"]: x for x in T.review(tested, [a, b], judgments=j)["후보별 권고"]}
+    assert by["가"]["권고"] == "사람 확인" and "특수관계" in by["가"]["이유"]
+    assert by["나"]["권고"] == "포함" and "R12 차이는 제외 사유가 아님" in by["나"]["이유"]
