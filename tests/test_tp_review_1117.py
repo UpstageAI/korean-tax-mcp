@@ -435,6 +435,26 @@ def test_r1_industry_pack_computer():
         assert p["출처"] and p["업종코드"]
 
 
+def test_r1_industry_code_cross_check():
+    """업종코드 교차 확인(2026-11-19): 원문 낱말과 DART 등록 업종코드를 같이 본다. 엇갈리면 '업종코드 오등록 의심'으로 사람 확인, 코드만으로 가까움은 주지 않음."""
+    from korean_tax_mcp import tp_review as T
+    t = {"products": "컴퓨터 및 주변장치·소프트웨어"}
+    c = lambda d, code: {"name": "X", "description": d, "industry_code": code}
+    assert T._code_rel("46510", ["46510"])[0] == "같음" and T._code_rel("465", ["46510"])[0] == "넓음"
+    assert T._code_rel("46413", ["46510"])[0] == "다름" and T._code_rel(None, ["46510"])[0] is None
+    assert T._cand_product(c("노트북 PC와 모니터를 공급", "46510"), t)[0] == "가까움"
+    r = T._cand_product(c("노트북 PC와 모니터를 공급", "46413"), t)                # 원문은 컴퓨터, 코드는 의류
+    assert r[0] == "불명" and T.CODE_CONFLICT in r[1]
+    r = T._cand_product(c("수영복과 방수복을 판매", "46510"), t)                     # 원문은 다른 제품, 코드는 컴퓨터
+    assert r[0] == "불명" and T.CODE_CONFLICT in r[1]
+    assert T._cand_product(c("수영복과 방수복을 판매", "46413"), t)[0] == "다름"
+    assert T._cand_product(c("회사는 2001년에 설립되었습니다.", "46413"), t)[0] == "다름"  # 낱말 없음 + 코드 다름
+    assert T._cand_product(c("회사는 2001년에 설립되었습니다.", "46510"), t) is None      # 코드만으로 가까움 X
+    assert T._cand_product(c("회사는 2001년에 설립되었습니다.", "465"), t) is None
+    assert T._cand_product(c("회사는 2001년에 설립되었습니다.", None), t) is None
+    assert T._pack_for({"products": "전문의약품 완제품"})["id"] == "pharma"
+
+
 def test_funnel_layer1_function_type(monkeypatch):
     """깔때기 1층(2026-11-19 결정): 기능 대분류가 분석대상과 다르면 제외하고 문장 판정을 묻지 않는다.
     매출 구성을 못 읽으면 재화 원가·재고의 상품 비율로 가르고, 둘 다 없으면 사람 확인. 숫자 자료를 넘기지 않은 호출은 1층을 건너뜀."""

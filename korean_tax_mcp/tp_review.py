@@ -27,7 +27,7 @@ SOLAR_CHUNK = 3            # Solar 한 번에 판정할 후보 수 — 10개(문
 SOLAR_MAX_TOKENS = 6000
 SIGNAL_GROUPS = (("R1", "R2", "R3", "R4"), ("R8", "R12", "R15", "R16", "R17"))   # Solar에 따로 물을 신호 묶음(핵심 / 나머지)
 _TESTED_KEYS = ("role", "function", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
-_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production", "mix", "goods_merch_ratio")
+_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production", "mix", "goods_merch_ratio", "industry_code")
 _RATIO_KEYS = ("advert", "rnd", "related", "related_sales", "related_purchase", "sales", "export", "inv")
 
 
@@ -355,7 +355,7 @@ def _cand_src(c):
 # 모델이 제조·ODM·자체 브랜드를 품목에 끌어들이거나('다름') '화장품'이라고만 적혀 세부를 몰라 '불명'으로 흔들렸음 — 판정 범위 밖.
 # 업종 팩(2026-11-19 결정: 업종별 지식은 깔때기 3·4층에만) — data/tp_packs/*.json. 분석대상 품목·설명에 같은 제품군 낱말이 처음 걸리는 팩을 씀.
 # 화장품은 후보 원문 실측으로 손으로 만든 목록, 컴퓨터는 한국표준산업분류 해설서 예시 품목에서 만든 목록(bench_ksic/make_pack.py).
-_PACK_ORDER = ("cosmetics", "computer")
+_PACK_ORDER = ("cosmetics", "computer", "pharma")
 _PACK_DIR = os.path.join(os.path.dirname(__file__), "data", "tp_packs")
 
 
@@ -381,10 +381,29 @@ def _pack_for(tested):
     return next((p for p in PACKS if p["same"].search(tt)), None)
 
 
+def _code_rel(code, pack_codes):
+    """후보 DART 등록 업종코드와 팩 업종코드의 관계 — 같음(팩 코드이거나 그 아래)·넓음(팩 코드의 상위, 판단 못 함)·다름·None(코드 없음)."""
+    c = re.sub(r"\D", "", str(code or ""))
+    if not c:
+        return None, ""
+    if any(c.startswith(p) for p in pack_codes):
+        return "같음", c
+    if any(p.startswith(c) for p in pack_codes):
+        return "넓음", c
+    return "다름", c
+
+
+CODE_CONFLICT = "업종코드 오등록 의심"
+
+
 def _cand_product(c, tested):
-    """후보 제품군을 원문 낱말로 — 반환 (가까움|다름, 근거) 또는 None(모델에 맡김).
-    순수 지주회사 → 다름. 분석대상 제품군 낱말만 있고 다른 제품군 낱말이 없음 → 가까움. 같은 제품군 사업부문의 매출 비중 50% 이상 → 가까움.
-    분석대상 제품군 낱말이 하나도 없고 다른 제품군 낱말이 있음 → 다름(2026-11-19, 화장품 정답 세트 다름 13/21·틀림 0).
+    """후보 제품군을 원문 낱말과 DART 등록 업종코드로 — 반환 (가까움|다름|불명, 근거) 또는 None(모델에 맡김).
+    순수 지주회사 → 다름. 같은 제품군 사업부문의 매출 비중 50% 이상 → 가까움.
+    원문 낱말: 분석대상 제품군 낱말만 있으면 가까움, 다른 제품군 낱말만 있으면 다름(2026-11-19).
+    업종코드 교차 확인(2026-11-19 승미님 결정 — 표현이 회사마다 달라 낱말 목록을 늘리지 않고 숫자 코드를 같이 봄):
+      원문과 코드가 같은 쪽 → 그대로, 원문과 코드가 엇갈림 → 불명 + '업종코드 오등록 의심'(사람 확인),
+      원문에 어느 제품군 낱말도 없으면 코드가 다름 → 다름, 코드가 같거나 넓으면 모델에 — 코드만으로 '가까움'은 주지 않음
+      (고침용 자료에서 코드만으로 가까움 7건 중 2건이 다른 사업 — 한의원 컨설팅, 화장용 브러시. 코드만으로 다름 2건은 맞음).
     제조·ODM·자체 브랜드·수입 여부는 보지 않는다(R2·R4 몫). 다른 제품군이 섞이고 비중을 모르면 None."""
     pk = _pack_for(tested)
     if not pk:
@@ -399,10 +418,18 @@ def _cand_product(c, tested):
             return "가까움", f"{grp} 사업부문 매출 비중 {m.group(1)}%: " + _snip(t, m)
     gm = pk["same"].search(t)
     om = pk["other"].search(t)
+    rel, code = _code_rel(c.get("industry_code"), pk["업종코드"])
+    ctag = f"업종코드 {code}" if code else ""
     if gm and not om:
-        return "가까움", f"후보 원문의 제품군이 {grp}뿐(다른 제품군 낱말 없음, 업종 팩 {pk['id']}): " + _snip(t, gm)
+        if rel == "다름":
+            return "불명", f"{CODE_CONFLICT} — 원문은 {grp}인데 등록 {ctag}는 {grp} 업종({', '.join(pk['업종코드'])})이 아님: " + _snip(t, gm)
+        return "가까움", f"후보 원문의 제품군이 {grp}뿐(다른 제품군 낱말 없음, 업종 팩 {pk['id']}{', ' + ctag + ' ' + rel if rel else ''}): " + _snip(t, gm)
     if om and not gm:
-        return "다름", f"후보 원문에 {grp} 낱말이 없고 다른 제품군 '{om.group(0)}'(업종 팩 {pk['id']}): " + _snip(t, om)
+        if rel == "같음":
+            return "불명", f"{CODE_CONFLICT} — 등록 {ctag}는 {grp} 업종인데 원문에는 다른 제품군 '{om.group(0)}'만: " + _snip(t, om)
+        return "다름", f"후보 원문에 {grp} 낱말이 없고 다른 제품군 '{om.group(0)}'(업종 팩 {pk['id']}{', ' + ctag + ' ' + rel if rel else ''}): " + _snip(t, om)
+    if not gm and not om and rel == "다름":
+        return "다름", f"원문에 제품군 낱말이 없고 등록 {ctag}가 {grp} 업종({', '.join(pk['업종코드'])})이 아님"
     return None
 
 
@@ -500,6 +527,8 @@ def _recommend(rows, pre=None):
         why.append(f"핵심 신호 {len(core_here)}개 중 불명 {len(unk)}개({', '.join(unk)}) — 자료를 더 확보해 판정")
     elif not why and "R1" in unk and "R2" in unk:            # 품목·거래단계를 둘 다 모르면 포함하지 않음(2026-11-19 측정: 둘 다 불명인 후보가 '포함'으로 나옴)
         why.append("품목(R1)과 거래단계(R2)가 모두 불명 — 자료를 더 확보해 판정")
+    if not why and CODE_CONFLICT in str(rows.get("R1", {}).get("이유", "")):   # 품목 원문과 업종코드가 엇갈리면 포함하지 않음(2026-11-19)
+        why.append("품목(R1) 원문과 DART 등록 업종코드가 엇갈림 — 업종코드 오등록 여부를 사람이 확인")
     d5 = [k for k in LAYER5 if rows.get(k, {}).get("판정") == "다름"]
     tail = f" · {', '.join(d5)} 차이는 제외 사유가 아님 — 보고서에 차이와 조정 여부를 적음" if d5 else ""
     if why:
