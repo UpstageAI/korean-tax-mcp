@@ -26,8 +26,8 @@ MAX_CANDIDATES = 20
 SOLAR_CHUNK = 3            # Solar 한 번에 판정할 후보 수 — 10개(문장 신호 60개)면 답이 1만 자를 넘어 JSON이 잘렸음(2026-11-17 실제 공시 46개)
 SOLAR_MAX_TOKENS = 6000
 SIGNAL_GROUPS = (("R1", "R2", "R3", "R4"), ("R8", "R12", "R15", "R16", "R17"))   # Solar에 따로 물을 신호 묶음(핵심 / 나머지)
-_TESTED_KEYS = ("role", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
-_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production")
+_TESTED_KEYS = ("role", "function", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
+_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production", "mix", "goods_merch_ratio")
 _RATIO_KEYS = ("advert", "rnd", "related", "related_sales", "related_purchase", "sales", "export", "inv")
 
 
@@ -197,6 +197,71 @@ def _cand_mfg(c):
         return "불명", _snip(t, pm)
     return "언급 없음", ""
 
+
+
+# 깔때기(2026-11-19 결정): 0층 숫자 거르기 → 1층 기능 대분류 → 2층 세부 유형 → 3층 제품군(R1) → 4층 거래단계(R2) → 5층 그 밖.
+# 끊는 선: 1층 다름 제외 / 2층(숫자 차이) 사람 확인 / 품목·거래단계·마케팅·연구개발(R1~R4) 가운데 둘 이상 다름 제외, 하나 사람 확인 / 5층은 제외 사유 아님(보고서에 차이만).
+# 판례 정답 세트로 고친 두 곳(2026-11-19): 특수관계 거래 비중(R5)은 의존도만으로 특수관계가 아니어서(2009두24122) 0층 제외가 아니라 사람 확인,
+# 마케팅·연구개발만 함께 달라도 제외된 사건(2024두54065)이 있어 '둘 이상 다름'은 3·4층만이 아니라 R1~R4로 센다.
+MAJOR = {"A": "제조", "B": "유통", "C": "서비스", "D": "무형자산·플랫폼"}
+_ROLE_MAJOR = {"판매": "B", "제조": "A", "용역": "C"}
+LAYER2 = ("R3", "R5", "R7", "R14")     # 숫자 차이 — 광고·판촉(세부 유형: 전부 유통·제한위험 유통), 특수관계 거래 비중, 규모, 재고
+LAYER5 = ("R8", "R12", "R15", "R16", "R17")
+
+
+def _tested_major(tested):
+    f = str(tested.get("function") or "").strip().upper()[:1]
+    return f if f in MAJOR else _ROLE_MAJOR.get(tested.get("role"))
+
+
+def _cand_major(c):
+    """후보 기능 대분류 — 반환 (A|B|C|D|혼합|판단불가, 근거). 매출 구성(계산 MCP mix_*, 커버리지 0.8~1.2)이 있으면 그것,
+    없으면 재화 원가·재고의 상품 비율(goods_merch_ratio): 0.5 이상 B, 미만 A. 판정은 숫자로만 — 사업 설명 글은 보지 않는다."""
+    m = c.get("mix") if isinstance(c.get("mix"), dict) else {}
+    cov = _num(m.get("coverage"))
+    if m and cov is not None and 0.8 <= cov <= 1.2:
+        sh = {"A": _num(m.get("product")) or 0, "B": _num(m.get("merchandise")) or 0, "C": _num(m.get("service")) or 0,
+              "D": (_num(m.get("sw_license")) or 0) + (_num(m.get("platform_fee")) or 0)}
+        k = max(sh, key=sh.get)
+        ev = "[매출 구성] " + ", ".join(f"{MAJOR[x]} {v:.0%}" for x, v in sh.items() if v)
+        if sh[k] >= 0.5:
+            return k, ev
+        if sh["A"] + sh["B"] >= 0.5 and sh["C"] + sh["D"] < 0.5 and _num(c.get("goods_merch_ratio")) is not None:
+            pass                                          # 재화 매출이 큰데 제품·상품이 반반 — 원가·재고 비율로 가름
+        else:
+            return "혼합", ev + " — 어느 하나도 50% 미만"
+    g = _num(c.get("goods_merch_ratio"))
+    if g is not None:
+        return ("B" if g >= 0.5 else "A"), f"[매출원가·재고] 상품 비율 {g:.0%}(상품 ÷ 상품·제품) — 매출 구성을 못 읽어 대신 씀"
+    return "판단불가", "매출 구성·매출원가·재고 구성을 모두 못 읽음"
+
+
+def _cand_subtype(c, major):
+    if major != "A":
+        return MAJOR.get(major, major)
+    cm, ev = _cand_mfg(c)
+    return {"직접 제조": "제조 — 직접(공장 있음)", "안 함": "제조 — 위탁 브랜드(공장 없이 외주)"}.get(cm, "제조 — 방식 불명"), ev
+
+
+def _funnel_pre(tested, c, numeric):
+    """0~2층 — 반환 {'층', '결과'(제외|사람 확인|통과), '사유', '대분류', '세부'}. 문장 판정(3층 이후) 전에 숫자로만."""
+    tm = _tested_major(tested)
+    if "mix" not in c and "goods_merch_ratio" not in c:      # 1층 숫자 자료를 넘기지 않은 호출(사업 설명만) — 1층은 건너뜀
+        d2 = [k for k in LAYER2 if numeric.get(k, {}).get("판정") == "다름"]
+        return {"층": 2, "결과": "사람 확인" if d2 else "통과", "사유": ("숫자 차이 — " + "; ".join(f"{SIGNALS[k]['이름']}: {numeric[k]['이유']}" for k in d2)) if d2 else "",
+                "대분류": "자료 없음", "대분류 근거": "mix·goods_merch_ratio를 넘기지 않아 1층(기능 대분류)을 건너뜀"}
+    cm, ev = _cand_major(c)
+    sub = _cand_subtype(c, cm)
+    sub_name, sub_ev = (sub if isinstance(sub, tuple) else (sub, ""))
+    info = {"대분류": cm, "대분류 근거": ev, "세부": sub_name, **({"세부 근거": sub_ev} if sub_ev else {})}
+    if tm and cm in MAJOR and cm != tm:
+        return {"층": 1, "결과": "제외", "사유": f"1층 기능 대분류 다름 — 후보 {sub_name}, 분석대상 {MAJOR[tm]}", **info}
+    if cm in ("혼합", "판단불가"):
+        return {"층": 1, "결과": "사람 확인", "사유": f"1층 기능 대분류 {cm} — {ev}", **info}
+    d2 = [k for k in LAYER2 if numeric.get(k, {}).get("판정") == "다름"]
+    if d2:
+        return {"층": 2, "결과": "사람 확인", "사유": "2층 숫자 차이 — " + "; ".join(f"{SIGNALS[k]['이름']}: {numeric[k]['이유']}" for k in d2), **info}
+    return {"층": 2, "결과": "통과", "사유": "", **info}
 
 def _instruction():
     return ("후보마다 '판정할 신호'만 판정한다. 근거 문장은 입력 원문(후보 description·sales_lines, 분석대상 products·channel·description)에서 "
@@ -394,22 +459,28 @@ def _verify(j, tested, cand_by, targets):
     return out, dropped
 
 
-def _recommend(rows):
-    diff = [k for k, r in rows.items() if r["판정"] == "다름"]
-    unk = [k for k, r in rows.items() if r["판정"] == "불명" and k in CORE]
-    core_diff = [k for k in diff if k in CORE]
+def _recommend(rows, pre=None):
+    """깔때기 끊는 선(2026-11-19 승미님 결정, 판례 정답 세트로 보정). pre는 0~2층 결과."""
+    pre = pre or {"층": 2, "결과": "통과", "사유": ""}
+    if pre["결과"] == "제외":
+        return "제외 후보", pre["사유"]
+    core_diff = [k for k in CORE if rows.get(k, {}).get("판정") == "다름"]
     if len(core_diff) >= 2:
         return "제외 후보", f"핵심 신호 {', '.join(core_diff)}가 함께 다름 — 판례상 품목·거래단계·기능이 함께 다르고 조정이 없으면 비교가능성이 부정됨(대법원 2012두23341, 수원고법 2023누16871)"
-    if diff:
-        adj = [k for k in diff if SIGNALS[k]["조정 가능"]]
-        why = f"{', '.join(diff)} 다름 — 차이 하나만으로 제외된 사례는 없음. 조정 가능 여부와 영업이익률 영향을 사람이 확인"
-        if adj:
-            why += f"({', '.join(adj)}는 판례상 조정할 수 있는 차이에 가까움)"
-        return "사람 확인", why
+    why = [pre["사유"]] if pre["결과"] == "사람 확인" else []
+    if core_diff:
+        why.append(f"{SIGNALS[core_diff[0]]['이름']}({core_diff[0]})만 다름 — 차이 하나만으로 제외된 사례는 없음, 조정 가능 여부와 이익률 영향을 사람이 확인")
+    unk = [k for k in CORE if rows.get(k, {}).get("판정") == "불명"]
     core_here = [k for k in CORE if k in rows]
-    if core_here and len(unk) >= min(3, len(core_here)):
-        return "사람 확인", f"핵심 신호 {len(core_here)}개 중 불명 {len(unk)}개({', '.join(unk)}) — 자료를 더 확보해 판정"
-    return "포함", "다른 신호가 없음(핵심 신호 불명 2개 이하) — 거래단계·시장·계약 조건은 사람이 최종 확인"
+    if not why and core_here and len(unk) >= min(3, len(core_here)):
+        why.append(f"핵심 신호 {len(core_here)}개 중 불명 {len(unk)}개({', '.join(unk)}) — 자료를 더 확보해 판정")
+    elif not why and "R1" in unk and "R2" in unk:            # 품목·거래단계를 둘 다 모르면 포함하지 않음(2026-11-19 측정: 둘 다 불명인 후보가 '포함'으로 나옴)
+        why.append("품목(R1)과 거래단계(R2)가 모두 불명 — 자료를 더 확보해 판정")
+    d5 = [k for k in LAYER5 if rows.get(k, {}).get("판정") == "다름"]
+    tail = f" · {', '.join(d5)} 차이는 제외 사유가 아님 — 보고서에 차이와 조정 여부를 적음" if d5 else ""
+    if why:
+        return "사람 확인", " / ".join(why) + tail
+    return "포함", "다른 신호가 없음(핵심 신호 불명 2개 이하)" + tail + " — 거래단계·시장·계약 조건은 사람이 최종 확인"
 
 
 def _confidence(rows):
@@ -447,7 +518,8 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
     idx = _case_index()
     cand_by = {c["name"]: c for c in candidates}
     numeric = {c["name"]: _numeric(tested, c, R) for c in candidates}
-    targets = {c["name"]: _model_targets(tested, c, numeric[c["name"]], role) for c in candidates}
+    pre = {c["name"]: _funnel_pre(tested, c, numeric[c["name"]]) for c in candidates}
+    targets = {c["name"]: ([] if pre[c["name"]]["결과"] == "제외" else _model_targets(tested, c, numeric[c["name"]], role)) for c in candidates}   # 0·1층에서 제외되면 문장 판정을 묻지 않음
     base = {"입력": {"역할": role or "판매·제조(지정 안 함)", "후보 수": len(candidates)},
             "신호 설명": {k: {"이름": SIGNALS[k]["이름"], "묻는 것": SIGNALS[k]["묻는 것"], **({"판정 범위": SIGNALS[k]["판정 범위"]} if SIGNALS[k].get("판정 범위") else {}),
                          "근거 층": {**SIGNALS[k].get("근거 층", {}), "판례": SIGNALS[k]["판례"]}} for k in _signals_for(role)},
@@ -519,13 +591,13 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
                               "판정 주체": "도구(원문 낱말)", "사실": {"후보 제조": cm, "분석대상 제조": tm}, **({"AI 판정": ai} if ai else {})}
             elif "R2" in rows:
                 rows["R2"] = {**rows["R2"], "사실": {"후보 제조": cm, "분석대상 제조": tm}}
-        rec, why = _recommend(rows)
+        rec, why = _recommend(rows, pre[n])
         sig_rows = []
         for k in sorted(rows, key=lambda x: int(x[1:])):
             r = rows[k]
             sig_rows.append({"신호": k, "이름": SIGNALS[k]["이름"], **r, "조정 가능": SIGNALS[k]["조정 가능"],
                              **({"근거": {**SIGNALS[k].get("근거 층", {}), "판례": _cases_for(k, idx)}, "볼 포인트": SIGNALS[k]["볼 포인트"]} if r["판정"] != "가까움" else {})})
-        results.append({"후보": n, "권고": rec, "이유": why, "확신도": _confidence(rows), "신호": sig_rows,
+        results.append({"후보": n, "권고": rec, "이유": why, "확신도": _confidence(rows), "깔때기": pre[n], "신호": sig_rows,
                         "사람이 볼 것": [f"{s['신호']} {s['이름']}: {s['볼 포인트']}" for s in sig_rows if s["판정"] != "가까움"][:5]})
     order = {"제외 후보": 0, "사람 확인": 1, "포함": 2}
     results.sort(key=lambda r: order[r["권고"]])
