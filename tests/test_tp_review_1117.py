@@ -413,9 +413,26 @@ def test_r1_product_group_by_source_words():
     assert T._cand_product(c("당사는 순수지주회사로서 자회사의 지분 소유"), t)[0] == "다름"
     assert T._cand_product(c("화장품사업부문의 당기 매출비율은 79.80%입니다. 엔터테인먼트 사업도 영위"), t)[0] == "가까움"
     assert T._cand_product(c("화장품 및 건강기능식품 판매"), t) is None
-    assert T._cand_product(c("합성수지 첨가제 제조"), t) is None
+    assert T._cand_product(c("합성수지 첨가제 제조"), t)[0] == "다름"               # 화장품 낱말 없이 다른 제품군만(2026-11-19)
+    assert T._cand_product(c("여행 상품 판매 대행"), t) is None                       # 어느 제품군 낱말도 없으면 모델에
     assert T._cand_product(c("본사 소재지는 서울, 화장품 도매"), t)[0] == "가까움"      # '소재지'는 다른 제품군 아님
     assert T._cand_product(c("화장품"), {"products": "배터리 소재"}) is None          # 분석대상 제품군을 모르면 모델에
+
+
+def test_r1_industry_pack_computer():
+    """업종 팩(2026-11-19): 분석대상 품목으로 팩을 고름. 컴퓨터 팩은 한국표준산업분류 해설서 예시 품목에서 만든 낱말."""
+    from korean_tax_mcp import tp_review as T
+    t = {"products": "컴퓨터 및 주변장치·소프트웨어", "description": "해외 제조사 제품을 수입해 국내 리셀러에 도매"}
+    assert T._pack_for(t)["id"] == "computer"
+    assert T._pack_for({"products": "화장품"})["id"] == "cosmetics"
+    assert T._pack_for({"products": "여행 상품"}) is None
+    c = lambda d: {"name": "X", "description": d}
+    assert T._cand_product(c("노트북 PC와 모니터, 키보드를 국내 대리점에 공급"), t)[0] == "가까움"
+    r = T._cand_product(c("수영복과 방수복을 백화점에 판매"), t)
+    assert r[0] == "다름" and "업종 팩 computer" in r[1]
+    assert T._cand_product(c("컴퓨터와 수영복을 함께 판매"), t) is None             # 섞이고 비중을 모르면 모델에
+    for p in T.PACKS:                                                                # 팩마다 출처·업종코드가 붙어 있어야 함
+        assert p["출처"] and p["업종코드"]
 
 
 def test_funnel_layer1_function_type(monkeypatch):
