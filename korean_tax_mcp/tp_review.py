@@ -353,32 +353,56 @@ def _cand_src(c):
 
 # R1 취급 품목 — 제품군을 원문 낱말로 도구가 먼저 정함(2026-11-18 결정). 6번 판정에서 R1이 갈린 28곳 중 약 25곳은
 # 모델이 제조·ODM·자체 브랜드를 품목에 끌어들이거나('다름') '화장품'이라고만 적혀 세부를 몰라 '불명'으로 흔들렸음 — 판정 범위 밖.
-PRODUCT_GROUPS = {"화장품": r"화장품|코스메틱|스킨\s*케어|기초\s*화장|색조|메이크업|마스크\s*팩|선\s*케어|클렌징|향수"}
-_R1_OTHER = re.compile(r"의약품|제약|건강\s*기능\s*식품|건강\s*식품|초콜[릿렛]|사료|바이오\s*소재|화학\s*소재|화학\s*제품|미용\s*기기|미용\s*장비|의료\s*기기|의료\s*장비|"
-                       r"엔터테인먼트|라미네이팅|일용\s*잡화|생활\s*용품|식음료|화장품\s*원료|원료\s*의약|소재(?!지)|첨가제|석유\s*화학")
+# 업종 팩(2026-11-19 결정: 업종별 지식은 깔때기 3·4층에만) — data/tp_packs/*.json. 분석대상 품목·설명에 같은 제품군 낱말이 처음 걸리는 팩을 씀.
+# 화장품은 후보 원문 실측으로 손으로 만든 목록, 컴퓨터는 한국표준산업분류 해설서 예시 품목에서 만든 목록(bench_ksic/make_pack.py).
+_PACK_ORDER = ("cosmetics", "computer")
+_PACK_DIR = os.path.join(os.path.dirname(__file__), "data", "tp_packs")
+
+
+def _words_re(words):
+    return "|".join(r"\s*".join(map(re.escape, w.replace(" ", ""))) for w in sorted(set(words), key=lambda w: -len(w.replace(" ", ""))))
+
+
+def _load_pack(pid):
+    with open(os.path.join(_PACK_DIR, f"{pid}.json"), encoding="utf-8") as f:
+        p = json.load(f)
+    rx = p.get("정규식") or {"같은 제품군": _words_re(x["낱말"] for x in p["같은 제품군"]),
+                           "다른 제품군": _words_re(w for w, _code in p["다른 제품군"])}
+    return {"id": p["id"], "제품군": p["제품군"], "출처": p["출처"], "업종코드": p["업종코드"],
+            "same": re.compile(rx["같은 제품군"]), "other": re.compile(rx["다른 제품군"])}
+
+
+PACKS = [_load_pack(p) for p in _PACK_ORDER]
 _R1_HOLDING = re.compile(r"순수\s*지주\s*회사|지주\s*사업을\s*중점")
+
+
+def _pack_for(tested):
+    tt = f"{tested.get('products', '')} {tested.get('description', '')}"
+    return next((p for p in PACKS if p["same"].search(tt)), None)
 
 
 def _cand_product(c, tested):
     """후보 제품군을 원문 낱말로 — 반환 (가까움|다름, 근거) 또는 None(모델에 맡김).
     순수 지주회사 → 다름. 분석대상 제품군 낱말만 있고 다른 제품군 낱말이 없음 → 가까움. 같은 제품군 사업부문의 매출 비중 50% 이상 → 가까움.
+    분석대상 제품군 낱말이 하나도 없고 다른 제품군 낱말이 있음 → 다름(2026-11-19, 화장품 정답 세트 다름 13/21·틀림 0).
     제조·ODM·자체 브랜드·수입 여부는 보지 않는다(R2·R4 몫). 다른 제품군이 섞이고 비중을 모르면 None."""
-    tt = f"{tested.get('products', '')} {tested.get('description', '')}"
-    grp = next((g for g, pat in PRODUCT_GROUPS.items() if re.search(pat, tt)), None)
-    if not grp:
+    pk = _pack_for(tested)
+    if not pk:
         return None
+    grp, pat = pk["제품군"], pk["same"].pattern
     t = _cand_text(c)
     hm = _R1_HOLDING.search(t)
     if hm:
         return "다름", "순수 지주회사 — 직접 파는 물건이 없음: " + _snip(t, hm)
-    pat = PRODUCT_GROUPS[grp]
     for m in re.finditer(r"(?:" + pat + r")\s*(?:사업\s*부문|사업부|사업|부문)[^%]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%", t):
         if 50 <= float(m.group(1)) <= 100:
             return "가까움", f"{grp} 사업부문 매출 비중 {m.group(1)}%: " + _snip(t, m)
-    gm = re.search(pat, t)
-    om = _R1_OTHER.search(t)
+    gm = pk["same"].search(t)
+    om = pk["other"].search(t)
     if gm and not om:
-        return "가까움", f"후보 원문의 제품군이 {grp}뿐(다른 제품군 낱말 없음): " + _snip(t, gm)
+        return "가까움", f"후보 원문의 제품군이 {grp}뿐(다른 제품군 낱말 없음, 업종 팩 {pk['id']}): " + _snip(t, gm)
+    if om and not gm:
+        return "다름", f"후보 원문에 {grp} 낱말이 없고 다른 제품군 '{om.group(0)}'(업종 팩 {pk['id']}): " + _snip(t, om)
     return None
 
 
@@ -604,6 +628,8 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
     out = {**base, "mode": mode if judgments is None else "host_ai", "판정 주체": who,
            "집계": {k: sum(r["권고"] == k for r in results) for k in order},
            "후보별 권고": results, "묶음 검사": _group_checks(tested, candidates, results, decisions),
+           "업종 팩": ({"id": pk["id"], "제품군": pk["제품군"], "업종코드": pk["업종코드"], "출처": pk["출처"]} if (pk := _pack_for(tested))
+                     else "없음 — 분석대상 품목에 맞는 업종 팩이 없어 품목(R1)은 모델 판정만 씀(지금 팩: " + ", ".join(p["제품군"] for p in PACKS) + ")"),
            "승인 안내": "권고·판정마다 근거 문장과 판례가 붙어 있다 — 사람은 승인하거나 판정·권고를 고쳐 사유를 남긴다. 제외로 확정한 후보와 사유는 decisions로 넘기면 남긴 후보와 같은 잣대인지 대조한다.",
            "계산 다음 단계": "확정한 후보로 계산 MCP tp_comparable_screen → arm_length_range(정상가격 범위)",
            "주의": "AI 판정과 도구 권고는 검토 보조 — 정상가격이나 비교가능성을 확정하지 않는다. 판례는 tp_cases.json 본문 대조분, 인용 전에 get_tax_ruling으로 본문 확인"}
