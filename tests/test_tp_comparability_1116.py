@@ -9,9 +9,9 @@ from korean_tax_mcp import transfer_pricing as T
 
 # 계산 MCP(korean-tax-calc-mcp) engine/kr_comparables/compare.py DEFAULT_RULES, engine/calc_tp_screen.py DEFAULT_SCREENS의 키(2026-11-16)
 CALC_RULES = {"mix_max_diff", "ratio_low", "ratio_high", "ppe_abs_tol", "rnd_abs_tol", "advert_abs_tol", "coverage_min", "coverage_max",
-              "independence_legal_pct", "related_sales_review", "unknown_review_count", "mix_unverified_review"}
+              "independence_legal_pct", "related_sales_review", "related_purchase_review", "unknown_review_count", "mix_unverified_review"}
 CALC_SCREENS = {"independence_pct", "independence_bvd_reject", "industry_codes", "size_min", "size_max", "loss_years", "crisis_exception",
-                "rnd_max", "adv_max", "wc_band", "related_max", "segment_min", "special_flags", "outlier_k", "op_tolerance"}
+                "rnd_max", "adv_max", "wc_band", "related_max", "related_purchase_max", "segment_min", "special_flags", "outlier_k", "op_tolerance"}
 
 
 def _rows():
@@ -122,3 +122,16 @@ def test_far_points_to_comparability_both_modes():
 def test_english_still_works():
     f = getattr(S.transfer_pricing_guide, "fn", S.transfer_pricing_guide)
     assert isinstance(f(transaction="재화", lang="en"), dict)
+
+
+def test_related_purchase_keys_are_handed_off_as_practice_values():
+    """특수관계 매입 비중 기준(2026-11-20) — 매출 쪽과 짝, 성격은 관행, 분모(매출원가)를 뜻에 적고 '넘길 값'에 실림."""
+    c = T.selection_criteria("재화", {"role": "판매", "limited_risk": True})
+    rows = {r["키"]: r for r in c["kr_comparable_profile_compare"] + c["tp_comparable_screen"]}
+    for k, pair in (("related_purchase_review", "related_sales_review"), ("related_purchase_max", "related_max")):
+        r = rows[k]
+        assert r["값"] == rows[pair]["값"] == 0.25 and r["성격"] == "관행(근거 약함, 바꿀 수 있음)" and r["근거 강도"] == "약"
+        assert "매출원가" in r["뜻"] and "8-0…1" in r["출처"] and "숫자 근거 없음" in r["출처"] and "2009두24122" in r["출처"]
+    h = c["넘길 값"]
+    assert h["kr_comparable_profile_compare"]["rules"]["related_purchase_review"] == 0.25
+    assert h["tp_comparable_screen"]["screens"]["related_purchase_max"] == 0.25
