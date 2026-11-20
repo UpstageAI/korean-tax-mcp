@@ -215,7 +215,7 @@ def far(parties=None, risks=None, facts=None, tested_party=""):
 _COMPARABLE_CALC = (
     {"도구": "계산 MCP kr_comparable_candidates", "용도": "1 국내 상장·외감 기업에서 업종·규모로 비교대상 후보 모으기"},
     {"도구": "계산 MCP kr_comparable_profile_compare", "용도": "2 후보별 매출 구성·재고·유형자산·연구개발·광고 프로필을 분석대상과 비교(제외 후보·사람 확인 표시)"},
-    {"도구": "계산 MCP tp_comparable_screen", "용도": "3 독립성·손실·특수관계 매출 등 선정 기준으로 거르고 탈락 매트릭스·사분위 범위"},
+    {"도구": "계산 MCP tp_comparable_screen", "용도": "3 독립성·손실·특수관계 매출·매입 등 선정 기준으로 거르고 탈락 매트릭스·사분위 범위"},
     {"도구": "계산 MCP arm_length_range", "용도": "4 남은 비교대상 이익률로 정상가격 범위와 조정액"},
 )
 
