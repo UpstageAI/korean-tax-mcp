@@ -7,9 +7,11 @@ from korean_tax_mcp import server as S
 from korean_tax_mcp import tp_report as R
 from korean_tax_mcp import transfer_pricing as T
 
-# 계산 MCP(korean-tax-calc-mcp) engine/kr_comparables/compare.py DEFAULT_RULES, engine/calc_tp_screen.py DEFAULT_SCREENS의 키(2026-11-16)
+# 계산 MCP(korean-tax-calc-mcp) engine/kr_comparables/compare.py RULE_KEYS·LEGAL_RULES, engine/calc_tp_screen.py DEFAULT_SCREENS의 키(2026-11-16)
+# 2026-11-23: 특수관계 거래 비중 관행값(related_sales_review·related_purchase_review 0.25, related_max·related_purchase_max 0.25)을 넘기지 않음 —
+# 법정(준용) 의존 신호 control_dependence(50%)만 넘김. control_dependence는 계산 MCP 0.61.0부터 받는 키.
 CALC_RULES = {"mix_max_diff", "ratio_low", "ratio_high", "ppe_abs_tol", "rnd_abs_tol", "advert_abs_tol", "coverage_min", "coverage_max",
-              "independence_legal_pct", "related_sales_review", "related_purchase_review", "unknown_review_count", "mix_unverified_review"}
+              "independence_legal_pct", "control_dependence", "unknown_review_count", "mix_unverified_review"}
 CALC_SCREENS = {"independence_pct", "independence_bvd_reject", "industry_codes", "size_min", "size_max", "loss_years", "crisis_exception",
                 "rnd_max", "adv_max", "wc_band", "related_max", "related_purchase_max", "segment_min", "special_flags", "outlier_k", "op_tolerance"}
 
@@ -76,11 +78,11 @@ def test_selection_criteria_sources_and_handoff_keys():
     rows = c["kr_comparable_profile_compare"] + c["tp_comparable_screen"]
     assert all(r["성격"] in ("법정", "법정(준용)", "통칙", PR) and r["출처"] and r["기준일"] and r["근거 강도"] in ("강", "중", "약") for r in rows)
     kind = {r["키"]: r["성격"] for r in rows}
-    for k in ("mix_max_diff", "ratio_low", "related_sales_review", "independence_pct", "loss_years", "rnd_max", "adv_max"):
+    for k in ("mix_max_diff", "ratio_low", "independence_pct", "loss_years", "rnd_max", "adv_max"):
         assert kind[k] == PR, k
     assert kind["quartile_method"] == "통칙"  # 국조법 기본통칙 8-15…1, 계산 MCP 0.61.0 기본값 'nts'
     assert {r["근거 강도"] for r in rows if r["성격"] == PR} == {"약"}
-    assert kind["independence_legal_pct"] == "법정(준용)" and kind["crisis_exception"] == "법정"
+    assert kind["independence_legal_pct"] == "법정(준용)" and kind["control_dependence"] == "법정(준용)" and kind["crisis_exception"] == "법정"
     # 판례 신호는 숫자 기준이 아니라 확인 질문
     assert not any(r["성격"] == "판례" for r in rows)
     qs = c["확인 질문"]
@@ -124,14 +126,17 @@ def test_english_still_works():
     assert isinstance(f(transaction="재화", lang="en"), dict)
 
 
-def test_related_purchase_keys_are_handed_off_as_practice_values():
-    """특수관계 매입 비중 기준(2026-11-20) — 매출 쪽과 짝, 성격은 관행, 분모(매출원가)를 뜻에 적고 '넘길 값'에 실림."""
+def test_related_share_caps_not_handed_off():
+    """특수관계 거래 비중 상한(관행 0.25)은 넘기지 않음(2026-11-23) — 자동 제외 없음, 의존 신호 50%(법정 준용)만 프로필 비교 rules로."""
     c = T.selection_criteria("재화", {"role": "판매", "limited_risk": True})
-    rows = {r["키"]: r for r in c["kr_comparable_profile_compare"] + c["tp_comparable_screen"]}
-    for k, pair in (("related_purchase_review", "related_sales_review"), ("related_purchase_max", "related_max")):
-        r = rows[k]
-        assert r["값"] == rows[pair]["값"] == 0.25 and r["성격"] == "관행(근거 약함, 바꿀 수 있음)" and r["근거 강도"] == "약"
-        assert "매출원가" in r["뜻"] and "8-0…1" in r["출처"] and "숫자 근거 없음" in r["출처"] and "2009두24122" in r["출처"]
+    keys = {r["키"] for r in c["kr_comparable_profile_compare"] + c["tp_comparable_screen"]}
+    assert not keys & {"related_sales_review", "related_purchase_review", "related_max", "related_purchase_max"}
     h = c["넘길 값"]
-    assert h["kr_comparable_profile_compare"]["rules"]["related_purchase_review"] == 0.25
-    assert h["tp_comparable_screen"]["screens"]["related_purchase_max"] == 0.25
+    assert not set(h["tp_comparable_screen"]["screens"]) & {"related_max", "related_purchase_max"}
+    assert h["kr_comparable_profile_compare"]["rules"]["control_dependence"] == 0.5
+    row = next(r for r in c["kr_comparable_profile_compare"] if r["키"] == "control_dependence")
+    assert "제2조제2항제3호 다목" in row["출처"] and "2009두24122" in row["출처"] and row["기준일"].startswith("2026")
+    info = c["특수관계 거래 비중"]
+    assert "숫자 기준 없음" in info["안내"] and "자동 제외하지 않음" in info["안내"]
+    assert "목적이 다른 증여의제 규정" in info["참고선"]["출처"] and "비교대상 독립성 기준 아님" in info["참고선"]["출처"]
+    assert "2008두14364" in info["20% 사례"] and "청구인 주장" in info["20% 사례"]
