@@ -10,6 +10,7 @@ import json
 import os
 import re
 
+from . import related_share as _rel
 from . import solar
 from . import tp_report as _tp
 
@@ -27,7 +28,8 @@ SOLAR_CHUNK = 3            # Solar 한 번에 판정할 후보 수 — 10개(문
 SOLAR_MAX_TOKENS = 6000
 SIGNAL_GROUPS = (("R1", "R2", "R3", "R4"), ("R8", "R12", "R15", "R16", "R17"))   # Solar에 따로 물을 신호 묶음(핵심 / 나머지)
 _TESTED_KEYS = ("role", "function", "limited_risk", "products", "channel", "description", "advert", "rnd", "related", "sales", "export", "inv")
-_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production", "mix", "goods_merch_ratio", "industry_code", "sales_channel")
+_CAND_KEYS = ("name", "description", "sales_lines", "advert", "rnd", "related_sales", "related_purchase", "sales", "export", "inv", "calc", "production", "mix", "goods_merch_ratio", "industry_code", "sales_channel",
+              "company_size")
 _RATIO_KEYS = ("advert", "rnd", "related", "related_sales", "related_purchase", "sales", "export", "inv")
 
 
@@ -91,9 +93,14 @@ def _validate(tested, candidates, rules):
     for k in _RATIO_KEYS:
         if k in tested and tested[k] is not None and _num(tested[k]) is None:
             return f"tested.{k}는 숫자(비율은 0~1)여야 합니다"
+        if c.get("company_size") is not None and c["company_size"] not in _rel.SIZES:
+            return f"candidates[{i}].company_size={c['company_size']!r} — 허용값: {list(_rel.SIZES)}(모르면 빼기 — 참고선은 일반 30%로 표시)"
     bad = [k for k in (rules or {}) if k not in DEFAULT_RULES]
     if bad:
         return f"rules의 키 {bad} — 허용 키: {list(DEFAULT_RULES)}"
+    rr = (rules or {}).get("related_review")
+    if rr is not None and (_num(rr) is None or not 0 < _num(rr) <= 1):
+        return "rules.related_review는 0~1 비율(사용자 검토선, 기본값 없음 — 빼면 의존 신호 50%)"
     return None
 
 
@@ -110,10 +117,13 @@ def _numeric(tested, cand, R):
             d = abs(c - t)
             put(sig, "다름" if d > R[tol] else "가까움", f"분석대상 {t:.1%} vs 후보 {c:.1%}(차이 {d:.1%}p)", tol)
     rs, rp = _num(cand.get("related_sales")), _num(cand.get("related_purchase"))
-    if rs is not None or rp is not None:
-        hi = max(x for x in (rs, rp) if x is not None)
-        parts = ", ".join(f"{n} {v:.1%}" for n, v in (("특수관계 매출", rs), ("특수관계 매입", rp)) if v is not None)
-        put("R5", "다름" if hi >= R["related_review"] else "가까움", parts + " — 거래 비중만으로 법정 특수관계는 아님", "related_review")
+    if rs is not None or rp is not None:          # 숫자는 data/related_share.json 한 곳(transfer_pricing_guide와 같은 값) — 관행 기본값 없음
+        a = _rel.assess(rs, rp, cand.get("company_size"), R.get("related_review"))
+        dep = a["의존 신호"]
+        why = _rel.summary(rs, rp) + (f" ≥ {dep['기준']:.0%}" if dep["해당"] else f" — {dep['기준']:.0%} 미만") + " — 거래 비중만으로 법정 특수관계는 아님"
+        basis = (f"related_review={dep['기준']}(사용자 입력)" if R.get("related_review") is not None
+                 else f"의존 신호 {dep['기준']:.0%}(법정 준용 — 국조법 시행령 제2조제2항제3호 다목, 자동 제외 아님)")
+        out["R5"] = {"판정": "다름" if dep["해당"] else "가까움", "이유": why, "기준": basis, "판정 주체": "도구(숫자)", "특수관계 거래 비중": a}
     t, c = _num(tested.get("sales")), _num(cand.get("sales"))
     if t and c and t > 0 and c > 0:
         m = c / t
@@ -633,7 +643,9 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
             "신호 설명": {k: {"이름": SIGNALS[k]["이름"], "묻는 것": SIGNALS[k]["묻는 것"], **({"판정 범위": SIGNALS[k]["판정 범위"]} if SIGNALS[k].get("판정 범위") else {}),
                          "근거 층": {**SIGNALS[k].get("근거 층", {}), "판례": SIGNALS[k]["판례"]}} for k in _signals_for(role)},
             "분석요소 대응": _DATA["분석요소 대응"], "근거 확인": _DATA["근거 확인"],
-            "기준값": {k: {"값": R[k], "성격": _DATA["숫자 기준"][k]["성격"], "뜻": _DATA["숫자 기준"][k]["뜻"]} for k in DEFAULT_RULES}}
+            "기준값": {**{k: {"값": R[k] if R[k] is not None else "없음(입력할 때만)", "성격": _DATA["숫자 기준"][k]["성격"], "뜻": _DATA["숫자 기준"][k]["뜻"]} for k in DEFAULT_RULES},
+                     "특수관계 거래 비중": {"의존 신호": {k: _rel.DATA["의존 신호"][k] for k in ("값", "성격", "출처")},
+                                     "참고선": {k: _rel.DATA["참고선"][k] for k in ("값", "성격", "출처")}, "안내": _rel.DATA["숫자 기준 없음"]}}}
 
     mode = solar.mode()
     if judgments is None and mode == "host_ai" and any(targets.values()):
@@ -720,7 +732,9 @@ def review(tested, candidates, judgments=None, rules=None, decisions=None):
             r = rows[k]
             sig_rows.append({"신호": k, "이름": SIGNALS[k]["이름"], **r, "조정 가능": SIGNALS[k]["조정 가능"],
                              **({"근거": {**SIGNALS[k].get("근거 층", {}), "판례": _cases_for(k, idx)}, "볼 포인트": SIGNALS[k]["볼 포인트"]} if r["판정"] != "가까움" else {})})
+        rel = _rel.assess(_num(c.get("related_sales")), _num(c.get("related_purchase")), c.get("company_size"), R.get("related_review"))
         results.append({"후보": n, "권고": rec, "이유": why, "확신도": _confidence(rows), "깔때기": pre[n], "신호": sig_rows,
+                        "특수관계 거래 비중": rel,
                         **({"추가 정보 확인 필요": more} if more else {}),
                         "사람이 볼 것": [f"{s['신호']} {s['이름']}: {s['볼 포인트']}" for s in sig_rows if s["판정"] != "가까움"][:5]})
     order = {"제외 후보": 0, "사람 확인": 1, "포함": 2}

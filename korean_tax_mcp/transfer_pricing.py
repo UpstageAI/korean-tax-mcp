@@ -5,6 +5,7 @@ import json
 import os
 
 from . import oecd_tpg as _tpg
+from . import related_share as _rel
 from .tp_report import _COMPARABLE_CALC
 
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "transfer_pricing.json")
@@ -52,6 +53,10 @@ def selection_criteria(transaction="재화", comparable=None):
     if role is not None and role not in ROLES:
         return {"error": f"comparable.role={role!r} — 허용값: {list(ROLES)}"}
     c = json.loads(json.dumps(_DATA["비교대상 선정 기준"], ensure_ascii=False))
+    dep = _rel.DATA["의존 신호"]
+    for row in c["kr_comparable_profile_compare"]:
+        if row["키"] == "control_dependence":           # 숫자는 related_share.json 한 곳(tp_comparability_review R5와 같은 값)
+            row.update({"값": dep["값"], "출처": dep["출처"], "기준일": dep["기준일"]})
     note = []
     if cmp_.get("economic_crisis"):
         row = next(x for x in c["tp_comparable_screen"] if x["키"] == "crisis_exception")
@@ -68,7 +73,11 @@ def selection_criteria(transaction="재화", comparable=None):
     scr = {x["키"]: x["값"] for x in c["tp_comparable_screen"] if x["키"] != "quartile_method"}
     qm = next(x["값"] for x in c["tp_comparable_screen"] if x["키"] == "quartile_method")
     out = {**c, "확인 질문": qs, "입력": {"거래 유형": transaction, "역할": role or "판매·제조(지정 안 함)", **{k: v for k, v in cmp_.items() if k != "role"}},
-           "넘길 값": {"kr_comparable_profile_compare": {"rules": prof}, "tp_comparable_screen": {"screens": scr, "quartile_method": qm}}}
+           "넘길 값": {"kr_comparable_profile_compare": {"rules": prof}, "tp_comparable_screen": {"screens": scr, "quartile_method": qm}},
+           "특수관계 거래 비중": {"안내": _rel.DATA["숫자 기준 없음"] + " 특수관계 매출·매입 비중으로 자동 제외하지 않음 — 선별(tp_comparable_screen)에 상한을 넘기지 않음",
+                            "의존 신호": {k: dep[k] for k in ("값", "뜻", "성격", "출처")} | {"넘기는 키": "kr_comparable_profile_compare rules.control_dependence"},
+                            "참고선": {k: _rel.DATA["참고선"][k] for k in ("값", "뜻", "성격", "출처", "대기업 보조선")} | {"넘기는 키": "없음 — tp_comparability_review가 후보마다 표시(company_size)"},
+                            "20% 사례": _rel.DATA["20% 사례"]}}
     if note:
         out["주의"] = note
     return out
