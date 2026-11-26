@@ -151,3 +151,17 @@ def test_other_exemptions_by_year():
 def test_scope_asset_sale_from_2018():
     assert "제20호" not in J(G.guide(2017, "제조업"))["사업소득 범위"]["사유"]
     assert "제20호" in J(G.guide(2018, "제조업"))["사업소득 범위"]["사유"]
+
+
+def test_rental_business_temporary_lease_note_1126():
+    """임대사업자의 임대용 상가 일시 대여는 사업소득(제21조① 본문)."""
+    r = J(G.guide(2026, "부동산임대업"))
+    assert "일시적으로 대여" in str(r) and "제21조제1항 본문" in str(r)
+    assert "일시적으로 대여" not in str(J(G.guide(2026, "제조업")))
+
+
+def test_other_income_temporary_lease_warns_business_asset_1126():
+    from korean_tax_mcp import other_income as O
+    r = O.guide("2026-08-15", "일시대여")
+    row = [x for x in r["판정"] if x["항목"] == "소득 구분 주의"][0]
+    assert "사업소득" in row["판정"] and "제21조제1항 본문" in row["근거"]
