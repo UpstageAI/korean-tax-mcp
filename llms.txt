@@ -8,7 +8,7 @@ Registry name: `io.github.UpstageAI/korean-tax-mcp` · PyPI: `korean-tax-mcp` ·
 
 Tool names and descriptions start with English; the rest of each description and most source texts are Korean. Statute and treaty tools return official English texts where they exist.
 
-Agent builders: Anthropic's BM25 tool search (`tool_search_tool_bm25`) does not match Hangul queries — search with English keywords (tool descriptions start with English) or use the regex tool search (`tool_search_tool_regex`), which matches Korean terms (checked 2026-11-14).
+Agent builders: Anthropic's BM25 tool search (`tool_search_tool_bm25_20251119`) does not match Hangul queries — search with English keywords (tool descriptions start with English) or use the regex tool search (`tool_search_tool_regex_20251119`), which matches Korean terms (checked 2026-11-14).
 
 ## Which tool for which question
 

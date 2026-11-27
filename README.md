@@ -163,7 +163,7 @@ flowchart LR
 <summary><b>에이전트에 붙일 때 (개발자용)</b></summary>
 
 - 도구 이름은 영어이고, 도구 설명은 모두 영어 한 줄로 시작한 뒤 한국어 설명이 이어집니다. 질문 → 도구 표는 [llms.txt](https://github.com/UpstageAI/korean-tax-mcp/blob/main/llms.txt)에 있습니다.
-- Anthropic의 BM25 도구 검색(`tool_search_tool_bm25`)으로 에이전트를 만들면 한글 검색어가 맞지 않습니다(2026-11-14 확인 — 설명에 그대로 있는 한국어 낱말로 찾아도 0건, 영어는 찾음). 영어 키워드로 찾거나(도구 설명이 영어로 시작) 한국어 용어도 맞는 정규식 도구 검색(`tool_search_tool_regex`)을 쓰세요.
+- Anthropic의 BM25 도구 검색(`tool_search_tool_bm25_20251119`)으로 에이전트를 만들면 한글 검색어가 맞지 않습니다(2026-11-14 확인 — 설명에 그대로 있는 한국어 낱말로 찾아도 0건, 영어는 찾음). 영어 키워드로 찾거나(도구 설명이 영어로 시작) 한국어 용어도 맞는 정규식 도구 검색(`tool_search_tool_regex_20251119`)을 쓰세요.
 
 </details>
 
