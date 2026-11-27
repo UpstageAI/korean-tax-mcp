@@ -168,7 +168,7 @@ Ask your agent in English, e.g. *"Find recent NTS rulings on deemed interest for
 <summary><b>For agent developers</b></summary>
 
 - Tool names are English, and every tool description starts with a one-line English summary followed by the Korean description. A question → tool table is in [llms.txt](https://github.com/UpstageAI/korean-tax-mcp/blob/main/llms.txt).
-- If you build an agent with Anthropic's BM25 tool search (`tool_search_tool_bm25`), it does not match Hangul queries — search with English keywords (tool descriptions start with English) or use the regex tool search (`tool_search_tool_regex`), which matches Korean terms. Verified 2026-11-14: Korean words present verbatim in the descriptions returned 0 results; English keywords matched.
+- If you build an agent with Anthropic's BM25 tool search (`tool_search_tool_bm25_20251119`), it does not match Hangul queries — search with English keywords (tool descriptions start with English) or use the regex tool search (`tool_search_tool_regex_20251119`), which matches Korean terms. Verified 2026-11-14: Korean words present verbatim in the descriptions returned 0 results; English keywords matched.
 
 </details>
 
